@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Union, cast
 
+from .gemini import GeminiClient
 from .longcat import LongCatClient
 from .model_registry import get_provider_for_model
 from .openrouter import OpenRouterClient
 from .zenmux import ZenmuxClient
 
-ClientType = Union[OpenRouterClient, LongCatClient, ZenmuxClient]
+ClientType = Union[OpenRouterClient, LongCatClient, ZenmuxClient, GeminiClient]
 
 _CLIENT_CACHE: Dict[str, ClientType] = {}
 
@@ -34,6 +35,9 @@ def get_client(
 
     if provider == "zenmux":
         return cast(ClientType, _get_cached("zenmux", ZenmuxClient))
+
+    if provider == "gemini":
+        return cast(ClientType, _get_cached("gemini", GeminiClient))
 
     # Default to OpenRouter (including unknown providers that fall back)
     if default_client is not None and isinstance(default_client, OpenRouterClient):

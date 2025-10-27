@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, TypedDict
 
-ProviderName = Literal["openrouter", "longcat", "zenmux"]
+ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini"]
 
 
 class Capabilities(TypedDict, total=False):
@@ -167,7 +167,44 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_thinking_budget": False,
         },
         "api_model": "moonshotai/kimi-k2-0905"
-    }
+    },
+    # Gemini models
+    "gemini::gemini-2.5-flash": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "gemini-2.5-flash",
+    },
+    "gemini::gemini-2.5-pro": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "gemini-2.5-pro",
+    },
+    "gemini::gemini-2.5-flash-lite": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "gemini-2.5-flash-lite",
+    },
+    "gemini::gemini-2.0-flash": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "gemini-2.0-flash",
+    },
 }
 
 
@@ -186,6 +223,8 @@ def get_provider_for_model(model: str) -> ProviderName:
         return "openrouter"
     if m.startswith("zenmux::"):
         return "zenmux"
+    if m.startswith("gemini::"):
+        return "gemini"
     return "openrouter"
 
 
@@ -208,6 +247,12 @@ def get_capabilities(model: str) -> Capabilities:
             "supports_files": False,
             "supports_images": False,
             "supports_thinking_budget": False,
+        }
+    if provider == "gemini":
+        return {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": ("2.5" in m),  # Only 2.5 models support thinking
         }
     # openrouter default
     return {
@@ -233,6 +278,8 @@ def get_api_model(model: str) -> str:
     if m.startswith("openrouter::"):
         return model.split("::", 1)[1]
     if m.startswith("meituan::"):
+        return model.split("::", 1)[1]
+    if m.startswith("gemini::"):
         return model.split("::", 1)[1]
     return model
 

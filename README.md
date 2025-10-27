@@ -18,7 +18,11 @@ A full-stack AI-powered resume optimization application that uses a 5-agent pipe
 ### Backend
 - Python 3.11+
 - FastAPI (REST API)
-- OpenRouter (LLM provider)
+- Multi-provider LLM support:
+  - OpenRouter (default)
+  - Google Gemini API
+  - Zenmux
+  - Meituan LongCat
 - SQLite (database)
 - Exa API (job posting retrieval)
 
@@ -36,7 +40,7 @@ resume-optimizer/
 ├── backend/               # Python FastAPI server
 │   ├── src/
 │   │   ├── agents/       # AI agent implementations
-│   │   ├── api/          # API clients (OpenRouter, Exa)
+│   │   ├── api/          # API clients (OpenRouter, Exa, Gemini)
 │   │   ├── database/     # SQLite database layer
 │   │   └── utils/        # File processing utilities
 │   ├── server.py         # FastAPI application
@@ -47,8 +51,24 @@ resume-optimizer/
 │   │   ├── services/     # API client
 │   │   └── types/        # TypeScript types
 │   └── package.json
+├── docs/                 # Documentation
+│   ├── setup/           # Setup and configuration guides
+│   ├── integrations/    # Integration documentation
+│   ├── troubleshooting/ # Bug fixes and solutions
+│   └── checklists/      # Development checklists
 └── README.md
 ```
+
+## Documentation
+
+📚 **[View Complete Documentation](./docs/)** - Organized guides for setup, integrations, troubleshooting, and development.
+
+**Quick Links:**
+- [Setup Guide](./docs/setup/SETUP.md) - Installation and configuration
+- [Gemini API Setup](./docs/setup/GEMINI_SETUP.md) - Add Google Gemini support
+- [Integration Summary](./docs/integrations/INTEGRATION_SUMMARY.md) - Architecture overview
+- [Troubleshooting](./docs/troubleshooting/) - Common issues and fixes
+- [Checklists](./docs/checklists/) - Development and testing guides
 
 ## Setup
 
