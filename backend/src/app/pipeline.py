@@ -55,11 +55,14 @@ def run_from_current_step(
                 and st.session_state.get("auto_resume_upload") is not None
             ):
                 uploaded_file = st.session_state.auto_resume_upload
-                from src.utils import save_uploaded_file
+                from src.utils import save_uploaded_file, extract_text_from_file
+                import asyncio
 
-                temp_path, _ = save_uploaded_file(uploaded_file)
+                temp_path = save_uploaded_file(uploaded_file)
                 st.session_state.temp_files.append(temp_path)
-                resume_input = f"[File: {uploaded_file.name}]"
+                
+                # Extract text from file (uses Gemini for PDFs)
+                resume_input = asyncio.run(extract_text_from_file(temp_path))
 
             if not resume_input:
                 # Inputs not ready; exit and let UI gather them

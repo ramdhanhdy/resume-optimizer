@@ -50,8 +50,7 @@ def render_step(*, db, client, model: str, auto_run: bool) -> None:
         uploaded_job = st.file_uploader(
             "Upload Job Posting",
             type=["pdf", "docx", "txt", "png", "jpg", "jpeg"],
-            help="File uploads are temporarily disabled. Please paste the job posting text instead.",
-            disabled=True,
+            help="Upload your job posting as a PDF, DOCX, or text file. PDFs will be processed using Gemini 2.5 Flash.",
         )
         if uploaded_job:
             st.success(
@@ -81,11 +80,21 @@ def render_step(*, db, client, model: str, auto_run: bool) -> None:
                 job_url_used: Optional[str] = None
 
                 if job_input_method == "Upload File" and uploaded_job:
-                    temp_path, file_type = save_uploaded_file(uploaded_job)
+                    temp_path = save_uploaded_file(uploaded_job)
                     st.session_state.temp_files.append(temp_path)
-                    text_input = None
-                    file_input = temp_path
-                    file_type_input = file_type
+                    
+                    # Extract text from file (uses Gemini for PDFs)
+                    import asyncio
+                    from src.utils import extract_text_from_file, is_pdf
+                    
+                    with st.spinner("📄 Extracting text from file..."):
+                        text_input = asyncio.run(extract_text_from_file(temp_path))
+                    
+                    if is_pdf(uploaded_job.type):
+                        st.info("✨ PDF processed using Gemini 2.5 Flash document understanding")
+                    
+                    file_input = None
+                    file_type_input = None
                 elif job_input_method == "URL":
                     job_url_used = job_url_input.strip()
                     st.info("Fetching job posting via Exa live crawl...")

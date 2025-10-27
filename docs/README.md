@@ -21,6 +21,16 @@ Getting started and configuration documentation:
   - Testing your setup
   - Troubleshooting
 
+### 🏗️ [Architecture](./architecture/)
+
+System design and agent architecture:
+
+- **[AGENTS_DESIGN_PATTERN.md](./architecture/AGENTS_DESIGN_PATTERN.md)** - Agent design and pattern mapping
+  - Multi-agent pipeline overview
+  - Agent responsibilities and orchestration
+  - Google Cloud design pattern mapping
+  - Key implementation files
+
 ### 🔌 [Integrations](./integrations/)
 
 Third-party service integration documentation:

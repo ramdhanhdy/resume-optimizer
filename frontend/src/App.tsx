@@ -10,6 +10,7 @@ export interface AppState {
   applicationId?: number;
   resumeText?: string;
   jobText?: string;
+  jobUrl?: string;
   companyName?: string;
   jobTitle?: string;
   validationScores?: {
@@ -29,6 +30,7 @@ const App: React.FC = () => {
       ...prev,
       resumeText: data.resumeText,
       jobText: data.isUrl ? undefined : data.jobInput,
+      jobUrl: data.isUrl ? data.jobInput : undefined,
     }));
     setScreen(Screen.Processing);
   }, []);
@@ -55,6 +57,7 @@ const App: React.FC = () => {
             onComplete={handleProcessingComplete}
             resumeText={appState.resumeText!}
             jobText={appState.jobText}
+            jobUrl={appState.jobUrl}
           />
         )}
         {screen === Screen.Reveal && (

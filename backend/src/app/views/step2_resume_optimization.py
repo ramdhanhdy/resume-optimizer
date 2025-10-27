@@ -40,9 +40,13 @@ def render_step(
                 and st.session_state.auto_resume_upload
             ):
                 uploaded_file = st.session_state.auto_resume_upload
-                temp_path, file_type = save_uploaded_file(uploaded_file)
+                temp_path = save_uploaded_file(uploaded_file)
                 st.session_state.temp_files.append(temp_path)
-                auto_resume_input = f"[File: {uploaded_file.name}]"
+                
+                # Extract text from file (uses Gemini for PDFs)
+                import asyncio
+                from src.utils import extract_text_from_file
+                auto_resume_input = asyncio.run(extract_text_from_file(temp_path))
 
         if auto_resume_input:
             with st.spinner("🤖 Agent 2 is optimizing your resume (auto-run)..."):
@@ -156,8 +160,7 @@ def render_step(
         uploaded_resume = st.file_uploader(
             "Upload Resume",
             type=["pdf", "docx", "txt", "png", "jpg", "jpeg"],
-            help="File uploads are temporarily disabled. Please paste your resume text instead.",
-            disabled=True,
+            help="Upload your resume as a PDF, DOCX, or text file. PDFs will be processed using Gemini 2.5 Flash.",
         )
         if uploaded_resume:
             st.success(
@@ -171,9 +174,18 @@ def render_step(
         with st.spinner("🤖 Agent 2 is optimizing your resume..."):
             try:
                 if resume_input_method == "Upload File" and uploaded_resume:
-                    temp_path, file_type = save_uploaded_file(uploaded_resume)
+                    temp_path = save_uploaded_file(uploaded_resume)
                     st.session_state.temp_files.append(temp_path)
-                    resume_input = f"[File: {uploaded_resume.name}]"
+                    
+                    # Extract text from file (uses Gemini for PDFs)
+                    import asyncio
+                    from src.utils import extract_text_from_file, is_pdf
+                    
+                    with st.spinner("📄 Extracting text from resume..."):
+                        resume_input = asyncio.run(extract_text_from_file(temp_path))
+                    
+                    if is_pdf(uploaded_resume.type):
+                        st.info("✨ PDF processed using Gemini 2.5 Flash document understanding")
                 else:
                     resume_input = resume_text
 

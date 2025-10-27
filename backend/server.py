@@ -100,22 +100,28 @@ async def root():
 
 @app.post("/api/upload-resume")
 async def upload_resume(file: UploadFile = File(...)):
-    """Handle resume file upload."""
+    """Handle resume file upload with PDF extraction via Gemini."""
     try:
+        # Save uploaded file to temp location
         file_path = save_uploaded_file(file.file, file.filename)
         
-        # Extract text from file
-        from src.utils.file_handler import extract_text_from_file
-        resume_text = extract_text_from_file(file_path)
+        # Extract text from file (uses Gemini 2.5 Flash for PDFs)
+        from src.utils import extract_text_from_file
+        resume_text = await extract_text_from_file(file_path)
         
         # Cleanup temp file
         cleanup_temp_file(file_path)
+        
+        # Determine extraction method used
+        from src.utils import is_pdf
+        extraction_method = "gemini-2.5-flash" if is_pdf(file.filename) else "direct"
         
         return {
             "success": True,
             "filename": file.filename,
             "text": resume_text,
-            "length": len(resume_text)
+            "length": len(resume_text),
+            "extraction_method": extraction_method,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

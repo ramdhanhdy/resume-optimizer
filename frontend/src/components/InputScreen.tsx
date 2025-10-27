@@ -50,14 +50,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
     }
   };
 
-  useEffect(() => {
-    // Only auto-advance if we have BOTH ready state AND valid resume text
-    if (isReady && !isLoading && resumeText.trim().length > 0) {
-      const timeoutId = setTimeout(handleContinue, 1000);
-      return () => clearTimeout(timeoutId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, isLoading, resumeText]);
+  // Auto-advance removed - user must manually click Continue button for better UX
 
   return (
     <motion.div
@@ -105,8 +98,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
             value={jobInput}
             onChange={(e) => setJobInput(e.target.value)}
             placeholder="Paste Job Posting URL or Text..."
-            disabled={isLoading}
-            className="flex-1 px-4 bg-surface-light text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+            className="flex-1 px-4 bg-surface-light text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
         
