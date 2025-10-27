@@ -41,26 +41,30 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
   };
   
   const handleContinue = () => {
-    if (isReady && resumeText) {
+    // Defensive check: don't proceed without valid data
+    if (isReady && resumeText && resumeText.trim().length > 10) {
       const isUrl = jobInput.startsWith('http://') || jobInput.startsWith('https://');
       onStart({ resumeText, jobInput, isUrl });
+    } else {
+      console.warn('Cannot continue: missing resume text or job input');
     }
   };
 
   useEffect(() => {
-    if (isReady && !isLoading) {
+    // Only auto-advance if we have BOTH ready state AND valid resume text
+    if (isReady && !isLoading && resumeText.trim().length > 0) {
       const timeoutId = setTimeout(handleContinue, 1000);
       return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, isLoading]);
+  }, [isReady, isLoading, resumeText]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4, ease: 'swift' }}
+      transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
       className="min-h-screen flex items-center justify-center p-8"
     >
       <div className="w-full max-w-2xl text-center">
