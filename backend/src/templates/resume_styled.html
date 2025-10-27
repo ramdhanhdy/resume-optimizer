@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Resume - Muhammad Ramdhan Hidayat</title>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap");
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+
+            body {
+                font-family:
+                    "Inter",
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    "Segoe UI",
+                    sans-serif;
+                font-size: 10.5pt;
+                line-height: 1.5;
+                color: #2c3e50;
+                background: #ffffff;
+                max-width: 850px;
+                margin: 0 auto;
+                padding: 40px;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* Header Section */
+            .header {
+                text-align: center;
+                margin-bottom: 32px;
+                padding-bottom: 24px;
+                border-bottom: 3px solid #3498db;
+            }
+
+            h1 {
+                font-size: 32pt;
+                font-weight: 700;
+                margin-bottom: 8px;
+                color: #1a1a1a;
+                letter-spacing: -0.5px;
+            }
+
+            .contact {
+                font-size: 9.5pt;
+                color: #5a6c7d;
+                margin-top: 12px;
+                line-height: 1.6;
+            }
+
+            .contact a {
+                color: #3498db;
+                text-decoration: none;
+                transition: color 0.2s ease;
+            }
+
+            .contact a:hover {
+                color: #2980b9;
+            }
+
+            .contact-separator {
+                margin: 0 8px;
+                color: #bdc3c7;
+            }
+
+            /* Section Headers */
+            h2 {
+                font-size: 14pt;
+                font-weight: 700;
+                color: #2c3e50;
+                margin-top: 28px;
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid #3498db;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            /* Summary Section */
+            .summary {
+                background: #f8f9fa;
+                padding: 16px 20px;
+                border-radius: 8px;
+                border-left: 4px solid #3498db;
+                margin-bottom: 8px;
+                line-height: 1.6;
+            }
+
+            /* Skills Grid */
+            .skills-grid {
+                display: grid;
+                gap: 12px;
+                margin-top: 12px;
+            }
+
+            .skill-category {
+                background: #f8f9fa;
+                padding: 12px 16px;
+                border-radius: 6px;
+                border-left: 3px solid #3498db;
+                transition:
+                    transform 0.2s ease,
+                    box-shadow 0.2s ease;
+            }
+
+            .skill-category:hover {
+                transform: translateX(4px);
+                box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+            }
+
+            .skill-category strong {
+                color: #2c3e50;
+                font-weight: 600;
+                display: block;
+                margin-bottom: 4px;
+                font-size: 10pt;
+            }
+
+            .skill-category span {
+                color: #5a6c7d;
+                font-size: 10pt;
+                line-height: 1.5;
+            }
+
+            /* Job/Project/Education Items */
+            .job,
+            .project,
+            .edu {
+                margin-bottom: 20px;
+                padding-left: 2px;
+            }
+
+            .item-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                margin-bottom: 4px;
+                gap: 16px;
+            }
+
+            .item-title {
+                font-weight: 600;
+                color: #2c3e50;
+                font-size: 11pt;
+                flex: 1;
+            }
+
+            .dates {
+                color: #7f8c8d;
+                font-size: 9pt;
+                font-weight: 500;
+                white-space: nowrap;
+                background: #ecf0f1;
+                padding: 3px 10px;
+                border-radius: 4px;
+            }
+
+            .job-subtitle,
+            .project-subtitle {
+                color: #5a6c7d;
+                font-style: italic;
+                font-size: 10pt;
+                margin-bottom: 8px;
+                font-weight: 400;
+            }
+
+            /* Lists */
+            ul {
+                margin: 8px 0 0 20px;
+                padding: 0;
+                list-style: none;
+            }
+
+            li {
+                position: relative;
+                margin: 6px 0;
+                padding-left: 18px;
+                color: #34495e;
+                line-height: 1.5;
+            }
+
+            li:before {
+                content: "▸";
+                position: absolute;
+                left: 0;
+                color: #3498db;
+                font-weight: bold;
+            }
+
+            /* Certifications */
+            .certifications-list {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 10px;
+                margin-top: 12px;
+            }
+
+            .cert-item {
+                background: #f8f9fa;
+                padding: 10px 14px;
+                border-radius: 6px;
+                border-left: 3px solid #3498db;
+                font-size: 10pt;
+            }
+
+            .cert-item strong {
+                color: #2c3e50;
+                font-weight: 600;
+            }
+
+            .cert-date {
+                color: #7f8c8d;
+                font-size: 9pt;
+                margin-left: 6px;
+            }
+
+            /* Print Optimization */
+            @media print {
+                body {
+                    padding: 0;
+                    max-width: 100%;
+                }
+
+                .skill-category:hover {
+                    transform: none;
+                    box-shadow: none;
+                }
+
+                h2 {
+                    page-break-after: avoid;
+                }
+
+                .job,
+                .project,
+                .edu {
+                    page-break-inside: avoid;
+                }
+            }
+
+            /* Responsive Design */
+            @media screen and (max-width: 768px) {
+                body {
+                    padding: 20px;
+                }
+
+                h1 {
+                    font-size: 24pt;
+                }
+
+                .item-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 4px;
+                }
+
+                .dates {
+                    align-self: flex-start;
+                }
+
+                .certifications-list {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>Muhammad Ramdhan Hidayat</h1>
+            <div class="contact">
+                Jakarta, Indonesia
+                <span class="contact-separator">|</span>
+                <a href="mailto:ramdhan_hidayat@outlook.com"
+                    >ramdhan_hidayat@outlook.com</a
+                >
+                <span class="contact-separator">|</span>
+                +6281295813273
+                <br />
+                <a href="https://linkedin.com/in/muhammad-ramdhan-hidayat"
+                    >LinkedIn</a
+                >
+                <span class="contact-separator">|</span>
+                <a href="https://github.com/muhammad-ramdhan-hidayat">GitHub</a>
+            </div>
+        </div>
+
+        <h2>Summary</h2>
+        <div class="summary">
+            Aspiring AI Developer with a Master's in Data Science and hands-on
+            experience designing and implementing machine learning models to
+            solve complex business problems. Proficient in the full AI
+            application lifecycle, from data preprocessing and model development
+            (Python, Scikit-learn, TensorFlow) to building intuitive interfaces.
+            Eager to apply a passion for innovation and collaborative
+            problem-solving to drive business objectives within the FMCG sector.
+        </div>
+
+        <h2>Technical Skills</h2>
+        <div class="skills-grid">
+            <div class="skill-category">
+                <strong>Artificial Intelligence & Machine Learning</strong>
+                <span
+                    >AI Algorithms, Machine Learning Models, Predictive
+                    Modeling, Statistical Analysis, Information Retrieval (RAG),
+                    LLMs</span
+                >
+            </div>
+            <div class="skill-category">
+                <strong>Programming & Software Engineering</strong>
+                <span
+                    >Python (NumPy, Pandas, Scikit-learn, TensorFlow), R, SQL,
+                    Git, Full-Stack: Next.js, TypeScript, React</span
+                >
+            </div>
+            <div class="skill-category">
+                <strong>Cloud & Data Platforms</strong>
+                <span>AWS (SageMaker, S3), Google Cloud (BigQuery)</span>
+            </div>
+            <div class="skill-category">
+                <strong>Data Visualization & BI</strong>
+                <span>Power BI, Matplotlib, Seaborn, Tableau</span>
+            </div>
+            <div class="skill-category">
+                <strong>Core Competencies</strong>
+                <span
+                    >Designing & Implementing AI Solutions, Cross-Functional
+                    Collaboration, Business Problem-Solving</span
+                >
+            </div>
+        </div>
+
+        <h2>Projects</h2>
+        <div class="project">
+            <div class="item-header">
+                <span class="item-title"
+                    >SycoBench – AI Sycophancy Evaluation Dashboard</span
+                >
+                <span class="dates">Recent</span>
+            </div>
+            <div class="project-subtitle">
+                Next.js, TypeScript, Tailwind, Python backend
+            </div>
+            <ul>
+                <li>
+                    Designed and implemented an AI application to detect and
+                    measure language model bias and over-alignment
+                </li>
+                <li>
+                    Developed a comprehensive multi-metric dashboard with
+                    prompt-level filtering and quadrant visualization
+                </li>
+                <li>
+                    Enabled researchers to identify and quantify sycophantic
+                    behavior in AI models
+                </li>
+            </ul>
+        </div>
+
+        <div class="project">
+            <div class="item-header">
+                <span class="item-title"
+                    >PdVerse – AI-Powered Document Assistant</span
+                >
+                <span class="dates">Recent</span>
+            </div>
+            <div class="project-subtitle">
+                Python, LangChain, OpenAI API, Next.js, React
+            </div>
+            <ul>
+                <li>
+                    Designed and implemented an AI application to solve
+                    inefficient information retrieval from large documents
+                </li>
+                <li>
+                    Developed a full-stack application with a hybrid RAG system
+                    for precise semantic search and Q&A over PDFs
+                </li>
+                <li>Reduced information discovery time by an estimated 70%</li>
+            </ul>
+        </div>
+
+        <div class="project">
+            <div class="item-header">
+                <span class="item-title"
+                    >Customer Segmentation for Targeted Campaigns</span
+                >
+                <span class="dates">Recent</span>
+            </div>
+            <div class="project-subtitle">Python (Scikit-learn, Pandas), R</div>
+            <ul>
+                <li>
+                    Designed a machine learning model to identify high-value
+                    customer segments for targeted marketing campaigns
+                </li>
+                <li>
+                    Implemented an HDBSCAN clustering model with high
+                    statistical quality (DBCV: 0.73)
+                </li>
+                <li>
+                    Enabled more precise marketing strategies with potential for
+                    improved campaign ROI
+                </li>
+            </ul>
+        </div>
+
+        <h2>Experience</h2>
+        <div class="job">
+            <div class="item-header">
+                <span class="item-title">Research Analyst</span>
+                <span class="dates">November 2023 – September 2024</span>
+            </div>
+            <div class="job-subtitle">DPR-RI Komisi III FPKS</div>
+            <ul>
+                <li>
+                    Analyzed public datasets to identify trends and support
+                    data-driven decision-making
+                </li>
+            </ul>
+        </div>
+
+        <div class="job">
+            <div class="item-header">
+                <span class="item-title">Tutor Assistant</span>
+                <span class="dates">December 2023 – April 2024</span>
+            </div>
+            <div class="job-subtitle">Rakamin Academy</div>
+            <ul>
+                <li>
+                    Mentored 25 students from diverse backgrounds in Data
+                    Science fundamentals, focusing on practical implementation
+                    of machine learning solutions
+                </li>
+                <li>
+                    Evaluated student projects covering SQL querying and
+                    Python-based modeling, providing detailed feedback on
+                    technical and business aspects
+                </li>
+            </ul>
+        </div>
+
+        <div class="job">
+            <div class="item-header">
+                <span class="item-title">Education Mentor</span>
+                <span class="dates">February 2022 – June 2023</span>
+            </div>
+            <div class="job-subtitle">Kampus Merdeka</div>
+            <ul>
+                <li>
+                    Instructed 70+ students in core Data Science and Machine
+                    Learning concepts, emphasizing practical AI applications and
+                    software engineering best practices
+                </li>
+                <li>
+                    Guided students through end-to-end development of AI
+                    projects, from data modeling and algorithm design to
+                    implementation and deployment
+                </li>
+            </ul>
+        </div>
+
+        <div class="job">
+            <div class="item-header">
+                <span class="item-title">Data Analyst</span>
+                <span class="dates">November 2021 – June 2022</span>
+            </div>
+            <div class="job-subtitle">Zenius Education</div>
+            <ul>
+                <li>
+                    Developed predictive models using AWS SageMaker to analyze
+                    user behavior, identifying opportunities to improve product
+                    engagement and meet key business objectives
+                </li>
+                <li>
+                    Engineered data pipelines for extraction and processing
+                    using BigQuery, supporting machine learning model
+                    development and A/B testing initiatives
+                </li>
+            </ul>
+        </div>
+
+        <div class="job">
+            <div class="item-header">
+                <span class="item-title"
+                    >Problem Generator / Junior Programmer</span
+                >
+                <span class="dates">May 2021 – November 2021</span>
+            </div>
+            <div class="job-subtitle">Zenius Education</div>
+            <ul>
+                <li>
+                    Developed gamified educational content using Clojure and
+                    Python, applying data analysis techniques to reduce
+                    production errors by 90%
+                </li>
+                <li>
+                    Advanced to Team Lead within two months, providing technical
+                    guidance and collaborating with cross-functional teams on
+                    content development
+                </li>
+            </ul>
+        </div>
+
+        <h2>Education</h2>
+        <div class="edu">
+            <div class="item-header">
+                <span class="item-title"
+                    >Master of Science in Data Science & Analytics</span
+                >
+                <span class="dates">2020 – 2024</span>
+            </div>
+            <div class="job-subtitle">University of Science Malaysia</div>
+            <ul>
+                <li>
+                    Curriculum with strong Computer Science and Software
+                    Engineering foundations
+                </li>
+                <li>
+                    Final Project: Advancing School Transportation in Malang
+                    Using Data-Driven Forecasting Techniques
+                </li>
+            </ul>
+        </div>
+
+        <div class="edu">
+            <div class="item-header">
+                <span class="item-title">Bachelor of Science in Physics</span>
+                <span class="dates">2015 – 2019</span>
+            </div>
+            <div class="job-subtitle">University of Malaya</div>
+            <ul>
+                <li>
+                    Final Project: Quantification of Carbon Footprint Based on
+                    Hotel's Performance
+                </li>
+            </ul>
+        </div>
+
+        <h2>Certifications</h2>
+        <div class="certifications-list">
+            <div class="cert-item">
+                <strong>Data Analytics Methods for Marketing</strong> – Meta
+                <span class="cert-date">(Aug 2023)</span>
+            </div>
+            <div class="cert-item">
+                <strong>Decision Intelligence</strong> – Cassie Kozyrkov
+                <span class="cert-date">(Sep 2023)</span>
+            </div>
+            <div class="cert-item">
+                <strong>Excel for Business</strong> – Goldman Sachs Forage
+                <span class="cert-date">(Mar 2021)</span>
+            </div>
+            <div class="cert-item">
+                <strong>BCG X Data Science</strong> – Forage
+                <span class="cert-date">(Sep 2024)</span>
+            </div>
+        </div>
+    </body>
+</html>

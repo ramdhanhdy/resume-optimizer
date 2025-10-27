@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ name }} – Resume</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm; }
+  body { font-family: "Times New Roman", Georgia, serif; color:#000; font-size: 11pt; line-height: 1.3; }
+  .name { text-align:center; font-weight:700; font-size:20pt; margin-bottom:6pt; }
+  .contact { text-align:center; font-size:10pt; margin-bottom:14pt; }
+  .section { font-weight:700; font-size:11pt; letter-spacing:.5px; border-bottom:1px solid #000; margin-top:12pt; padding-bottom:2pt; }
+  .item { margin-top:6pt; }
+  .hdr { display:flex; justify-content:space-between; font-weight:700; }
+  .subhdr { display:flex; justify-content:space-between; font-style:italic; }
+  ul { margin:4pt 0 0 16pt; padding: 0; }
+  li { margin:2pt 0; }
+  .small { font-size:10pt; }
+</style>
+</head>
+<body>
+  <div class="name">{{ name }}</div>
+  <div class="contact small">
+    {{ location }}{% if contacts %} | LinkedIn: {{ contacts.linkedin }} | {{ contacts.phone }} | {{ contacts.email }}{% endif %}
+  </div>
+
+  {% if education %}
+  <div class="section">EDUCATION</div>
+  {% for e in education %}
+  <div class="item">
+    <div class="hdr"><div>{{ e.school }}</div><div class="small">{{ e.location }}</div></div>
+    <div class="subhdr small"><div>{{ e.degree }}{% if e.gpa %} (GPA: {{ e.gpa }}){% endif %}</div><div>{{ e.dates }}</div></div>
+    {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if experience %}
+  <div class="section">WORK EXPERIENCE</div>
+  {% for x in experience %}
+  <div class="item">
+    <div class="hdr"><div>{{ x.company }}</div><div class="small">{{ x.location }}</div></div>
+    <div class="subhdr small"><div>{{ x.title }}</div><div>{{ x.dates }}</div></div>
+    {% if x.bullets %}<ul>{% for b in x.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if projects %}
+  <div class="section">PROJECTS</div>
+  {% for p in projects %}
+  <div class="item">
+    <div class="hdr"><div>{{ p.name }}</div><div class="small">{{ p.dates }}</div></div>
+    {% if p.description %}<div class="small">{{ p.description }}</div>{% endif %}
+    {% if p.bullets %}<ul>{% for b in p.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if organizations %}
+  <div class="section">ORGANIZATIONAL EXPERIENCE</div>
+  {% for o in organizations %}
+  <div class="item">
+    <div class="hdr"><div>{{ o.org }}</div><div class="small">{{ o.location }}</div></div>
+    <div class="subhdr small"><div>{{ o.title }}</div><div>{{ o.dates }}</div></div>
+    {% if o.bullets %}<ul>{% for b in o.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if awards %}
+  <div class="section">ACHIEVEMENTS AND AWARDS</div>
+  <ul class="small">
+    {% for a in awards %}
+    <li><b>{{ a.name }}</b>{% if a.location %} — {{ a.location }}{% endif %}{% if a.date %}, {{ a.date }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if skills %}
+  <div class="section">SKILLS & INTERESTS</div>
+  <div class="small"><b>Skills:</b> {{ skills|join(', ') }}</div>
+  {% endif %}
+  {% if interests %}
+  <div class="small" style="margin-top:4pt;"><b>Interests:</b> {{ interests|join(', ') }}</div>
+  {% endif %}
+</body>
+</html>
