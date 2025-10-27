@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PROCESSING_ACTIVITIES, PROCESSING_PHASES, MOCK_INSIGHTS } from '../constants';
 import type { Insight } from '../types';
+import { useProcessingJob } from '../hooks/useProcessingJob';
+import { apiClient } from '../services/api';
 
 interface ProcessingScreenProps {
   onComplete: (appState: any) => void;
@@ -13,12 +15,19 @@ interface ProcessingScreenProps {
 
 const TOTAL_DURATION = 12000; // 12 seconds estimate
 
+// Feature flag for streaming (set to true to use new streaming infrastructure)
+const USE_STREAMING = true;
+
 const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl }) => {
   const [currentActivity, setCurrentActivity] = useState(PROCESSING_ACTIVITIES[0]);
   const [currentPhase, setCurrentPhase] = useState(PROCESSING_PHASES[0]);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [progress, setProgress] = useState(0);
+  const [jobId, setJobId] = useState<string | null>(null);
   const hasStartedRef = React.useRef(false);
+  
+  // Use streaming hook
+  const { state: streamState, isComplete, isFailed } = useProcessingJob(jobId);
 
   useEffect(() => {
     // Prevent duplicate pipeline runs (React StrictMode double-mount protection)
@@ -36,6 +45,28 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
     const runPipeline = async () => {
       console.log('🚀 Starting pipeline with:', { resumeText: resumeText.substring(0, 50) + '...', jobText, jobUrl });
+      
+      // NEW: Use streaming pipeline if enabled
+      if (USE_STREAMING) {
+        try {
+          console.log('📡 Starting streaming pipeline...');
+          const response = await apiClient.startPipeline({
+            resume_text: resumeText,
+            job_text: jobText,
+            job_url: jobUrl,
+          });
+          
+          console.log('✅ Pipeline started with job_id:', response.job_id);
+          setJobId(response.job_id);
+          
+          // The streaming hook will handle the rest
+          return;
+        } catch (error) {
+          console.error('❌ Failed to start streaming pipeline:', error);
+          alert(`Failed to start pipeline: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          return;
+        }
+      }
       
       try {
         const { apiClient } = await import('../services/api');
@@ -174,6 +205,92 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeText, jobText, jobUrl]);
+
+  // Sync streaming state to UI state
+  useEffect(() => {
+    if (!streamState || !USE_STREAMING) return;
+
+    // Update phase based on current step
+    if (streamState.currentStep) {
+      const stepToPhaseMap: Record<string, string> = {
+        'analyzing': PROCESSING_PHASES[0],
+        'planning': PROCESSING_PHASES[1],
+        'writing': PROCESSING_PHASES[2],
+        'validating': PROCESSING_PHASES[3],
+        'polishing': PROCESSING_PHASES[4],
+      };
+      
+      const newPhase = stepToPhaseMap[streamState.currentStep];
+      if (newPhase) {
+        setCurrentPhase(newPhase);
+      }
+    }
+
+    // Update center activity text from system insights (category: "system")
+    const systemInsights = streamState.insights.filter(ins => ins.category === 'system');
+    if (systemInsights.length > 0) {
+      // Show the most recent system message in the center
+      const latestSystem = systemInsights[0];
+      setCurrentActivity(latestSystem.message);
+    }
+
+    // Update insights from stream - ONLY non-system insights (actual LLM insights)
+    const actualInsights = streamState.insights.filter(ins => ins.category !== 'system');
+    const convertedInsights: Insight[] = actualInsights.slice(0, 4).map((ins, idx) => ({
+      id: idx + 1, // Convert string id to number for old format
+      text: ins.message,
+      category: ins.category,
+    }));
+    setInsights(convertedInsights);
+
+    // Calculate overall progress from steps
+    const completedSteps = streamState.steps.filter(s => s.status === 'completed').length;
+    const inProgressStep = streamState.steps.find(s => s.status === 'in_progress');
+    const stepProgress = inProgressStep ? inProgressStep.progress / 100 : 0;
+    const overallProgress = ((completedSteps + stepProgress) / streamState.steps.length) * 100;
+    setProgress(Math.min(overallProgress, 100));
+
+  }, [streamState]);
+
+  // Handle streaming completion
+  useEffect(() => {
+    if (!USE_STREAMING || !isComplete || !streamState) return;
+
+    console.log('✨ Streaming pipeline complete!');
+    
+    // Extract application data from metrics
+    const applicationId = streamState.metrics['application_id']?.value;
+    const overallScore = streamState.metrics['overall_score']?.value || 87;
+    const requirementsMatch = streamState.metrics['requirements_match']?.value || 90;
+    const atsOptimization = streamState.metrics['ats_optimization']?.value || 85;
+    const culturalFit = streamState.metrics['cultural_fit']?.value || 86;
+
+    const completionData = {
+      applicationId: applicationId || 0,
+      companyName: 'Company', // TODO: Extract from analysis
+      jobTitle: 'Position', // TODO: Extract from analysis
+      validationScores: {
+        overall: overallScore,
+        requirements_match: requirementsMatch,
+        ats_optimization: atsOptimization,
+        cultural_fit: culturalFit,
+      },
+    };
+
+    setTimeout(() => {
+      console.log('🎯 Calling onComplete with:', completionData);
+      onComplete(completionData);
+    }, 500);
+
+  }, [isComplete, streamState, onComplete]);
+
+  // Handle streaming failure
+  useEffect(() => {
+    if (!USE_STREAMING || !isFailed) return;
+    
+    console.error('❌ Streaming pipeline failed');
+    alert('Pipeline failed. Please try again.');
+  }, [isFailed]);
 
   return (
     <motion.div

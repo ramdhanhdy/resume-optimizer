@@ -172,6 +172,28 @@ class ApiClient {
       method: 'GET',
     });
   }
+
+  async startPipeline(params: {
+    resume_text: string;
+    job_text?: string;
+    job_url?: string;
+    github_username?: string;
+  }): Promise<{ success: boolean; job_id: string; stream_url: string; snapshot_url: string }> {
+    return this.request('/api/pipeline/start', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async getJobSnapshot(job_id: string): Promise<any> {
+    return this.request(`/api/jobs/${job_id}/snapshot`, {
+      method: 'GET',
+    });
+  }
+
+  getStreamUrl(job_id: string): string {
+    return `${this.baseUrl}/api/jobs/${job_id}/stream`;
+  }
 }
 
 export const apiClient = new ApiClient();

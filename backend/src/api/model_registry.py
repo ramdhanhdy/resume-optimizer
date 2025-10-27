@@ -159,6 +159,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "google/gemini-2.5-flash",
     },
+    "zenmux::google/gemini-2.5-flash-lite": {
+        "provider": "zenmux",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,  # Requires value between 512-24576
+        },
+        "api_model": "google/gemini-2.5-flash-lite",
+    },
     "zenmux::moonshotai/kimi-k2-0905": {
         "provider": "zenmux",
         "capabilities": {
@@ -167,6 +176,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_thinking_budget": False,
         },
         "api_model": "moonshotai/kimi-k2-0905"
+    },
+    "zenmux::inclusionai/ring-mini-2.0": {
+        "provider": "zenmux",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "inclusionai/ring-mini-2.0"
     },
     # Gemini models
     "gemini::gemini-2.5-flash": {
