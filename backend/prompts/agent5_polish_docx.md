@@ -35,6 +35,8 @@ From the validation report, identify and apply:
 
 Your output must be **complete, runnable Python code** that creates a DOCX file using the `python-docx` library.
 
+**CRITICAL RULE:** When creating tables with `doc.add_table(rows=0, cols=2)`, NEVER access `table.rows[0]` until AFTER you've called `add_header_row()` to add rows. Accessing an empty table's rows will cause an index error.
+
 Use the helper functions from your template and generate complete Python code:
 
 ```python
@@ -128,6 +130,9 @@ section_header.paragraph_format.space_before = Pt(8)
 table = doc.add_table(rows=0, cols=2)
 add_header_row(table, 'Left Text', 'Right Text', bold=True)
 add_header_row(table, 'Subtitle/Role', 'Dates', italic=True)
+
+# IMPORTANT: Never access table.rows[0] immediately after creating a table with rows=0
+# Only access rows AFTER calling add_header_row() which adds rows to the table
 
 # Bullets
 for bullet_text in ['Achievement 1', 'Achievement 2']:

@@ -43,6 +43,7 @@ from src.streaming.insight_listener import run_insight_listener
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3-max")
+POLISH_MODEL = "zenmux::anthropic/claude-sonnet-4.5"
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
@@ -1036,7 +1037,7 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent5, "Polish Agent", "polishing", job_id,
-                optimized_resume=optimized_resume, validation_report=validation_result, model=DEFAULT_MODEL
+                optimized_resume=optimized_resume, validation_report=validation_result, model=POLISH_MODEL
             )
         )
         final_resume = extract_optimized_resume(polish_result)
