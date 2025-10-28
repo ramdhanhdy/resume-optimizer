@@ -1,10 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadIcon, CheckIcon } from './icons';
+import { UploadIcon, CheckIcon, LinkedInIcon, GitHubIcon } from './icons';
 
 interface InputScreenProps {
-  onStart: (data: { resumeText: string; jobInput: string; isUrl: boolean }) => void;
+  onStart: (data: { 
+    resumeText: string; 
+    jobInput: string; 
+    isUrl: boolean;
+    linkedinUrl?: string;
+    githubUsername?: string;
+    githubToken?: string;
+  }) => void;
 }
 
 const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
@@ -12,6 +19,9 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
   const [resumeText, setResumeText] = useState<string>('');
   const [jobInput, setJobInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [linkedinUrl, setLinkedinUrl] = useState<string>('');
+  const [githubUsername, setGithubUsername] = useState<string>('');  const [githubToken, setGithubToken] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isReady = !!fileName && !!jobInput;
@@ -44,7 +54,14 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
     // Defensive check: don't proceed without valid data
     if (isReady && resumeText && resumeText.trim().length > 10) {
       const isUrl = jobInput.startsWith('http://') || jobInput.startsWith('https://');
-      onStart({ resumeText, jobInput, isUrl });
+      onStart({ 
+        resumeText, 
+        jobInput, 
+        isUrl,
+        linkedinUrl: linkedinUrl.trim() || undefined,
+        githubUsername: githubUsername.trim() || undefined,
+        githubToken: githubToken.trim() || undefined,
+      });
     } else {
       console.warn('Cannot continue: missing resume text or job input');
     }
@@ -105,6 +122,103 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
         <p className="text-xs text-text-main/70 mt-4">
           PDF or DOCX &middot; We'll analyze it against the job description.
         </p>
+
+        {/* Optional Enhancements Toggle */}
+        <div className="mt-6">
+          <button
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="text-sm text-primary hover:text-primary/80 transition-colors font-medium flex items-center gap-2 mx-auto"
+          >
+            <span>{showAdvanced ? '−' : '+'}</span>
+            <span>Optional Enhancements</span>
+          </button>
+        </div>
+
+        {/* Expandable Optional Enhancements */}
+        <AnimatePresence>
+          {showAdvanced && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="bg-gradient-to-br from-surface-light to-white rounded-xl border border-border-subtle shadow-lg p-8 space-y-6">
+                {/* LinkedIn Input */}
+                <div className="group">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-text-main mb-3">
+                    <LinkedInIcon className="w-5 h-5 text-primary" />
+                    <span>LinkedIn Profile</span>
+                    <span className="text-text-main/40 font-normal text-xs">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={linkedinUrl}
+                      onChange={(e) => setLinkedinUrl(e.target.value)}
+                      placeholder="https://linkedin.com/in/yourname"
+                      className="w-full px-4 py-3 bg-white border border-border-subtle rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 shadow-sm hover:shadow-md"
+                    />
+                  </div>
+                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed">
+                    Build a rich profile index for enhanced personalization across applications
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-border-subtle/50"></div>
+
+                {/* GitHub Input */}
+                <div className="group">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-text-main mb-3">
+                    <GitHubIcon className="w-5 h-5 text-text-main/70" />
+                    <span>GitHub Username</span>
+                    <span className="text-text-main/40 font-normal text-xs">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={githubUsername}
+                      onChange={(e) => setGithubUsername(e.target.value)}
+                      placeholder="yourusername"
+                      className="w-full px-4 py-3 bg-white border border-border-subtle rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 shadow-sm hover:shadow-md"
+                    />
+                  </div>
+                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed">
+                    Showcase your open-source contributions and technical projects
+                  </p>
+                  
+                  {/* GitHub Token - only show if username is entered */}
+                  {githubUsername && (
+                    <div className="mt-3 pt-3 border-t border-border-subtle/30">
+                      <label className="block text-xs font-medium text-text-main/70 mb-2">
+                        GitHub Token (optional, for private repos & higher rate limits)
+                      </label>
+                      <input
+                        type="password"
+                        value={githubToken}
+                        onChange={(e) => setGithubToken(e.target.value)}
+                        placeholder="ghp_••••••••••••••••••••"
+                        className="w-full px-3 py-2 bg-white border border-border-subtle rounded text-xs placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200"
+                      />
+                      <div className="mt-1.5 space-y-1">
+                        <p className="text-xs text-text-main/50">
+                          <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            Create token
+                          </a> • Only stored for this session
+                        </p>
+                        <p className="text-xs text-text-main/50">
+                          💡 Required scopes: <code className="text-xs bg-surface-light px-1 py-0.5 rounded">public_repo</code> or <code className="text-xs bg-surface-light px-1 py-0.5 rounded">repo</code> (for private repos)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="h-10 mt-6">
           <AnimatePresence>

@@ -11,6 +11,9 @@ export interface AppState {
   resumeText?: string;
   jobText?: string;
   jobUrl?: string;
+  linkedinUrl?: string;
+  githubUsername?: string;
+  githubToken?: string;
   companyName?: string;
   jobTitle?: string;
   validationScores?: {
@@ -25,12 +28,22 @@ const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>(Screen.Input);
   const [appState, setAppState] = useState<AppState>({});
 
-  const handleStartProcessing = useCallback((data: { resumeText: string; jobInput: string; isUrl: boolean }) => {
+  const handleStartProcessing = useCallback((data: { 
+    resumeText: string; 
+    jobInput: string; 
+    isUrl: boolean;
+    linkedinUrl?: string;
+    githubUsername?: string;
+    githubToken?: string;
+  }) => {
     setAppState(prev => ({
       ...prev,
       resumeText: data.resumeText,
       jobText: data.isUrl ? undefined : data.jobInput,
       jobUrl: data.isUrl ? data.jobInput : undefined,
+      linkedinUrl: data.linkedinUrl,
+      githubUsername: data.githubUsername,
+      githubToken: data.githubToken,
     }));
     setScreen(Screen.Processing);
   }, []);
@@ -58,6 +71,9 @@ const App: React.FC = () => {
             resumeText={appState.resumeText!}
             jobText={appState.jobText}
             jobUrl={appState.jobUrl}
+            linkedinUrl={appState.linkedinUrl}
+            githubUsername={appState.githubUsername}
+            githubToken={appState.githubToken}
           />
         )}
         {screen === Screen.Reveal && (

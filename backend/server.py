@@ -209,7 +209,9 @@ class PipelineRequest(BaseModel):
     resume_text: str
     job_text: Optional[str] = None
     job_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
+    github_token: Optional[str] = None
 
 
 @app.get("/")
@@ -734,7 +736,9 @@ async def start_pipeline(request: PipelineRequest):
         resume_text=request.resume_text,
         job_text=request.job_text,
         job_url=request.job_url,
+        linkedin_url=request.linkedin_url,
         github_username=request.github_username,
+        github_token=request.github_token,
     ))
     
     return {
@@ -750,7 +754,9 @@ async def run_pipeline_with_streaming(
     resume_text: str,
     job_text: Optional[str] = None,
     job_url: Optional[str] = None,
+    linkedin_url: Optional[str] = None,
     github_username: Optional[str] = None,
+    github_token: Optional[str] = None,
 ):
     """Run the full pipeline and emit streaming events."""
     insight_listener_task = None
@@ -782,6 +788,84 @@ async def run_pipeline_with_streaming(
             return
         
         client = create_client()
+        
+        # Step 0 (Optional): Build Profile Index from LinkedIn and/or GitHub
+        profile_index = None
+        if linkedin_url or github_username:
+            print(f"🔗 Building profile index (LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})")
+            await stream_manager.emit(InsightEvent.create(
+                job_id, "ins-profile", "system", "medium",
+                "Building profile index from LinkedIn and GitHub...", "profiling"
+            ))
+            
+            try:
+                from src.agents.profile_agent import ProfileAgent
+                from src.api import fetch_public_page_text
+                from src.agents.github_projects_agent import fetch_github_repos
+                
+                loop = asyncio.get_event_loop()
+                profile_text = None
+                profile_repos = None
+                
+                # Fetch LinkedIn profile if provided
+                if linkedin_url:
+                    print(f"📥 Fetching LinkedIn profile: {linkedin_url}")
+                    profile_text = await loop.run_in_executor(None, fetch_public_page_text, linkedin_url)
+                    if profile_text:
+                        print(f"✅ LinkedIn profile fetched: {len(profile_text)} chars")
+                    else:
+                        print("⚠️ Could not fetch LinkedIn profile")
+                
+                # Fetch GitHub repos if provided
+                if github_username:
+                    print(f"📥 Fetching GitHub repos for: {github_username}")
+                    if github_token:
+                        print(f"✅ Using user-provided GitHub token")
+                    else:
+                        print(f"⚠️ No GitHub token provided - using unauthenticated API (rate limited)")
+                    try:
+                        profile_repos = await loop.run_in_executor(
+                            None, fetch_github_repos, github_username, github_token, 20
+                        )
+                        if profile_repos:
+                            print(f"✅ GitHub repos fetched: {len(profile_repos)} repos")
+                            await stream_manager.emit(InsightEvent.create(
+                                job_id, "ins-github", "system", "medium",
+                                f"Found {len(profile_repos)} GitHub projects", "profiling"
+                            ))
+                        else:
+                            print("⚠️ No GitHub repos found")
+                    except Exception as e:
+                        print(f"⚠️ GitHub fetch failed (non-fatal): {e}")
+                        import traceback
+                        traceback.print_exc()
+                        profile_repos = None
+                
+                # Build profile index if we have any data
+                if profile_text or profile_repos:
+                    print("🏗️ Building profile index...")
+                    profile_agent = ProfileAgent(client=client)
+                    profile_result = ""
+                    for chunk in profile_agent.index_profile(
+                        model=DEFAULT_MODEL,
+                        profile_text=profile_text or "",
+                        profile_repos=profile_repos
+                    ):
+                        profile_result += chunk
+                    profile_index = profile_result
+                    print(f"✅ Profile index built: {len(profile_index)} chars")
+                    
+                    await stream_manager.emit(InsightEvent.create(
+                        job_id, "ins-profile-done", "system", "high",
+                        "Profile index ready - will enhance optimization", "profiling"
+                    ))
+                else:
+                    print("⚠️ No profile data available")
+            except Exception as e:
+                print(f"⚠️ Profile building failed (non-fatal): {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue without profile - it's optional
         
         # Agent 1: Job Analysis
         print("📋 Agent 1: Starting job analysis...")
@@ -855,13 +939,14 @@ async def run_pipeline_with_streaming(
         
         agent2 = ResumeOptimizerAgent(client=client)
         
-        # Run agent with chunk emission
+        # Run agent with chunk emission (with optional profile index)
         optimization_result = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent2, "Resume Optimizer", "planning", job_id,
-                resume_text=resume_text, job_analysis=analysis_result, model=DEFAULT_MODEL
+                resume_text=resume_text, job_analysis=analysis_result, 
+                profile_index=profile_index, model=DEFAULT_MODEL
             )
         )
         print(f"✅ Agent 2 complete: {len(optimization_result)} chars")

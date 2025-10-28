@@ -204,6 +204,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "inclusionai/ring-flash-2.0"
     },
+    "zenmux::minimax/minimax-m2": {
+        "provider": "zenmux",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "minimax/minimax-m2"
+    },
     # Gemini models
     "gemini::gemini-2.5-flash": {
         "provider": "gemini",

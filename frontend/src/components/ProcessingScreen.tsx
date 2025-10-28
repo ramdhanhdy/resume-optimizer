@@ -11,6 +11,9 @@ interface ProcessingScreenProps {
   resumeText: string;
   jobText?: string;
   jobUrl?: string;
+  linkedinUrl?: string;
+  githubUsername?: string;
+  githubToken?: string;
 }
 
 const TOTAL_DURATION = 12000; // 12 seconds estimate
@@ -18,7 +21,7 @@ const TOTAL_DURATION = 12000; // 12 seconds estimate
 // Feature flag for streaming (set to true to use new streaming infrastructure)
 const USE_STREAMING = true;
 
-const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl }) => {
+const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl, linkedinUrl, githubUsername, githubToken }) => {
   const [currentActivity, setCurrentActivity] = useState(PROCESSING_ACTIVITIES[0]);
   const [currentPhase, setCurrentPhase] = useState(PROCESSING_PHASES[0]);
   const [progress, setProgress] = useState(0);
@@ -65,6 +68,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
             resume_text: resumeText,
             job_text: jobText,
             job_url: jobUrl,
+            linkedin_url: linkedinUrl,
+            github_username: githubUsername,
+            github_token: githubToken,
           });
           
           console.log('✅ Pipeline started with job_id:', response.job_id);

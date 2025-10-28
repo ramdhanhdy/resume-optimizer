@@ -192,7 +192,9 @@ class ApiClient {
     resume_text: string;
     job_text?: string;
     job_url?: string;
+    linkedin_url?: string;
     github_username?: string;
+    github_token?: string;
   }): Promise<{ success: boolean; job_id: string; stream_url: string; snapshot_url: string }> {
     return this.request('/api/pipeline/start', {
       method: 'POST',

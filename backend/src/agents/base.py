@@ -47,7 +47,7 @@ class BaseAgent:
         text_content: Optional[str] = None,
         file_path: Optional[str] = None,
         file_type: Optional[str] = None,
-        temperature: float = 0.5,
+        temperature: float = 0.65,
         max_tokens: int = 12000,
         thinking_budget: Optional[int] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
