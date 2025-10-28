@@ -496,7 +496,7 @@ async def polish_resume(request: PolishRequest):
         )
 
         # Run Polish Agent
-        agent = PolishAgent(client=client)
+        agent = PolishAgent(client=client, output_format="docx")
         polish_result = ""
 
         for chunk in agent.polish_resume(
@@ -551,12 +551,29 @@ async def export_resume(application_id: int, format: str = "docx"):
         
         # Generate export file
         if format == "docx":
-            from src.utils import execute_docx_code
+            from src.utils import execute_docx_code, html_to_docx
             from fastapi.responses import Response
             import io
             
-            # Execute the LLM-generated Python code to create DOCX
-            docx_bytes = execute_docx_code(final_resume)
+            # Detect if content is HTML or Python code
+            content_lower = final_resume.strip().lower()
+            is_html = (
+                content_lower.startswith("<!doctype") or 
+                content_lower.startswith("<html") or
+                "<html" in content_lower[:500]
+            )
+            
+            print(f"📝 Generating DOCX for application {application_id}")
+            print(f"Content type: {'HTML' if is_html else 'Python code'}")
+            print(f"Content preview (first 200 chars): {final_resume[:200]}")
+            
+            # Generate DOCX based on content type
+            if is_html:
+                print("  → Converting HTML to DOCX")
+                docx_bytes = html_to_docx(final_resume)
+            else:
+                print("  → Executing Python code to generate DOCX")
+                docx_bytes = execute_docx_code(final_resume)
             
             # Create safe filename
             job_title = app_data.get('job_title', 'resume').replace(' ', '_').replace('/', '_')
@@ -576,11 +593,23 @@ async def export_resume(application_id: int, format: str = "docx"):
             
     except ValueError as e:
         # Handle code execution errors specifically
+        print(f"❌ DOCX code execution failed: {str(e)}")
         raise HTTPException(
             status_code=400, 
             detail=f"Failed to generate DOCX from code: {str(e)}"
         )
+    except SyntaxError as e:
+        # Handle Python syntax errors in generated code
+        print(f"❌ DOCX code has syntax error: {str(e)}")
+        print(f"   Line {e.lineno}: {e.text}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Generated code has syntax error on line {e.lineno}: {str(e)}"
+        )
     except Exception as e:
+        print(f"❌ Unexpected error during DOCX export: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -999,7 +1028,7 @@ async def run_pipeline_with_streaming(
             "Final polish and formatting...", "polishing"
         ))
         
-        agent5 = PolishAgent(client=client)
+        agent5 = PolishAgent(client=client, output_format="docx")
         
         # Run agent with chunk emission
         polish_result = await loop.run_in_executor(

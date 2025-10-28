@@ -6,7 +6,7 @@ from .base import BaseAgent
 class PolishAgent(BaseAgent):
     """Agent for applying final polish recommendations from validator."""
     
-    def __init__(self, client, output_format="html"):
+    def __init__(self, client, output_format="docx"):
         """Initialize Polish agent.
         
         Args:
