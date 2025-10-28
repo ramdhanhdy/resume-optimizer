@@ -31,7 +31,7 @@ class MultiProviderClient:
         file_path: Optional[str] = None,
         file_type: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 4000,
+        max_tokens: int = 5000,
         thinking_budget: Optional[int] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         caps = get_capabilities(model)

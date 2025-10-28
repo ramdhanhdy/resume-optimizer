@@ -8,6 +8,8 @@ from typing import Optional, List, Dict, Any
 import os
 import json
 import asyncio
+import time
+import functools
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -31,8 +33,12 @@ from src.streaming import (
     MetricUpdateEvent,
     HeartbeatEvent,
     DoneEvent,
+    AgentStepStartedEvent,
+    AgentStepCompletedEvent,
+    AgentChunkEvent,
 )
 from src.streaming.insight_extractor import insight_extractor
+from src.streaming.insight_listener import run_insight_listener
 
 load_dotenv()
 
@@ -77,6 +83,100 @@ def _latest_agent_output_text(application_id: int, agent_name: str) -> str:
 
 # Global state for current session
 current_session = {}
+
+
+def run_agent_with_chunk_emission(
+    agent,
+    agent_name: str,
+    step_name: str,
+    job_id: str,
+    *args,
+    **kwargs
+) -> str:
+    """Run an agent generator and emit chunk events during execution.
+    
+    This function is meant to be called from an executor thread.
+    It will emit AgentChunkEvent objects during streaming.
+    """
+    result = ""
+    seq = 0
+    last_emit_time = 0
+    current_time = time.time()
+    
+    try:
+        # Get the generator for the agent method based on kwargs
+        if hasattr(agent, 'analyze_job') and 'job_posting' in kwargs:
+            gen = agent.analyze_job(**kwargs)
+        elif hasattr(agent, 'optimize_resume') and 'job_analysis' in kwargs:
+            gen = agent.optimize_resume(**kwargs)
+        elif hasattr(agent, 'implement_optimizations') and 'optimization_report' in kwargs:
+            gen = agent.implement_optimizations(**kwargs)
+        elif hasattr(agent, 'validate_resume') and 'optimized_resume' in kwargs and 'job_posting' in kwargs:
+            gen = agent.validate_resume(**kwargs)
+        elif hasattr(agent, 'polish_resume') and 'validation_report' in kwargs:
+            gen = agent.polish_resume(**kwargs)
+        else:
+            # Fallback: use class name to determine method
+            agent_class_name = agent.__class__.__name__
+            if 'Analyzer' in agent_class_name:
+                gen = agent.analyze_job(**kwargs)
+            elif 'Optimizer' in agent_class_name and 'Implementer' not in agent_class_name:
+                gen = agent.optimize_resume(**kwargs)
+            elif 'Implementer' in agent_class_name:
+                gen = agent.implement_optimizations(**kwargs)
+            elif 'Validator' in agent_class_name:
+                gen = agent.validate_resume(**kwargs)
+            elif 'Polish' in agent_class_name:
+                gen = agent.polish_resume(**kwargs)
+            else:
+                raise ValueError(f"Unknown agent type: {agent_class_name}")
+        
+        # Emit step started
+        stream_manager.emit_from_thread(AgentStepStartedEvent.create(job_id, step_name, agent_name))
+        
+        # Process chunks
+        for chunk in gen:
+            result += chunk
+            seq += 1
+            current_time = time.time()
+            
+            # Emit chunk events with throttling
+            # Throttle: emit every 500 chars or 1.2 seconds
+            should_emit = (
+                len(result) % 500 < len(chunk) or  # Crossed 500-char boundary
+                (current_time - last_emit_time) >= 1.2  # Time interval passed
+            )
+            
+            if should_emit:
+                stream_manager.emit_from_thread(AgentChunkEvent.create(
+                    job_id=job_id,
+                    step=step_name,
+                    chunk=chunk,
+                    seq=seq,
+                    total_len=len(result)
+                ))
+                last_emit_time = current_time
+        
+        # Emit step completed
+        stream_manager.emit_from_thread(AgentStepCompletedEvent.create(
+            job_id=job_id,
+            step=step_name,
+            agent_name=agent_name,
+            total_chars=len(result)
+        ))
+        
+    except Exception as e:
+        print(f"❌ Agent {agent_name} failed: {e}")
+        # Still emit completion for cleanup
+        stream_manager.emit_from_thread(AgentStepCompletedEvent.create(
+            job_id=job_id,
+            step=step_name,
+            agent_name=agent_name,
+            total_chars=len(result)
+        ))
+        raise
+    
+    return result
 
 
 class JobAnalysisRequest(BaseModel):
@@ -530,12 +630,20 @@ async def run_pipeline_with_streaming(
     github_username: Optional[str] = None,
 ):
     """Run the full pipeline and emit streaming events."""
+    insight_listener_task = None
     try:
         print(f"🚀 Starting pipeline for job_id: {job_id}")
+        
+        # Set the main loop for thread-safe emission
+        stream_manager.set_main_loop(asyncio.get_running_loop())
         
         # Emit job started
         await stream_manager.emit(JobStatusEvent.create(job_id, "started"))
         print(f"✅ Emitted job_status: started")
+        
+        # Start the parallel insight listener
+        insight_listener_task = asyncio.create_task(run_insight_listener(job_id))
+        print(f"🔍 Started insight listener task")
         
         # Get job text (run in thread pool since it's blocking)
         if job_url:
@@ -561,17 +669,17 @@ async def run_pipeline_with_streaming(
         ))
         
         agent1 = JobAnalyzerAgent(client=client)
-        analysis_result = ""
         
-        # Run blocking agent in executor
-        def run_agent1():
-            result = ""
-            for chunk in agent1.analyze_job(job_posting=job_text_final, model=DEFAULT_MODEL):
-                result += chunk
-            return result
-        
+        # Run agent with chunk emission in executor
         loop = asyncio.get_event_loop()
-        analysis_result = await loop.run_in_executor(None, run_agent1)
+        analysis_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                run_agent_with_chunk_emission,
+                agent1, "Job Analyzer", "analyzing", job_id,
+                job_posting=job_text_final, model=DEFAULT_MODEL
+            )
+        )
         print(f"✅ Agent 1 complete: {len(analysis_result)} chars")
         
         await stream_manager.emit(StepProgressEvent.create(job_id, "analyzing", 100))
@@ -617,17 +725,15 @@ async def run_pipeline_with_streaming(
         
         agent2 = ResumeOptimizerAgent(client=client)
         
-        def run_agent2():
-            result = ""
-            for chunk in agent2.optimize_resume(
-                resume_text=resume_text,
-                job_analysis=analysis_result,
-                model=DEFAULT_MODEL,
-            ):
-                result += chunk
-            return result
-        
-        optimization_result = await loop.run_in_executor(None, run_agent2)
+        # Run agent with chunk emission
+        optimization_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                run_agent_with_chunk_emission,
+                agent2, "Resume Optimizer", "planning", job_id,
+                resume_text=resume_text, job_analysis=analysis_result, model=DEFAULT_MODEL
+            )
+        )
         print(f"✅ Agent 2 complete: {len(optimization_result)} chars")
         
         await stream_manager.emit(StepProgressEvent.create(job_id, "planning", 100))
@@ -666,17 +772,15 @@ async def run_pipeline_with_streaming(
         
         agent3 = OptimizerImplementerAgent(client=client)
         
-        def run_agent3():
-            result = ""
-            for chunk in agent3.implement_optimizations(
-                resume_text=resume_text,
-                optimization_report=optimization_result,
-                model=DEFAULT_MODEL,
-            ):
-                result += chunk
-            return result
-        
-        implementation_result = await loop.run_in_executor(None, run_agent3)
+        # Run agent with chunk emission
+        implementation_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                run_agent_with_chunk_emission,
+                agent3, "Optimizer Implementer", "writing", job_id,
+                resume_text=resume_text, optimization_report=optimization_result, model=DEFAULT_MODEL
+            )
+        )
         optimized_resume = extract_optimized_resume(implementation_result)
         print(f"✅ Agent 3 complete: {len(implementation_result)} chars")
         
@@ -717,18 +821,15 @@ async def run_pipeline_with_streaming(
         
         agent4 = ValidatorAgent(client=client)
         
-        def run_agent4():
-            result = ""
-            for chunk in agent4.validate_resume(
-                optimized_resume=optimized_resume,
-                job_posting=job_text_final,
-                job_analysis=analysis_result,
-                model=DEFAULT_MODEL,
-            ):
-                result += chunk
-            return result
-        
-        validation_result = await loop.run_in_executor(None, run_agent4)
+        # Run agent with chunk emission
+        validation_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                run_agent_with_chunk_emission,
+                agent4, "Validator", "validating", job_id,
+                optimized_resume=optimized_resume, job_posting=job_text_final, job_analysis=analysis_result, model=DEFAULT_MODEL
+            )
+        )
         print(f"✅ Agent 4 complete: {len(validation_result)} chars")
         
         await stream_manager.emit(StepProgressEvent.create(job_id, "validating", 100))
@@ -770,17 +871,15 @@ async def run_pipeline_with_streaming(
         
         agent5 = PolishAgent(client=client)
         
-        def run_agent5():
-            result = ""
-            for chunk in agent5.polish_resume(
-                optimized_resume=optimized_resume,
-                validation_report=validation_result,
-                model=DEFAULT_MODEL,
-            ):
-                result += chunk
-            return result
-        
-        polish_result = await loop.run_in_executor(None, run_agent5)
+        # Run agent with chunk emission
+        polish_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                run_agent_with_chunk_emission,
+                agent5, "Polish Agent", "polishing", job_id,
+                optimized_resume=optimized_resume, validation_report=validation_result, model=DEFAULT_MODEL
+            )
+        )
         final_resume = extract_optimized_resume(polish_result)
         print(f"✅ Agent 5 complete: {len(polish_result)} chars")
         
@@ -833,6 +932,20 @@ async def run_pipeline_with_streaming(
             f"Pipeline failed: {str(e)}"
         ))
         await stream_manager.emit(DoneEvent(job_id=job_id))
+    
+    finally:
+        # Clean up insight listener
+        if insight_listener_task:
+            try:
+                if not insight_listener_task.done():
+                    insight_listener_task.cancel()
+                    try:
+                        await insight_listener_task
+                    except asyncio.CancelledError:
+                        pass
+                print(f"🔍 Insight listener task cleaned up")
+            except Exception as e:
+                print(f"⚠️ Error cleaning up insight listener: {e}")
 
 
 @app.get("/api/jobs/{job_id}/snapshot")

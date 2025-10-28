@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 from typing import Dict, Set, Optional
 from collections import defaultdict
 from .events import ProcessingEvent, HeartbeatEvent, DoneEvent
@@ -18,6 +19,7 @@ class StreamManager:
         # job_id -> job status
         self._job_status: Dict[str, dict] = {}
         self._lock = asyncio.Lock()
+        self._loop = None  # Will be set to main event loop
     
     async def subscribe(self, job_id: str) -> asyncio.Queue:
         """Subscribe to events for a specific job."""
@@ -66,12 +68,33 @@ class StreamManager:
             events = self._event_history.get(job_id, [])
             status = self._job_status.get(job_id, {"status": "unknown"})
             
+            # Extract recent chunks and insights for the snapshot
+            recent_chunks = []
+            recent_insights = []
+            
+            # Limit to last 50 chunks and 20 insights
+            chunk_count = 0
+            insight_count = 0
+            
+            # Process events in reverse order (most recent first)
+            for event in reversed(events[-100:]):  # Look at last 100 events
+                if event["type"] == "agent_chunk" and chunk_count < 50:
+                    recent_chunks.append(event)
+                    chunk_count += 1
+                elif event["type"] == "insight_emitted" and insight_count < 20:
+                    recent_insights.append(event)
+                    insight_count += 1
+            
             # Build snapshot from events
             snapshot = {
                 "job_id": job_id,
                 "status": status.get("status", "unknown"),
                 "events": events,
                 "event_count": len(events),
+                "recent_chunks": list(reversed(recent_chunks)),  # Chronological order
+                "recent_insights": list(reversed(recent_insights)),  # Chronological order
+                "chunk_count": chunk_count,
+                "insight_count": insight_count,
             }
             
             return snapshot
@@ -99,6 +122,30 @@ class StreamManager:
     def has_subscribers(self, job_id: str) -> bool:
         """Check if job has active subscribers."""
         return job_id in self._subscribers and len(self._subscribers[job_id]) > 0
+
+    def set_main_loop(self, loop):
+        """Set the main event loop for thread-safe emission."""
+        self._loop = loop
+
+    def emit_from_thread(self, event: ProcessingEvent) -> None:
+        """Emit an event safely from a different thread (e.g., executor thread).
+        
+        This method is thread-safe and can be called from any thread.
+        """
+        if self._loop is None:
+            # Set to current thread's loop if not already set
+            try:
+                self._loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # Not in an event loop thread, we need the main loop
+                return
+        
+        try:
+            # Schedule the async emit on the main loop
+            asyncio.run_coroutine_threadsafe(self.emit(event), self._loop)
+        except (RuntimeError, AttributeError):
+            # Loop is closed or not running, ignore silently
+            pass
 
 
 # Global stream manager instance

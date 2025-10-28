@@ -128,6 +128,44 @@ class HeartbeatEvent(BaseEvent):
     payload: dict = Field(default_factory=dict)
 
 
+class AgentStepStartedEvent(BaseEvent):
+    """Agent step started event."""
+    type: Literal["agent_step_started"] = "agent_step_started"
+    payload: dict = Field(default_factory=dict)
+    
+    @classmethod
+    def create(cls, job_id: str, step: str, agent_name: str):
+        payload = {"step": step, "agent_name": agent_name}
+        return cls(job_id=job_id, payload=payload)
+
+
+class AgentStepCompletedEvent(BaseEvent):
+    """Agent step completed event."""
+    type: Literal["agent_step_completed"] = "agent_step_completed"
+    payload: dict = Field(default_factory=dict)
+    
+    @classmethod
+    def create(cls, job_id: str, step: str, agent_name: str, total_chars: int):
+        payload = {"step": step, "agent_name": agent_name, "total_chars": total_chars}
+        return cls(job_id=job_id, payload=payload)
+
+
+class AgentChunkEvent(BaseEvent):
+    """Agent content chunk event."""
+    type: Literal["agent_chunk"] = "agent_chunk"
+    payload: dict = Field(default_factory=dict)
+    
+    @classmethod
+    def create(cls, job_id: str, step: str, chunk: str, seq: int, total_len: int):
+        payload = {
+            "step": step,
+            "chunk": chunk,
+            "seq": seq,
+            "total_len": total_len
+        }
+        return cls(job_id=job_id, payload=payload)
+
+
 class DoneEvent(BaseEvent):
     """Done event."""
     type: Literal["done"] = "done"
@@ -144,4 +182,7 @@ ProcessingEvent = Union[
     ErrorEvent,
     HeartbeatEvent,
     DoneEvent,
+    AgentStepStartedEvent,
+    AgentStepCompletedEvent,
+    AgentChunkEvent,
 ]

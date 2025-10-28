@@ -105,7 +105,7 @@ class ZenmuxClient:
         file_path: Optional[str] = None,
         file_type: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 4000,
+        max_tokens: int = 6000,
     ) -> Generator[str, None, Dict[str, Any]]:
         content = self._prepare_content(text_content, file_path, file_type)
 

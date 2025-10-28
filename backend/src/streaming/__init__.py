@@ -11,9 +11,13 @@ from .events import (
     ErrorEvent,
     HeartbeatEvent,
     DoneEvent,
+    AgentStepStartedEvent,
+    AgentStepCompletedEvent,
+    AgentChunkEvent,
 )
 from .manager import StreamManager, stream_manager
 from .insight_extractor import InsightExtractor, insight_extractor
+from .insight_listener import run_insight_listener
 
 __all__ = [
     "ProcessingEvent",
@@ -26,8 +30,12 @@ __all__ = [
     "ErrorEvent",
     "HeartbeatEvent",
     "DoneEvent",
+    "AgentStepStartedEvent",
+    "AgentStepCompletedEvent",
+    "AgentChunkEvent",
     "StreamManager",
     "stream_manager",
     "InsightExtractor",
     "insight_extractor",
+    "run_insight_listener",
 ]

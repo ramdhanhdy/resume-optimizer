@@ -141,6 +141,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "anthropic/claude-sonnet-4.5",
     },
+    "zenmux::anthropic/claude-haiku-4.5": {
+        "provider": "zenmux",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "anthropic/claude-haiku-4.5",
+    },
     "zenmux::google/gemini-2.5-pro": {
         "provider": "zenmux",
         "capabilities": {
@@ -185,6 +194,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_thinking_budget": False,
         },
         "api_model": "inclusionai/ring-mini-2.0"
+    },
+    "zenmux::inclusionai/ring-flash-2.0": {
+        "provider": "zenmux",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "inclusionai/ring-flash-2.0"
     },
     # Gemini models
     "gemini::gemini-2.5-flash": {
