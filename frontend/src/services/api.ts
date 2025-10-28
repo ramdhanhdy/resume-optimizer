@@ -167,6 +167,21 @@ class ApiClient {
     });
   }
 
+  async getApplicationDiff(application_id: number): Promise<{
+    success: boolean;
+    changes: ResumeChange[];
+    scores: {
+      overall: number;
+      requirements_match: number;
+      ats_optimization: number;
+      cultural_fit: number;
+    };
+  }> {
+    return this.request(`/api/application/${application_id}/diff`, {
+      method: 'GET',
+    });
+  }
+
   async listApplications(): Promise<any> {
     return this.request('/api/applications', {
       method: 'GET',

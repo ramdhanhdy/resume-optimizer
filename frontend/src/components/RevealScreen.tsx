@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BackArrowIcon, CheckIcon, DownloadIcon, InfoIcon, WarningIcon } from './icons';
-import { MOCK_RESUME_DIFF } from '../constants';
 import type { ResumeChange } from '../types';
 import ExportModal from './ExportModal';
 
@@ -70,10 +69,11 @@ const ValidationPopover: React.FC<PopoverProps> = ({ change, onClose }) => {
 const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, scores }) => {
     const [isExportModalOpen, setExportModalOpen] = useState(false);
     const [activePopover, setActivePopover] = useState<number | null>(null);
-    const [resumeChanges, setResumeChanges] = useState<ResumeChange[]>(MOCK_RESUME_DIFF);
+    const [resumeChanges, setResumeChanges] = useState<ResumeChange[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [actualScores, setActualScores] = useState(scores);
 
-    const overallScore = scores?.overall || 87;
+    const overallScore = actualScores?.overall || scores?.overall || 0;
 
     const beforeRef = useRef<HTMLDivElement>(null);
     const afterRef = useRef<HTMLDivElement>(null);
@@ -104,13 +104,22 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
         const loadApplicationData = async () => {
             try {
                 const { apiClient } = await import('../services/api');
-                const response = await apiClient.getApplication(applicationId);
+                const response = await apiClient.getApplicationDiff(applicationId);
                 
-                // TODO: Parse response to extract resume changes for diff view
-                // For now, using mock data
+                if (response.success) {
+                    if (response.changes) {
+                        setResumeChanges(response.changes);
+                    }
+                    // Update scores from API if available
+                    if (response.scores) {
+                        setActualScores(response.scores);
+                    }
+                }
+                
                 setIsLoading(false);
             } catch (error) {
                 console.error('Failed to load application data:', error);
+                // Fall back to mock data on error
                 setIsLoading(false);
             }
         };
@@ -134,8 +143,14 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
                 </button>
                 <div className="text-center">
                     <div className="flex items-center">
-                        <span className="text-3xl font-semibold tracking-tight">{overallScore}%</span>
-                        <CheckIcon className="w-5 h-5 ml-2 text-green-500" title="All claims verified" />
+                        {overallScore > 0 ? (
+                            <>
+                                <span className="text-3xl font-semibold tracking-tight">{overallScore}%</span>
+                                <CheckIcon className="w-5 h-5 ml-2 text-green-500" title="All claims verified" />
+                            </>
+                        ) : (
+                            <span className="text-2xl font-medium text-text-main/50">Calculating...</span>
+                        )}
                     </div>
                     <p className="text-xs text-text-main/70 -mt-1">Job Match</p>
                 </div>
@@ -198,7 +213,11 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
 
             <AnimatePresence>
                 {isExportModalOpen && (
-                    <ExportModal onRestart={onRestart} onClose={() => setExportModalOpen(false)} />
+                    <ExportModal 
+                        onRestart={onRestart} 
+                        onClose={() => setExportModalOpen(false)} 
+                        applicationId={applicationId}
+                    />
                 )}
             </AnimatePresence>
         </motion.div>

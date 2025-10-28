@@ -538,7 +538,7 @@ async def polish_resume(request: PolishRequest):
 
 @app.get("/api/export/{application_id}")
 async def export_resume(application_id: int, format: str = "docx"):
-    """Export final resume in requested format."""
+    """Export final resume in requested format by executing LLM-generated DOCX code."""
     try:
         # Get application data
         app_data = db.get_application(application_id)
@@ -552,19 +552,34 @@ async def export_resume(application_id: int, format: str = "docx"):
         # Generate export file
         if format == "docx":
             from src.utils import execute_docx_code
-            output_path = Path(f"./temp/resume_{application_id}.docx")
-            output_path.parent.mkdir(exist_ok=True)
+            from fastapi.responses import Response
+            import io
             
-            execute_docx_code(final_resume, str(output_path))
+            # Execute the LLM-generated Python code to create DOCX
+            docx_bytes = execute_docx_code(final_resume)
             
-            return FileResponse(
-                path=output_path,
-                filename=f"resume_{app_data['job_title']}_{app_data['company_name']}.docx",
-                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            # Create safe filename
+            job_title = app_data.get('job_title', 'resume').replace(' ', '_').replace('/', '_')
+            company_name = app_data.get('company_name', 'company').replace(' ', '_').replace('/', '_')
+            filename = f"resume_{job_title}_{company_name}.docx"
+            
+            # Return as streaming response
+            return Response(
+                content=docx_bytes,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported format")
             
+    except ValueError as e:
+        # Handle code execution errors specifically
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Failed to generate DOCX from code: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -595,6 +610,84 @@ async def get_application(application_id: int):
             "application": app_data
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/application/{application_id}/diff")
+async def get_application_diff(application_id: int):
+    """Get resume diff with change reasons and validation warnings."""
+    try:
+        from src.utils import generate_resume_diff
+        
+        # Get application data
+        app_data = db.get_application(application_id)
+        if not app_data:
+            raise HTTPException(status_code=404, detail="Application not found")
+        
+        original_text = app_data.get("original_resume_text", "")
+        
+        # Get agent outputs for reasons and optimized text
+        agent_outputs = db.get_agent_outputs(application_id)
+        optimization_report = ""
+        validation_report = ""
+        optimized_text = ""
+        
+        for output in agent_outputs:
+            agent_name = output.get("agent_name", "")
+            output_data = output.get("output_data", {})
+            
+            # Use Agent 3 (Optimizer Implementer) output for plain text diff
+            # Agent 5 output contains Python DOCX code, not suitable for display
+            if "implementer" in agent_name.lower():
+                if isinstance(output_data, dict):
+                    optimized_text = str(output_data.get("text") or output_data.get("full_response") or output_data.get("output") or "")
+                else:
+                    optimized_text = str(output_data)
+            
+            if "optimizer" in agent_name.lower() and "implementer" not in agent_name.lower():
+                # Extract text from output_data
+                if isinstance(output_data, dict):
+                    optimization_report = str(output_data.get("text") or output_data.get("full_response") or output_data.get("output") or "")
+                else:
+                    optimization_report = str(output_data)
+            
+            if "validator" in agent_name.lower():
+                if isinstance(output_data, dict):
+                    validation_report = str(output_data.get("text") or output_data.get("full_response") or output_data.get("output") or "")
+                else:
+                    validation_report = str(output_data)
+        
+        if not original_text or not optimized_text:
+            raise HTTPException(status_code=400, detail="Resume texts not found")
+        
+        # Generate diff
+        changes = generate_resume_diff(
+            original_text,
+            optimized_text,
+            optimization_report,
+            validation_report
+        )
+        
+        # Get validation scores - return actual scores or None
+        validation_scores = db.get_validation_scores(application_id)
+        scores = None
+        if validation_scores:
+            scores = {
+                "overall": round(validation_scores.get("overall_score", 0)),
+                "requirements_match": round(validation_scores.get("requirements_match", 0)),
+                "ats_optimization": round(validation_scores.get("ats_optimization", 0)),
+                "cultural_fit": round(validation_scores.get("cultural_fit", 0)),
+            }
+        
+        return {
+            "success": True,
+            "changes": changes,
+            "scores": scores
+        }
+    except Exception as e:
+        import traceback
+        print(f"Error generating diff: {e}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -707,6 +800,13 @@ async def run_pipeline_with_streaming(
             job_posting_text=job_text_final,
             original_resume_text=resume_text,
         )
+        
+        # Emit application_id as metric for frontend
+        await stream_manager.emit(MetricUpdateEvent.create(
+            job_id, "application_id", app_id, ""
+        ))
+        print(f"✅ Emitted application_id metric: {app_id}")
+        
         db.save_agent_output(
             application_id=app_id,
             agent_number=1,
@@ -833,9 +933,39 @@ async def run_pipeline_with_streaming(
         print(f"✅ Agent 4 complete: {len(validation_result)} chars")
         
         await stream_manager.emit(StepProgressEvent.create(job_id, "validating", 100))
-        await stream_manager.emit(MetricUpdateEvent.create(job_id, "overall_score", 87, "%"))
-        await stream_manager.emit(MetricUpdateEvent.create(job_id, "requirements_match", 90, "%"))
-        await stream_manager.emit(MetricUpdateEvent.create(job_id, "ats_optimization", 85, "%"))
+        
+        # Parse validation scores from the result
+        from src.app.services.validation_parser import extract_validation_artifacts
+        try:
+            parsed_scores, red_flags, recommendations = extract_validation_artifacts(validation_result)
+            
+            # Save validation scores to database
+            db.save_validation_scores(
+                app_id,
+                scores=parsed_scores,
+                red_flags=red_flags,
+                recommendations=recommendations
+            )
+            
+            # Emit actual scores as metrics
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "overall_score", round(parsed_scores.get("overall_score", 0)), "%"
+            ))
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "requirements_match", round(parsed_scores.get("requirements_match", 0)), "%"
+            ))
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "ats_optimization", round(parsed_scores.get("ats_optimization", 0)), "%"
+            ))
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "cultural_fit", round(parsed_scores.get("cultural_fit", 0)), "%"
+            ))
+            print(f"✅ Parsed and emitted validation scores: {parsed_scores}")
+        except Exception as e:
+            print(f"⚠️ Failed to parse validation scores: {e}")
+            # Emit fallback scores if parsing fails
+            await stream_manager.emit(MetricUpdateEvent.create(job_id, "overall_score", 0, "%"))
+        
         await stream_manager.emit(InsightEvent.create(
             job_id, "ins-8", "system", "high",
             "Validation complete", "validating"

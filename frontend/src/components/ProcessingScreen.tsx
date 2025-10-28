@@ -21,10 +21,21 @@ const USE_STREAMING = true;
 const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl }) => {
   const [currentActivity, setCurrentActivity] = useState(PROCESSING_ACTIVITIES[0]);
   const [currentPhase, setCurrentPhase] = useState(PROCESSING_PHASES[0]);
-  const [insights, setInsights] = useState<Insight[]>([]);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState<string | null>(null);
   const hasStartedRef = React.useRef(false);
+  
+  // Simplified insight display - just track by ID
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const seenInsightIds = React.useRef<Set<string>>(new Set());
+
+  // Reset on new job
+  useEffect(() => {
+    if (jobId) {
+      seenInsightIds.current.clear();
+      setInsights([]);
+    }
+  }, [jobId]);
   
   // Use streaming hook
   const { state: streamState, isComplete, isFailed } = useProcessingJob(jobId);
@@ -236,12 +247,29 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
     // Update insights from stream - ONLY non-system insights (actual LLM insights)
     const actualInsights = streamState.insights.filter(ins => ins.category !== 'system');
-    const convertedInsights: Insight[] = actualInsights.slice(0, 4).map((ins, idx) => ({
-      id: idx + 1, // Convert string id to number for old format
-      text: ins.message,
-      category: ins.category,
-    }));
-    setInsights(convertedInsights);
+    
+    // Find new insights we haven't seen yet
+    const newInsights = actualInsights.filter(ins => !seenInsightIds.current.has(ins.id));
+    
+    if (newInsights.length > 0) {
+      console.log(`📊 Adding ${newInsights.length} new insights`);
+      
+      // Mark as seen
+      newInsights.forEach(ins => seenInsightIds.current.add(ins.id));
+      
+      // Add to display list (keep last 10)
+      setInsights(prev => {
+        const updated = [
+          ...newInsights.map(ins => ({
+            id: ins.id,
+            text: ins.message,
+            category: ins.category,
+          })),
+          ...prev,
+        ];
+        return updated.slice(0, 10); // Keep last 10 insights
+      });
+    }
 
     // Calculate overall progress from steps
     const completedSteps = streamState.steps.filter(s => s.status === 'completed').length;
@@ -258,31 +286,55 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
     console.log('✨ Streaming pipeline complete!');
     
-    // Extract application data from metrics
-    const applicationId = streamState.metrics['application_id']?.value;
-    const overallScore = streamState.metrics['overall_score']?.value || 87;
-    const requirementsMatch = streamState.metrics['requirements_match']?.value || 90;
-    const atsOptimization = streamState.metrics['ats_optimization']?.value || 85;
-    const culturalFit = streamState.metrics['cultural_fit']?.value || 86;
+    const handleCompletion = async () => {
+      // Extract application data from metrics
+      let applicationId = streamState.metrics['application_id']?.value;
+      
+      // Fallback: fetch from snapshot if application_id is missing
+      if (!applicationId && jobId) {
+        console.log('⚠️ application_id not in metrics, fetching from snapshot...');
+        try {
+          const { apiClient } = await import('../services/api');
+          const snapshot = await apiClient.getJobSnapshot(jobId);
+          applicationId = snapshot.metrics?.application_id?.value;
+          console.log('✅ Retrieved application_id from snapshot:', applicationId);
+        } catch (error) {
+          console.error('❌ Failed to fetch application_id from snapshot:', error);
+        }
+      }
+      
+      if (!applicationId) {
+        console.error('❌ Could not retrieve application_id');
+        alert('Pipeline completed but application ID is missing. Please check the console.');
+        return;
+      }
+      
+      const overallScore = streamState.metrics['overall_score']?.value || 87;
+      const requirementsMatch = streamState.metrics['requirements_match']?.value || 90;
+      const atsOptimization = streamState.metrics['ats_optimization']?.value || 85;
+      const culturalFit = streamState.metrics['cultural_fit']?.value || 86;
 
-    const completionData = {
-      applicationId: applicationId || 0,
-      companyName: 'Company', // TODO: Extract from analysis
-      jobTitle: 'Position', // TODO: Extract from analysis
-      validationScores: {
-        overall: overallScore,
-        requirements_match: requirementsMatch,
-        ats_optimization: atsOptimization,
-        cultural_fit: culturalFit,
-      },
+      const completionData = {
+        applicationId,
+        companyName: 'Company', // TODO: Extract from analysis
+        jobTitle: 'Position', // TODO: Extract from analysis
+        validationScores: {
+          overall: overallScore,
+          requirements_match: requirementsMatch,
+          ats_optimization: atsOptimization,
+          cultural_fit: culturalFit,
+        },
+      };
+
+      console.log('🎯 Calling onComplete with:', completionData);
+      onComplete(completionData);
     };
 
     setTimeout(() => {
-      console.log('🎯 Calling onComplete with:', completionData);
-      onComplete(completionData);
+      handleCompletion();
     }, 500);
 
-  }, [isComplete, streamState, onComplete]);
+  }, [isComplete, streamState, onComplete, jobId]);
 
   // Handle streaming failure
   useEffect(() => {
@@ -337,20 +389,36 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
               </motion.div>
             </div>
 
-            <div className="col-span-4 space-y-3 h-[280px] flex flex-col justify-end">
-              <AnimatePresence>
-                {insights.map((insight) => (
+            <div className="col-span-4 space-y-3 h-[360px] flex flex-col-reverse overflow-hidden">
+              <AnimatePresence mode="popLayout">
+                {insights.slice(0, 5).map((insight, index) => (
                   <motion.div
                     key={insight.id}
-                    layout
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -30 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="bg-surface-light rounded-lg shadow-subtle p-4 border border-border-subtle/50"
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ 
+                      opacity: 1 - (index * 0.15), 
+                      y: 0,
+                      scale: 1 - (index * 0.02)
+                    }}
+                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
+                    className="bg-surface-light rounded-lg shadow-subtle p-4 border border-border-subtle/50 backdrop-blur-sm"
+                    style={{
+                      marginTop: index === 0 ? 0 : -8,
+                      zIndex: 5 - index,
+                    }}
                   >
-                    <p className="text-sm font-medium text-text-main">"{insight.text}"</p>
-                    <p className="text-xs text-text-main/70 mt-1">{insight.category}</p>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-2 h-2 rounded-full bg-accent mt-1.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-main leading-relaxed">
+                          {insight.text}
+                        </p>
+                        <p className="text-xs text-text-main/60 mt-1.5 uppercase tracking-wide font-medium">
+                          {insight.category}
+                        </p>
+                      </div>
+                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>

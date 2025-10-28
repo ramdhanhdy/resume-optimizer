@@ -51,8 +51,8 @@ class InsightListener:
         
         # Throttling and rate limiting
         self.last_extraction_time: Dict[str, float] = {}
-        self.min_extraction_interval = 1.5  # seconds
-        self.min_chunk_size = 500  # chars
+        self.min_extraction_interval = 3.0  # seconds (increased from 1.5 to reduce rate)
+        self.min_chunk_size = 800  # chars (increased from 500 to wait for more content)
         
         # Deduplication cache
         self.seen_insights = LRUCache(maxsize=200)
@@ -125,14 +125,20 @@ class InsightListener:
             self.last_extraction_time[step] = current_time
     
     async def _handle_step_completed(self, event: AgentStepCompletedEvent):
-        """Handle step completion - do final extraction."""
+        """Handle step completion - cleanup without re-extraction.
+        
+        We skip final extraction here because we've already been extracting
+        insights continuously during streaming. Re-analyzing the same content
+        often produces duplicate insights with slight variations that bypass
+        deduplication.
+        """
         step = event.payload["step"]
         
+        # Clean up the buffer for this step to free memory
         if step in self.step_buffers:
-            window_text = ''.join(self.step_buffers[step])
-            if len(window_text) >= self.min_chunk_size:
-                # Force final extraction for this step
-                await self._extract_insights_for_step(step, window_text)
+            del self.step_buffers[step]
+        if step in self.last_extraction_time:
+            del self.last_extraction_time[step]
     
     async def _extract_insights_for_step(self, step: str, text: str):
         """Extract insights from accumulated text for a specific step."""
@@ -150,7 +156,7 @@ class InsightListener:
             insights = await insight_extractor.extract_insights_async(
                 extraction_text, 
                 agent_type, 
-                max_insights=3  # Limit to 3 insights per extraction
+                max_insights=2  # Limit to 2 insights per extraction (reduced from 3)
             )
             
             # Emit non-system insights
@@ -210,10 +216,23 @@ class InsightListener:
         return None
     
     def _create_dedupe_key(self, message: str, category: str, step: str) -> str:
-        """Create a deduplication key for an insight."""
-        # Normalize message for deduplication
+        """Create a deduplication key for an insight using fuzzy matching.
+        
+        Uses the first 5 significant words + category to detect similar insights,
+        not just exact duplicates.
+        """
+        # Normalize message
         normalized = message.lower().strip()
-        return hashlib.md5(f"{normalized}|{category}|{step}".encode()).hexdigest()
+        
+        # Extract significant words (longer than 3 chars, excluding common words)
+        stop_words = {'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'will', 'your'}
+        words = [w for w in normalized.split() if len(w) > 3 and w not in stop_words]
+        
+        # Use first 5 significant words as the key base
+        key_words = ' '.join(words[:5])
+        
+        # Include category for grouping similar insights by type
+        return hashlib.md5(f"{key_words}|{category}".encode()).hexdigest()
     
     async def _cleanup_old_steps(self):
         """Clean up old step buffers to prevent memory leaks."""

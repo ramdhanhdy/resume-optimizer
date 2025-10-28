@@ -6,7 +6,7 @@ export enum Screen {
 }
 
 export interface Insight {
-  id: number;
+  id: string | number;
   text: string;
   category: string;
 }
