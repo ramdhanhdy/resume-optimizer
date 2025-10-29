@@ -795,7 +795,7 @@ async def run_pipeline_with_streaming(
             print(f"🔗 Building profile index (LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})")
             await stream_manager.emit(InsightEvent.create(
                 job_id, "ins-profile", "system", "medium",
-                "Building profile index from LinkedIn and GitHub...", "profiling"
+                "Getting to know you better...", "profiling"
             ))
             
             try:

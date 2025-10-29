@@ -350,95 +350,213 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
     alert('Pipeline failed. Please try again.');
   }, [isFailed]);
 
+  // Define phases for progress visualization
+  const phases = [
+    { key: 'analyzing', label: 'Analyzing requirements', step: 'analyzing' },
+    { key: 'planning', label: 'Planning optimization', step: 'planning' },
+    { key: 'writing', label: 'Crafting resume', step: 'writing' },
+    { key: 'validating', label: 'Quality check', step: 'validating' },
+    { key: 'polishing', label: 'Final polish', step: 'polishing' },
+  ];
+
+  // Determine current phase index based on streamState
+  const getCurrentPhaseIndex = () => {
+    if (!streamState?.currentStep) return 0;
+    const index = phases.findIndex(p => p.step === streamState.currentStep);
+    return index >= 0 ? index : 0;
+  };
+
+  const currentPhaseIndex = getCurrentPhaseIndex();
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
-      className="min-h-screen flex flex-col p-12"
+      className="min-h-screen flex flex-col items-center justify-center px-12 py-16 relative overflow-hidden"
     >
-        <div className="fixed top-8 left-12">
-            <AnimatePresence mode="wait">
-                <motion.p
-                    key={currentPhase}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-sm font-medium text-text-main/70"
-                >
-                    {currentPhase}
-                </motion.p>
-            </AnimatePresence>
-        </div>
-
-      <div className="flex-grow flex items-center">
-        <div className="max-w-7xl mx-auto w-full">
-          <div className="grid grid-cols-10 gap-12">
-            <div className="col-span-6 flex items-center">
-              <motion.div 
-                className="bg-surface-light rounded-lg shadow-subtle p-8 border border-border-subtle/50 w-full animate-pulse-slow"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={currentActivity}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-2xl font-medium tracking-tight"
-                  >
-                    {currentActivity}
-                  </motion.p>
-                </AnimatePresence>
-              </motion.div>
-            </div>
-
-            <div className="col-span-4 space-y-3 h-[360px] flex flex-col-reverse overflow-hidden">
-              <AnimatePresence mode="popLayout">
-                {insights.slice(0, 5).map((insight, index) => (
-                  <motion.div
-                    key={insight.id}
-                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                    animate={{ 
-                      opacity: 1 - (index * 0.15), 
-                      y: 0,
-                      scale: 1 - (index * 0.02)
-                    }}
-                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                    transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
-                    className="bg-surface-light rounded-lg shadow-subtle p-4 border border-border-subtle/50 backdrop-blur-sm"
-                    style={{
-                      marginTop: index === 0 ? 0 : -8,
-                      zIndex: 5 - index,
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-2 h-2 rounded-full bg-accent mt-1.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-main leading-relaxed">
-                          {insight.text}
-                        </p>
-                        <p className="text-xs text-text-main/60 mt-1.5 uppercase tracking-wide font-medium">
-                          {insight.category}
-                        </p>
-                      </div>
+      {/* Phase Progress Bar - Top */}
+      <div className="absolute top-12 left-0 right-0 px-12">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between gap-2">
+            {phases.map((phase, index) => {
+              const isComplete = index < currentPhaseIndex;
+              const isCurrent = index === currentPhaseIndex;
+              const isFuture = index > currentPhaseIndex;
+              
+              return (
+                <React.Fragment key={phase.key}>
+                  {/* Phase Step */}
+                  <div className="flex flex-col items-center gap-2 flex-1">
+                    <motion.div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                        isComplete
+                          ? 'bg-accent border-accent'
+                          : isCurrent
+                          ? 'bg-accent/20 border-accent animate-pulse'
+                          : 'bg-surface-light border-border-subtle'
+                      }`}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      {isComplete ? (
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <span className={`text-sm font-semibold ${
+                          isCurrent ? 'text-accent' : 'text-text-main/40'
+                        }`}>
+                          {index + 1}
+                        </span>
+                      )}
+                    </motion.div>
+                    <motion.p
+                      className={`text-xs font-medium text-center transition-colors duration-300 ${
+                        isCurrent ? 'text-text-main' : 'text-text-main/50'
+                      }`}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 + 0.1 }}
+                    >
+                      {phase.label}
+                    </motion.p>
+                  </div>
+                  
+                  {/* Connector Line */}
+                  {index < phases.length - 1 && (
+                    <div className="flex-1 h-[2px] -mt-8 relative">
+                      <div className="absolute inset-0 bg-border-subtle" />
+                      <motion.div
+                        className="absolute inset-0 bg-accent"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: index < currentPhaseIndex ? 1 : 0 }}
+                        transition={{ duration: 0.5, ease: 'easeInOut' }}
+                        style={{ transformOrigin: 'left' }}
+                      />
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       </div>
-      
-      <div className="fixed bottom-0 left-0 right-0 h-[3px] bg-border-subtle/50">
+
+      {/* Insights - Upper portion */}
+      <div className="absolute top-40 left-0 right-0 px-12">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-wrap gap-3 justify-center">
+            <AnimatePresence mode="popLayout">
+              {insights.slice(0, 6).map((insight, index) => (
+                <motion.div
+                  key={insight.id}
+                  initial={{ opacity: 0, scale: 0.8, y: -20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                  transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
+                  className="bg-surface-light rounded-lg shadow-sm px-4 py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-xs"
+                >
+                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
+                  <p className="text-sm text-text-main font-medium truncate">
+                    {insight.text}
+                  </p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Status Text - Centered, 65% down */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="max-w-2xl mx-auto text-center relative" style={{ marginTop: '10vh' }}>
+          {/* Breathing Ring Animation */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* Multiple expanding rings */}
+            {[0, 1, 2].map((index) => (
+              <motion.div
+                key={index}
+                className="absolute rounded-full border-2 border-accent/40"
+                style={{
+                  width: '220px',
+                  height: '220px',
+                  filter: 'blur(1px)',
+                }}
+                animate={{
+                  scale: [1, 2.2, 2.2],
+                  opacity: [0.4, 0.15, 0],
+                }}
+                transition={{
+                  duration: 4.5,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                  delay: index * 1.5,
+                }}
+              />
+            ))}
+            {/* Central pulsing circle */}
+            <motion.div
+              className="absolute rounded-full bg-accent/8"
+              style={{
+                width: '200px',
+                height: '200px',
+                filter: 'blur(4px)',
+              }}
+              animate={{
+                scale: [1, 1.08, 1],
+                opacity: [0.25, 0.4, 0.25],
+              }}
+              transition={{
+                duration: 3.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            />
+          </div>
+          
+          {/* Text with shimmer effect */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentActivity}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="relative z-10"
+            >
+              <p className="text-3xl font-semibold tracking-tight text-text-main relative inline-block">
+                {currentActivity}
+                {/* Shimmer overlay */}
+                <motion.span
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                  style={{
+                    backgroundSize: '200% 100%',
+                  }}
+                  animate={{
+                    backgroundPosition: ['-200% 0', '200% 0'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'linear',
+                  }}
+                />
+              </p>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Thin Progress Bar - Bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-border-subtle/30">
         <motion.div
-          className="h-full bg-accent"
+          className="h-full bg-gradient-to-r from-accent to-accent/70"
           initial={{ width: '0%' }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.1, ease: "linear" }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
         />
       </div>
     </motion.div>

@@ -92,13 +92,25 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
           />
           <button
             onClick={handleUploadClick}
+            disabled={isLoading}
             className={`flex items-center justify-center px-6 text-sm font-medium transition-colors duration-200 w-48 ${
-              fileName
+              isLoading
+                ? 'bg-primary/70 text-white cursor-wait'
+                : fileName
                 ? 'bg-primary/90 text-white'
                 : 'bg-primary text-white hover:bg-primary/90'
             }`}
           >
-            {fileName ? (
+            {isLoading ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full"
+                />
+                <span>Processing...</span>
+              </>
+            ) : fileName ? (
               <>
                 <CheckIcon className="w-4 h-4 mr-2" />
                 <span className="truncate">{fileName}</span>
@@ -120,7 +132,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
         </div>
         
         <p className="text-xs text-text-main/70 mt-4">
-          PDF or DOCX &middot; We'll analyze it against the job description.
+          PDF or DOCX • We'll analyze it against the job description.
         </p>
 
         {/* Optional Enhancements Toggle */}
@@ -232,15 +244,6 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
                 >
                     Continue
                 </motion.button>
-            )}
-            {isLoading && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-sm text-text-main/70"
-                >
-                    Processing resume...
-                </motion.div>
             )}
           </AnimatePresence>
         </div>

@@ -51,11 +51,11 @@ class InsightListener:
         
         # Throttling and rate limiting
         self.last_extraction_time: Dict[str, float] = {}
-        self.min_extraction_interval = 3.0  # seconds (increased from 1.5 to reduce rate)
+        self.min_extraction_interval = 2.0  # seconds (increased from 1.5 to reduce rate)
         self.min_chunk_size = 800  # chars (increased from 500 to wait for more content)
         
         # Deduplication cache
-        self.seen_insights = LRUCache(maxsize=200)
+        self.seen_insights = LRUCache(maxsize=300)
         self.insight_counter = 0
         
         # Agent type mapping
