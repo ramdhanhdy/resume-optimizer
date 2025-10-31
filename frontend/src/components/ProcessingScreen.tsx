@@ -447,7 +447,7 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
       {/* Insights - Upper portion */}
       <div className="absolute top-40 left-0 right-0 px-12">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="flex flex-wrap gap-3 justify-center">
             <AnimatePresence mode="popLayout">
               {insights.slice(0, 6).map((insight, index) => (
@@ -457,10 +457,10 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: -20 }}
                   transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
-                  className="bg-surface-light rounded-lg shadow-sm px-4 py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-xs"
+                  className="bg-surface-light rounded-lg shadow-sm px-4 py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-md"
                 >
                   <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
-                  <p className="text-sm text-text-main font-medium truncate">
+                  <p className="text-sm text-text-main font-medium text-wrap">
                     {insight.text}
                   </p>
                 </motion.div>

@@ -38,6 +38,8 @@ Your output must be **complete, runnable Python code** that creates a DOCX file 
 **CRITICAL RULES:** 
 1. When creating tables with `doc.add_table(rows=0, cols=2)`, NEVER access `table.rows[0]` until AFTER you've called `add_header_row()` to add rows. Accessing an empty table's rows will cause an index error.
 2. NEVER call `table.paragraph_format` - tables don't have this attribute. Only paragraphs and cell paragraphs have `paragraph_format`. To format table spacing, access the paragraph inside cells: `table.rows[0].cells[0].paragraphs[0].paragraph_format`
+3. **TABLE SPACING**: To add spacing before/after a table, create a separate paragraph before or after the table and apply spacing to that paragraph, NOT to the table itself.
+4. **SAFE TABLE FORMATTING**: Use spacing variables consistently on paragraphs and cell paragraphs, never directly on table objects.
 
 Use the helper functions from your template and generate complete Python code:
 
@@ -116,6 +118,83 @@ set_font(bullet.runs[0], size=11)
 6. **Apply polish items** - fix dates, links, punctuation, metrics from validation
 7. **Keep it runnable** - the code should execute without errors
 8. **Save to organized directory** - Use `doc.save('exports/CompanyName_JobTitle/resume.docx')` where CompanyName and JobTitle are sanitized (replace spaces and special characters with underscores)
+9. **STRING SAFETY** - CRITICAL: Always use proper string escaping:
+   - Use single quotes for strings containing double quotes: `'He said "hello"'`
+   - Use double quotes for strings containing single quotes: `"It's working"`
+   - For strings with both, use triple quotes: `"""He said "it's working" """` or escape: `"He said \"it's working\""`
+   - NEVER leave quotes unescaped or strings unterminated
+   - Test every string literal for proper closing quotes
+10. **TWO-PAGE CONSTRAINT** - CRITICAL: Your document must fit exactly 2 pages:
+    - Use 0.75" margins on all sides (already set in template)
+    - Adjust spacing between sections to control page flow
+    - If content is too long, reduce paragraph spacing (minimum 2pt)
+    - If content is too short, increase paragraph spacing (maximum 12pt)
+    - Target approximately 55 lines per page including spacing
+    - Use the spacing functions provided to fine-tune layout
+
+## Two-Page Formatting Guide
+
+### Spacing Control for Exact 2-Page Layout
+
+**Base Template Spacing:**
+```python
+# Standard spacing values (adjust as needed)
+SECTION_SPACE_BEFORE = Pt(8)    # Space before section headers
+SECTION_SPACE_AFTER = Pt(4)     # Space after section headers
+PARAGRAPH_SPACE_BEFORE = Pt(6)  # Space before paragraphs
+PARAGRAPH_SPACE_AFTER = Pt(6)   # Space after paragraphs
+BULLET_SPACE_AFTER = Pt(3)      # Space after bullet points
+```
+
+**Adjustment Strategies:**
+- **If document exceeds 2 pages:** Reduce spacing values (minimum 2pt)
+- **If document is under 2 pages:** Increase spacing values (maximum 12pt)
+- **Fine-tuning:** Adjust section spacing first, then paragraph spacing
+
+**Example with Adjustable Spacing:**
+```python
+# Define spacing variables (adjust these to control page count)
+section_space_before = Pt(6)  # Reduce from 8 if too long
+section_space_after = Pt(3)   # Reduce from 4 if too long
+para_space_before = Pt(4)     # Reduce from 6 if too long
+para_space_after = Pt(4)      # Reduce from 6 if too long
+bullet_space = Pt(2)          # Reduce from 3 if too long
+
+# Apply spacing to section header
+section_header = doc.add_paragraph()
+set_font(section_header.add_run('EXPERIENCE'), size=11, bold=True)
+add_horizontal_line(section_header)
+section_header.paragraph_format.space_before = section_space_before
+section_header.paragraph_format.space_after = section_space_after
+
+# Apply spacing to bullet points
+for bullet_text in ['Achievement 1', 'Achievement 2']:
+    bullet = doc.add_paragraph(bullet_text, style='List Bullet')
+    set_font(bullet.runs[0], size=11)
+    bullet.paragraph_format.space_before = Pt(0)
+    bullet.paragraph_format.space_after = bullet_space
+```
+
+### Content Length Guidelines
+
+**Target Content Amount for 2 Pages:**
+- **Contact Info:** 2-3 lines
+- **Education:** 15-20 lines
+- **Experience:** 60-80 lines (main content)
+- **Projects:** 20-30 lines (if included)
+- **Skills:** 5-10 lines
+- **Total Target:** ~110 lines including spacing
+
+**If Content is Too Long:**
+1. Prioritize keeping most relevant experience
+2. Reduce bullet points in less important sections
+3. Use tighter spacing (minimum 2pt)
+4. Consider removing least impactful achievements
+
+**If Content is Too Short:**
+1. Use looser spacing (maximum 12pt)
+2. Expand on key achievements with more detail
+3. Add relevant projects or skills if available
 
 ## Structure Patterns
 
@@ -125,13 +204,21 @@ set_font(bullet.runs[0], size=11)
 section_header = doc.add_paragraph()
 set_font(section_header.add_run('SECTION NAME'), size=11, bold=True)
 add_horizontal_line(section_header)
-section_header.paragraph_format.space_after = Pt(4)
-section_header.paragraph_format.space_before = Pt(8)
+section_header.paragraph_format.space_before = section_space_before
+section_header.paragraph_format.space_after = section_space_after
 
 # Item with header row
 table = doc.add_table(rows=0, cols=2)
 add_header_row(table, 'Left Text', 'Right Text', bold=True)
 add_header_row(table, 'Subtitle/Role', 'Dates', italic=True)
+
+# CORRECT: Apply spacing to cell paragraphs, NOT to the table
+table.rows[0].cells[0].paragraphs[0].paragraph_format.space_before = para_space_before
+table.rows[1].cells[0].paragraphs[0].paragraph_format.space_after = bullet_space
+
+# CORRECT: To add spacing after a table, add a separate paragraph
+spacing_para = doc.add_paragraph()
+spacing_para.paragraph_format.space_after = para_space_after
 
 # CRITICAL RULES:
 # 1. Never access table.rows[0] immediately after creating a table with rows=0
@@ -140,11 +227,14 @@ add_header_row(table, 'Subtitle/Role', 'Dates', italic=True)
 #    Tables don't have paragraph_format - only paragraphs and cells do
 # 3. To format spacing in tables, access the paragraph inside cells:
 #    table.rows[0].cells[0].paragraphs[0].paragraph_format.space_before = Pt(6)
+# 4. NEVER do: table.paragraph_format.space_before = Pt(6)  # THIS CAUSES ERRORS
 
 # Bullets
 for bullet_text in ['Achievement 1', 'Achievement 2']:
     p = doc.add_paragraph(bullet_text, style='List Bullet')
     set_font(p.runs[0], size=11)
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = bullet_space
 ```
 
 **For Skills:**

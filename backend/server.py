@@ -637,6 +637,25 @@ async def get_application(application_id: int):
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
         
+        # Get agent outputs to provide plain text resume for display
+        agent_outputs = db.get_agent_outputs(application_id)
+        
+        # Replace optimized_resume_text with Agent 3's output (plain text)
+        # Agent 5's output is DOCX code, not suitable for display
+        for output in agent_outputs:
+            agent_name = output.get("agent_name", "")
+            if "implementer" in agent_name.lower():
+                output_data = output.get("output_data", {})
+                if isinstance(output_data, dict):
+                    plain_text_resume = str(output_data.get("text") or output_data.get("full_response") or output_data.get("output") or "")
+                else:
+                    plain_text_resume = str(output_data)
+                
+                # Override the optimized_resume_text with plain text version
+                if plain_text_resume:
+                    app_data["optimized_resume_text"] = plain_text_resume
+                break
+        
         return {
             "success": True,
             "application": app_data
@@ -719,6 +738,54 @@ async def get_application_diff(application_id: int):
     except Exception as e:
         import traceback
         print(f"Error generating diff: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/application/{application_id}/reports")
+async def get_application_reports(application_id: int):
+    """Get structured reports parsed from all agent outputs.
+
+    Returns:
+        - job_analysis: Parsed job analysis from Agent 1
+        - optimization_strategy: Parsed optimization strategy from Agent 2
+        - validation_report: Parsed validation report from Agent 4
+        - optimized_resume_text: Plain text optimized resume from Agent 3
+        - agent_costs: Cost breakdown by agent
+    """
+    try:
+        from src.utils.report_parsers import parse_all_reports
+
+        # Get agent outputs
+        agent_outputs = db.get_agent_outputs(application_id)
+        if not agent_outputs:
+            raise HTTPException(
+                status_code=404,
+                detail="No agent outputs found for this application"
+            )
+
+        # Parse all reports
+        reports = parse_all_reports(agent_outputs)
+
+        # Get validation scores from database for additional context
+        validation_scores = db.get_validation_scores(application_id)
+        if validation_scores:
+            reports["validation_scores"] = {
+                "requirements_match": validation_scores.get("requirements_match", 0),
+                "ats_optimization": validation_scores.get("ats_optimization", 0),
+                "cultural_fit": validation_scores.get("cultural_fit", 0),
+                "presentation_quality": validation_scores.get("presentation_quality", 0),
+                "competitive_positioning": validation_scores.get("competitive_positioning", 0),
+                "overall_score": validation_scores.get("overall_score", 0),
+            }
+
+        return {
+            "success": True,
+            "reports": reports
+        }
+    except Exception as e:
+        import traceback
+        print(f"Error parsing reports: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 

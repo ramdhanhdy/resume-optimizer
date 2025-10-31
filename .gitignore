@@ -41,3 +41,17 @@ dist/
 # Test coverage
 .coverage
 htmlcov/
+CLAUDE.md
+test_output.json
+.claude/settings.local.json
+.gitignore
+backend/app_67_fixed.py
+.gitignore
+backend/minimal_fix_67.py
+backend/auto_fix_app65.py
+.gitignore
+backend/fix_app_67.py
+backend/fix_app65_direct.py
+backend/fix_app65_polish.py
+backend/fix_docx_table_formatting.py
+.gitignore

@@ -13,6 +13,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from .docx_generator import add_header_row, add_horizontal_line, set_font
+from .page_controller import apply_spacing_adjustments, create_section_header, add_bullet_point
 
 
 class UnsafeCodeError(ValueError):
@@ -116,6 +117,9 @@ SAFE_GLOBALS: Dict[str, Any] = {
     "set_font": set_font,
     "add_horizontal_line": add_horizontal_line,
     "add_header_row": add_header_row,
+    "apply_spacing_adjustments": apply_spacing_adjustments,
+    "create_section_header": create_section_header,
+    "add_bullet_point": add_bullet_point,
 }
 
 
@@ -209,7 +213,23 @@ def execute_docx_code(code: str) -> bytes:
     try:
         tree = ast.parse(cleaned_code, mode="exec")
     except SyntaxError as exc:
-        raise ValueError(f"Generated code could not be parsed: {exc}") from exc
+        # Provide detailed error context
+        lines = cleaned_code.split('\n')
+        error_line = exc.lineno if exc.lineno else 0
+        context_start = max(0, error_line - 3)
+        context_end = min(len(lines), error_line + 2)
+        
+        context = "\n".join([
+            f"{'>>> ' if i == error_line - 1 else '    '}{i+1}: {lines[i]}"
+            for i in range(context_start, context_end)
+        ])
+        
+        error_msg = (
+            f"Generated code could not be parsed: {exc}\n"
+            f"Error at line {error_line}: {exc.text if exc.text else '(no text)'}\n"
+            f"Context:\n{context}"
+        )
+        raise ValueError(error_msg) from exc
 
     _validate_ast(tree)
 
