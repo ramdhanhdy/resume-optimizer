@@ -103,6 +103,7 @@ Profile Agent (Optional) → Agent 1 → Agent 2 → Agent 3 → Agent 4 → Age
   - Google Gemini API
   - Zenmux
   - Meituan LongCat
+  - Cerebras Inference API
 - SQLite (database)
 - Exa API (job posting retrieval)
 
@@ -129,7 +130,7 @@ resume-optimizer/
 │   │   │   ├── validator.py      # Agent 4: Validation & scoring
 │   │   │   ├── polish.py         # Agent 5: Final polish
 │   │   │   └── renderer.py       # Document rendering
-│   │   ├── api/          # 🔌 API clients (OpenRouter, Exa, Gemini)
+│   │   ├── api/          # 🔌 API clients (OpenRouter, Gemini, Zenmux, LongCat, Cerebras, Exa)
 │   │   ├── app/
 │   │   │   └── services/ # 📋 Service wrappers and orchestration
 │   │   │       └── agents.py     # Agent service entrypoints

@@ -53,69 +53,6 @@ export default function OptimizationReportTab({ optimizationStrategy }: Optimiza
         </motion.section>
       )}
 
-      {/* Gap Analysis */}
-      <motion.section variants={itemVariants}>
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Gap Analysis</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Strengths */}
-          {optimizationStrategy.gap_analysis.strengths.length > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <h3 className="text-base font-bold text-green-900">Strengths</h3>
-              </div>
-              <ul className="space-y-2">
-                {optimizationStrategy.gap_analysis.strengths.map((strength, index) => (
-                  <li key={index} className="text-sm text-green-800 leading-snug">
-                    • {strength}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Gaps/Weaknesses */}
-          {optimizationStrategy.gap_analysis.weaknesses.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <h3 className="text-base font-bold text-orange-900">Gaps to Address</h3>
-              </div>
-              <ul className="space-y-2">
-                {optimizationStrategy.gap_analysis.weaknesses.map((weakness, index) => (
-                  <li key={index} className="text-sm text-orange-800 leading-snug">
-                    • {weakness}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Opportunities */}
-          {optimizationStrategy.gap_analysis.opportunities.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <h3 className="text-base font-bold text-blue-900">Opportunities</h3>
-              </div>
-              <ul className="space-y-2">
-                {optimizationStrategy.gap_analysis.opportunities.map((opp, index) => (
-                  <li key={index} className="text-sm text-blue-800 leading-snug">
-                    • {opp}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </motion.section>
-
       {/* Section-by-Section Recommendations */}
       {optimizationStrategy.section_recommendations.length > 0 && (
         <motion.section variants={itemVariants}>

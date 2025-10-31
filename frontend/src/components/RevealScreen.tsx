@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import React from 'react';
 import {
-  ValidationDetailsTab,
   JobAnalysisTab,
   OptimizationReportTab,
   ResumePreviewTab
@@ -32,7 +31,7 @@ interface Reports {
   };
 }
 
-type TabType = 'preview' | 'validation' | 'job' | 'optimization';
+type TabType = 'preview' | 'job' | 'optimization';
 
 const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, scores }) => {
   const [activeTab, setActiveTab] = useState<TabType>('preview');
@@ -89,17 +88,6 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
         </svg>
       ),
       available: !!reports?.optimized_resume_text
-    },
-    {
-      id: 'validation' as TabType,
-      label: 'Validation Details',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      badge: displayScores.overall_score,
-      available: !!reports?.validation_report
     },
     {
       id: 'job' as TabType,
@@ -246,10 +234,6 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
                 resumeText={reports.optimized_resume_text}
                 applicationId={applicationId}
               />
-            )}
-
-            {activeTab === 'validation' && reports.validation_report && (
-              <ValidationDetailsTab validationReport={reports.validation_report} />
             )}
 
             {activeTab === 'job' && reports.job_analysis && (

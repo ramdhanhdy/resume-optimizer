@@ -8,7 +8,7 @@ from src.api.client_factory import create_client
 class BaseInsightExtractor:
     """Base class for insight extraction."""
     
-    def __init__(self, model: str = "zenmux::z-ai/glm-4.6"):
+    def __init__(self, model: str = "cerebras::gpt-oss-120b"):
         self.client = create_client()
         self.model = model
     

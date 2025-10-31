@@ -43,7 +43,7 @@ from src.streaming.insight_listener import run_insight_listener
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3-max")
-POLISH_MODEL = "zenmux::anthropic/claude-sonnet-4.5"
+POLISH_MODEL = "cerebras::qwen-3-coder-480b"
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 

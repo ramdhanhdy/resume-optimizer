@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, TypedDict
 
-ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini"]
+ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini", "cerebras"]
 
 
 class Capabilities(TypedDict, total=False):
@@ -213,6 +213,34 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "minimax/minimax-m2"
     },
+    # Cerebras models
+    "cerebras::qwen-3-235b-a22b-instruct-2507": {
+        "provider": "cerebras",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "qwen-3-235b-a22b-instruct-2507",
+    },
+    "cerebras::gpt-oss-120b": {
+        "provider": "cerebras",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "gpt-oss-120b",
+    },
+    "cerebras::qwen-3-coder-480b": {
+        "provider": "cerebras",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "qwen-3-coder-480b",
+    },
     # Gemini models
     "gemini::gemini-2.5-flash": {
         "provider": "gemini",
@@ -270,6 +298,8 @@ def get_provider_for_model(model: str) -> ProviderName:
         return "zenmux"
     if m.startswith("gemini::"):
         return "gemini"
+    if m.startswith("cerebras::"):
+        return "cerebras"
     return "openrouter"
 
 
@@ -299,6 +329,12 @@ def get_capabilities(model: str) -> Capabilities:
             "supports_images": True,
             "supports_thinking_budget": ("2.5" in m),  # Only 2.5 models support thinking
         }
+    if provider == "cerebras":
+        return {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": False,
+        }
     # openrouter default
     return {
         "supports_files": True,
@@ -325,6 +361,8 @@ def get_api_model(model: str) -> str:
     if m.startswith("meituan::"):
         return model.split("::", 1)[1]
     if m.startswith("gemini::"):
+        return model.split("::", 1)[1]
+    if m.startswith("cerebras::"):
         return model.split("::", 1)[1]
     return model
 
