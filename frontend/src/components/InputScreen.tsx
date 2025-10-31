@@ -2,11 +2,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadIcon, CheckIcon, LinkedInIcon, GitHubIcon } from './icons';
+import RecoveryBanner from './shared/RecoveryBanner';
+import { stateManager, RecoverySession } from '../services/storage';
 
 interface InputScreenProps {
-  onStart: (data: { 
-    resumeText: string; 
-    jobInput: string; 
+  onStart: (data: {
+    resumeText: string;
+    jobInput: string;
     isUrl: boolean;
     linkedinUrl?: string;
     githubUsername?: string;
@@ -21,10 +23,54 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [linkedinUrl, setLinkedinUrl] = useState<string>('');
-  const [githubUsername, setGithubUsername] = useState<string>('');  const [githubToken, setGithubToken] = useState<string>('');
+  const [githubUsername, setGithubUsername] = useState<string>('');
+  const [githubToken, setGithubToken] = useState<string>('');
+  const [recoverySession, setRecoverySession] = useState<RecoverySession | null>(null);
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isReady = !!fileName && !!jobInput;
+
+  // Check for recovery session on mount
+  useEffect(() => {
+    const checkRecovery = async () => {
+      try {
+        const session = await stateManager.findLatestSession();
+        if (session) {
+          console.log('Found recovery session:', session.sessionId);
+          setRecoverySession(session);
+
+          // Restore form data
+          if (session.formData.jobPosting) {
+            setJobInput(session.formData.jobPosting);
+          }
+
+          // Restore file
+          if (session.fileMetadata) {
+            const file = await stateManager.loadFile(session.sessionId);
+            if (file) {
+              setFileName(file.name);
+              // Upload file to get text
+              setIsLoading(true);
+              try {
+                const { apiClient } = await import('../services/api');
+                const response = await apiClient.uploadResume(file);
+                setResumeText(response.text);
+              } catch (error) {
+                console.error('Failed to restore file:', error);
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check recovery:', error);
+      }
+    };
+
+    checkRecovery();
+  }, []);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -54,9 +100,9 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
     // Defensive check: don't proceed without valid data
     if (isReady && resumeText && resumeText.trim().length > 10) {
       const isUrl = jobInput.startsWith('http://') || jobInput.startsWith('https://');
-      onStart({ 
-        resumeText, 
-        jobInput, 
+      onStart({
+        resumeText,
+        jobInput,
         isUrl,
         linkedinUrl: linkedinUrl.trim() || undefined,
         githubUsername: githubUsername.trim() || undefined,
@@ -64,6 +110,71 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
       });
     } else {
       console.warn('Cannot continue: missing resume text or job input');
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!recoverySession) return;
+
+    setIsRetrying(true);
+
+    try {
+      // Call retry endpoint
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/optimize-retry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: recoverySession.sessionId,
+          formData: recoverySession.formData,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Retry request failed');
+      }
+
+      const data = await response.json();
+      console.log('Retry initiated:', data);
+
+      // Proceed with normal flow
+      handleContinue();
+    } catch (error) {
+      console.error('Retry failed:', error);
+      alert('Failed to retry. Please try again or start fresh.');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const handleStartFresh = async () => {
+    if (!recoverySession) return;
+
+    // Confirm with user
+    const confirmed = window.confirm(
+      'This will discard your preserved data. Are you sure you want to start fresh?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      // Cleanup session
+      await stateManager.cleanupSession(recoverySession.sessionId);
+      setRecoverySession(null);
+
+      // Reset form
+      setFileName('');
+      setResumeText('');
+      setJobInput('');
+      setLinkedinUrl('');
+      setGithubUsername('');
+      setGithubToken('');
+
+      console.log('Recovery session cleared');
+    } catch (error) {
+      console.error('Failed to clear recovery session:', error);
     }
   };
 
@@ -77,10 +188,22 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
       transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
       className="min-h-screen flex items-center justify-center p-8"
     >
-      <div className="w-full max-w-2xl text-center">
-        <h1 className="text-5xl font-semibold text-text-main tracking-tight mb-8">
-          Transform Your Resume
-        </h1>
+      <div className="w-full max-w-2xl">
+        {/* Recovery Banner */}
+        {recoverySession && (
+          <RecoveryBanner
+            session={recoverySession}
+            onRetry={handleRetry}
+            onStartFresh={handleStartFresh}
+            isRetrying={isRetrying}
+          />
+        )}
+
+        <div className="text-center">
+          <h1 className="text-5xl font-semibold text-text-main tracking-tight mb-8">
+            Transform Your Resume
+          </h1>
+        </div>
         
         <div className="flex h-[48px] rounded-lg shadow-subtle border border-border-subtle overflow-hidden">
           <input
@@ -131,7 +254,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
           />
         </div>
         
-        <p className="text-xs text-text-main/70 mt-4">
+        <p className="text-xs text-text-main/70 mt-4 text-center">
           PDF or DOCX • We'll analyze it against the job description.
         </p>
 
@@ -173,7 +296,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
                       className="w-full px-4 py-3 bg-white border border-border-subtle rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 shadow-sm hover:shadow-md"
                     />
                   </div>
-                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed">
+                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed text-center">
                     Build a rich profile index for enhanced personalization across applications
                   </p>
                 </div>
@@ -197,7 +320,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
                       className="w-full px-4 py-3 bg-white border border-border-subtle rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 shadow-sm hover:shadow-md"
                     />
                   </div>
-                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed">
+                  <p className="text-xs text-text-main/60 mt-2 leading-relaxed text-center">
                     Showcase your open-source contributions and technical projects
                   </p>
                   
@@ -214,7 +337,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
                         placeholder="ghp_••••••••••••••••••••"
                         className="w-full px-3 py-2 bg-white border border-border-subtle rounded text-xs placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200"
                       />
-                      <div className="mt-1.5 space-y-1">
+                      <div className="mt-1.5 space-y-1 text-center">
                         <p className="text-xs text-text-main/50">
                           <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                             Create token
@@ -232,7 +355,7 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
           )}
         </AnimatePresence>
 
-        <div className="h-10 mt-6">
+        <div className="h-10 mt-6 flex justify-center">
           <AnimatePresence>
             {isReady && !isLoading && (
                 <motion.button

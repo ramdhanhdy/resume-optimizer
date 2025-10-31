@@ -39,11 +39,14 @@ from src.streaming import (
 )
 from src.streaming.insight_extractor import insight_extractor
 from src.streaming.insight_listener import run_insight_listener
+from src.services.recovery_service import RecoveryService
+from src.middleware.error_interceptor import ErrorInterceptorMiddleware
+from src.routes.recovery import router as recovery_router
 
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3-max")
-POLISH_MODEL = "cerebras::qwen-3-coder-480b"
+POLISH_MODEL = "zenmux::anthropic/claude-haiku-4.5"
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
@@ -58,6 +61,19 @@ app.add_middleware(
 
 # Initialize database
 db = ApplicationDatabase()
+
+# Initialize recovery service
+recovery_service = RecoveryService(db)
+
+# Store in app state for access in routes
+app.state.db = db
+app.state.recovery_service = recovery_service
+
+# Add error interceptor middleware
+app.add_middleware(ErrorInterceptorMiddleware, recovery_service=recovery_service)
+
+# Mount recovery router
+app.include_router(recovery_router)
 
 
 def _latest_agent_output_text(application_id: int, agent_name: str) -> str:
@@ -827,14 +843,40 @@ async def run_pipeline_with_streaming(
 ):
     """Run the full pipeline and emit streaming events."""
     insight_listener_task = None
+    session_id = None
+
     try:
         print(f"🚀 Starting pipeline for job_id: {job_id}")
-        
+
+        # Create recovery session for this pipeline run
+        session_id = recovery_service.create_session(
+            form_data={
+                "job_text": job_text or "",
+                "job_url": job_url or "",
+                "linkedin_url": linkedin_url or "",
+                "github_username": github_username or "",
+            },
+            file_metadata={
+                "resume_length": len(resume_text),
+                "has_resume": bool(resume_text),
+            }
+        )
+        print(f"✅ Created recovery session: {session_id}")
+
+        # Update session status to processing
+        recovery_service.update_session_status(
+            session_id=session_id,
+            status="processing"
+        )
+
         # Set the main loop for thread-safe emission
         stream_manager.set_main_loop(asyncio.get_running_loop())
-        
-        # Emit job started
+
+        # Emit job started with session ID
         await stream_manager.emit(JobStatusEvent.create(job_id, "started"))
+        await stream_manager.emit(MetricUpdateEvent.create(
+            job_id, "session_id", session_id, ""
+        ))
         print(f"✅ Emitted job_status: started")
         
         # Start the parallel insight listener
@@ -995,6 +1037,17 @@ async def run_pipeline_with_streaming(
             input_data={"job_posting": job_text_final},
             output_data={"text": analysis_result},
         )
+
+        # Save checkpoint for recovery
+        if session_id:
+            recovery_service.save_checkpoint(
+                session_id=session_id,
+                agent_index=0,
+                agent_name="Job Analyzer",
+                agent_output={"text": analysis_result},
+                model_used=DEFAULT_MODEL
+            )
+            print(f"✅ Saved checkpoint for Agent 1")
         
         # Agent 2: Resume Optimization
         print("📋 Agent 2: Starting resume optimization...")
@@ -1043,6 +1096,17 @@ async def run_pipeline_with_streaming(
             input_data={"resume_text": resume_text, "job_analysis": analysis_result},
             output_data={"text": optimization_result},
         )
+
+        # Save checkpoint for recovery
+        if session_id:
+            recovery_service.save_checkpoint(
+                session_id=session_id,
+                agent_index=1,
+                agent_name="Resume Optimizer",
+                agent_output={"text": optimization_result},
+                model_used=DEFAULT_MODEL
+            )
+            print(f"✅ Saved checkpoint for Agent 2")
         
         # Agent 3: Implementation
         print("📋 Agent 3: Starting implementation...")
@@ -1092,6 +1156,17 @@ async def run_pipeline_with_streaming(
             input_data={"resume_text": resume_text, "optimization_report": optimization_result},
             output_data={"text": implementation_result},
         )
+
+        # Save checkpoint for recovery
+        if session_id:
+            recovery_service.save_checkpoint(
+                session_id=session_id,
+                agent_index=2,
+                agent_name="Optimizer Implementer",
+                agent_output={"text": implementation_result, "optimized_resume": optimized_resume},
+                model_used=DEFAULT_MODEL
+            )
+            print(f"✅ Saved checkpoint for Agent 3")
         
         # Agent 4: Validation
         print("📋 Agent 4: Starting validation...")
@@ -1172,6 +1247,17 @@ async def run_pipeline_with_streaming(
             input_data={"optimized_resume": optimized_resume, "job_posting": job_text_final},
             output_data={"text": validation_result},
         )
+
+        # Save checkpoint for recovery
+        if session_id:
+            recovery_service.save_checkpoint(
+                session_id=session_id,
+                agent_index=3,
+                agent_name="Validator",
+                agent_output={"text": validation_result},
+                model_used=DEFAULT_MODEL
+            )
+            print(f"✅ Saved checkpoint for Agent 4")
         
         # Agent 5: Polish
         print("📋 Agent 5: Starting polish...")
@@ -1221,14 +1307,34 @@ async def run_pipeline_with_streaming(
             input_data={"optimized_resume": optimized_resume, "validation_report": validation_result},
             output_data={"text": polish_result},
         )
-        
+
+        # Save checkpoint for recovery
+        if session_id:
+            recovery_service.save_checkpoint(
+                session_id=session_id,
+                agent_index=4,
+                agent_name="Polish Agent",
+                agent_output={"text": polish_result, "final_resume": final_resume},
+                model_used=POLISH_MODEL
+            )
+            print(f"✅ Saved checkpoint for Agent 5")
+
+        # Mark recovery session as completed
+        if session_id:
+            recovery_service.update_session_status(
+                session_id=session_id,
+                status="recovered"
+            )
+            recovery_service.mark_recovered(session_id, app_id)
+            print(f"✅ Marked recovery session as completed")
+
         # Emit completion
         await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
         await stream_manager.emit(DoneEvent(job_id=job_id))
-        
+
         # Store application_id in job metadata for retrieval
         await stream_manager.emit(MetricUpdateEvent.create(job_id, "application_id", app_id))
-        
+
         print(f"🎉 Pipeline complete for job_id: {job_id}, app_id: {app_id}")
         
     except Exception as e:
@@ -1237,7 +1343,27 @@ async def run_pipeline_with_streaming(
         print(f"❌ Pipeline failed for job_id: {job_id}")
         print(f"Error: {str(e)}")
         print(f"Traceback:\n{error_details}")
-        
+
+        # Log error with recovery service
+        if session_id:
+            error_context = recovery_service.log_error(
+                exc=e,
+                session_id=session_id,
+                additional_context={
+                    "job_id": job_id,
+                    "pipeline_stage": "processing",
+                }
+            )
+            print(f"✅ Logged error: {error_context['error_id']}")
+
+            # Emit error details to frontend
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "error_id", error_context['error_id'], ""
+            ))
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "error_category", error_context['error_category'], ""
+            ))
+
         await stream_manager.emit(JobStatusEvent.create(job_id, "failed"))
         await stream_manager.emit(InsightEvent.create(
             job_id, "error-1", "error", "high",

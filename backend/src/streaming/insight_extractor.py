@@ -8,7 +8,7 @@ from src.api.client_factory import create_client
 class BaseInsightExtractor:
     """Base class for insight extraction."""
     
-    def __init__(self, model: str = "cerebras::gpt-oss-120b"):
+    def __init__(self, model: str = "cerebras::qwen-3-235b-a22b-instruct-2507"):
         self.client = create_client()
         self.model = model
     
