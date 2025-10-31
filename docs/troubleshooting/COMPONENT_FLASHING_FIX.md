@@ -1,68 +1,76 @@
-# Component Flashing/Disappearing Fix
+# Component Flashing/Disappearing Troubleshooting Guide
 
-## Problem Summary
+## Problem Description
 
-Components were appearing briefly then disappearing, causing a "flashing" effect. This issue persisted even after Tailwind CSS styling was fixed.
+Components appear briefly then disappear, causing a "flashing" effect that disrupts the user experience. This issue can occur even when CSS styling appears correct.
 
-## Root Causes Identified
+## Symptoms
+
+- Components render momentarily then vanish
+- Screen transitions appear jumpy or incomplete
+- Auto-advance functionality behaves unexpectedly
+- Console may show React re-render warnings
+
+## Root Causes
 
 ### 1. Invalid Framer Motion Easing Function
-- **Issue**: All components used `ease: 'swift'` in transition configs
-- **Problem**: `'swift'` is not a valid Framer Motion easing string
+- **Issue**: Components use `ease: 'swift'` which is not a valid Framer Motion easing string
 - **Impact**: Animations may malfunction, skip, or cause unexpected behavior
+- **Detection**: Check browser console for animation warnings
 
 ### 2. Auto-Advance Logic Race Condition
-- **Issue**: `useEffect` in InputScreen was triggering without proper validation
-- **Problem**: Auto-advance could fire even if:
-  - Resume upload failed
-  - resumeText was empty or invalid
-  - React.StrictMode caused double-rendering (React 19)
-- **Impact**: Screen would advance prematurely before data was ready
+- **Issue**: `useEffect` triggers without proper validation in InputScreen
+- **Impact**: Auto-advance fires even with invalid/missing data
+- **Detection**: Screen advances prematurely before data is ready
 
 ### 3. Missing Defensive Checks
-- **Issue**: `handleContinue` didn't validate data before advancing
-- **Problem**: Could attempt to start processing with invalid/missing data
-- **Impact**: Downstream errors and unexpected behavior
+- **Issue**: `handleContinue` doesn't validate data before proceeding
+- **Impact**: Attempts processing with invalid data
+- **Detection**: Downstream errors or empty states
 
-## Phase 1 Fixes Applied
+## Diagnostic Steps
 
-### Fix 1: Corrected Framer Motion Easing
+1. **Check Browser Console**
+   ```javascript
+   // Look for animation warnings
+   // Check for React strict mode double-renders
+   // Verify no JavaScript errors
+   ```
 
-**Changed in 4 files:**
-- `frontend/src/components/InputScreen.tsx`
-- `frontend/src/components/ProcessingScreen.tsx`
-- `frontend/src/components/RevealScreen.tsx`
-- `frontend/src/components/ExportModal.tsx`
+2. **Test Auto-Advance Behavior**
+   - Upload file without job text → Should not advance
+   - Type job text without file → Should not advance
+   - Upload invalid file → Should not advance
 
-**Before:**
+3. **Verify Animation Settings**
+   ```javascript
+   // In React DevTools, check component easing props
+   // Should be: [0.4, 0.0, 0.2, 1] not 'swift'
+   ```
+
+## Resolution Steps
+
+### Step 1: Fix Framer Motion Easing
+
+**Files to modify**: All component files using transitions
+
+**Before**:
 ```tsx
 transition={{ duration: 0.4, ease: 'swift' }}
 ```
 
-**After:**
+**After**:
 ```tsx
 transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
 ```
 
-This matches the CSS custom property: `--ease-swift: cubic-bezier(0.4, 0.0, 0.2, 1);`
+**Verification**: Build completes without animation warnings
 
----
+### Step 2: Improve Auto-Advance Logic
 
-### Fix 2: Improved Auto-Advance Logic
+**File**: `frontend/src/components/InputScreen.tsx`
 
-**File:** `frontend/src/components/InputScreen.tsx`
-
-**Before:**
-```tsx
-useEffect(() => {
-  if (isReady && !isLoading) {
-    const timeoutId = setTimeout(handleContinue, 1000);
-    return () => clearTimeout(timeoutId);
-  }
-}, [isReady, isLoading]);
-```
-
-**After:**
+**Update useEffect**:
 ```tsx
 useEffect(() => {
   // Only auto-advance if we have BOTH ready state AND valid resume text
@@ -70,32 +78,14 @@ useEffect(() => {
     const timeoutId = setTimeout(handleContinue, 1000);
     return () => clearTimeout(timeoutId);
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [isReady, isLoading, resumeText]);
 ```
 
-**Changes:**
-1. Added `resumeText.trim().length > 0` check
-2. Added `resumeText` to dependency array
-3. Prevents auto-advance if resume upload failed or returned empty text
+**Verification**: Auto-advance only works with valid data
 
----
+### Step 3: Add Defensive Validation
 
-### Fix 3: Added Defensive Check in handleContinue
-
-**File:** `frontend/src/components/InputScreen.tsx`
-
-**Before:**
-```tsx
-const handleContinue = () => {
-  if (isReady && resumeText) {
-    const isUrl = jobInput.startsWith('http://') || jobInput.startsWith('https://');
-    onStart({ resumeText, jobInput, isUrl });
-  }
-};
-```
-
-**After:**
+**Update handleContinue**:
 ```tsx
 const handleContinue = () => {
   // Defensive check: don't proceed without valid data
@@ -108,86 +98,82 @@ const handleContinue = () => {
 };
 ```
 
-**Changes:**
-1. Added minimum length check (`> 10` characters)
-2. Added console warning for debugging
-3. Prevents advancing with trivially short or empty resume text
+**Verification**: Console warnings for invalid attempts
 
----
+## Advanced Troubleshooting
 
-## Phase 2 (Optional - Not Applied)
+### If Issues Persist
 
-If issues persist after Phase 1, consider:
-
-### Option A: Temporarily Disable React.StrictMode
-**File:** `frontend/src/index.tsx`
-
+#### Option A: Disable React.StrictMode (Temporary)
+**File**: `frontend/src/index.tsx`
 ```tsx
-// Remove StrictMode wrapper for development
+// For debugging only - re-enable for production
 const root = ReactDOM.createRoot(rootElement);
 root.render(<App />);
 ```
 
-**Note:** Only for debugging. Re-enable for production.
+#### Option B: Remove Auto-Advance Entirely
+- Remove entire `useEffect` auto-advance logic
+- Require manual button click only
+- More predictable user experience
 
-### Option B: Remove Auto-Advance Entirely
-Remove the entire `useEffect` auto-advance logic and require manual button click only.
+### Performance Verification
 
----
+**Check build output**:
+```bash
+cd frontend
+npm run build
+```
 
-## Expected Outcomes
+**Expected results**:
+- CSS size: ~19.73 kB (gzipped: ~4.55 kB)
+- JS size: ~331.52 kB (gzipped: ~105.73 kB)
+- Build time: < 2 seconds
+- No TypeScript errors
 
-After Phase 1 fixes:
-- ✅ Components render smoothly without flashing
-- ✅ Animations transition correctly with proper easing
-- ✅ Auto-advance only happens when resume is successfully uploaded
-- ✅ No premature screen transitions
-- ✅ Console warnings if user tries to advance without valid data
+## Prevention Measures
 
----
+1. **Code Review Checklist**
+   - [ ] Verify easing functions are valid arrays
+   - [ ] Check useEffect dependencies
+   - [ ] Validate auto-advance conditions
+   - [ ] Test edge cases
 
-## Testing Instructions
+2. **Testing Protocol**
+   - Test normal flow: file + text → auto-advance
+   - Test edge cases: incomplete data → no advance
+   - Test error conditions: failed upload → no advance
+   - Verify console is clean
 
-1. **Clean start**: Clear browser cache and reload
-2. **Test normal flow**:
-   - Load page → InputScreen appears and stays visible
-   - Type in job field → No flashing or disappearing
-   - Click Upload → Select file
-   - Wait for upload → Button shows checkmark with filename
-   - After 1 second → Auto-advance to ProcessingScreen
-   
-3. **Test edge cases**:
-   - Upload file BEFORE typing job text → Should not advance
-   - Type job text BEFORE uploading → Should not advance
-   - Upload fails (network error) → Should not advance
-   - Cancel file dialog → Should not cause flashing
+3. **Development Guidelines**
+   - Use TypeScript easing type definitions
+   - Implement defensive programming
+   - Add comprehensive validation
+   - Test with React.StrictMode enabled
 
-4. **Check console**: No warnings or errors
+## Related Issues
 
----
+- **Tailwind CSS v4**: May cause similar styling issues
+- **React 19 StrictMode**: Can expose race conditions
+- **Component Lifecycle**: Proper cleanup required
 
-## Build Results
+## Escalation Criteria
 
-- **CSS size**: 19.73 kB (gzipped: 4.55 kB)
-- **JS size**: 331.52 kB (gzipped: 105.73 kB)
-- **Build time**: ~1.6s
-- **Status**: ✅ Build successful
-
----
+Escalate to development team if:
+- Issue persists after applying all fixes
+- Multiple users report similar problems
+- Performance degradation observed
+- Build fails with animation errors
 
 ## Files Modified
 
-1. `frontend/src/components/InputScreen.tsx` - Easing fix + auto-advance logic + defensive check
+1. `frontend/src/components/InputScreen.tsx` - Easing + auto-advance + validation
 2. `frontend/src/components/ProcessingScreen.tsx` - Easing fix
 3. `frontend/src/components/RevealScreen.tsx` - Easing fix
 4. `frontend/src/components/ExportModal.tsx` - Easing fix
 
 ---
 
-## Next Steps
-
-1. Start dev server: `npm run dev`
-2. Test in browser at `http://localhost:3000`
-3. Verify components stay visible without flashing
-4. If issue persists, proceed with Phase 2 options
-5. Once confirmed working, start backend and test full integration
+**Last Updated**: 2025-01-31  
+**Severity**: Medium  
+**Impact**: User Experience
