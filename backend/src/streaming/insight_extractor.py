@@ -3,6 +3,7 @@
 import asyncio
 from typing import List, Dict, Optional
 from src.api.client_factory import create_client
+from src.utils.prompt_loader import load_prompt
 
 
 class BaseInsightExtractor:
@@ -22,63 +23,13 @@ class ContentInsightExtractor(BaseInsightExtractor):
     
     def get_prompt(self, agent_type: str) -> str:
         """Get prompt for content-generating agents."""
-        prompts = {
-            "analyzer": """
-Analyze the job analysis output provided by the user and extract 3-4 KEY INSIGHTS that would be most valuable to show a user in real-time.
-
-Focus on:
-- Critical requirements or qualifications
-- Technical skills needed
-- Experience level required
-- Unique aspects of the role
-
-Format: Return ONLY a JSON array of objects with 'category' and 'message' fields.
-Keep each message under 80 characters.
-
-Example output:
-[
-  {"category": "requirements", "message": "5+ years Python experience required"},
-  {"category": "technical", "message": "Must know AWS, Docker, Kubernetes"}
-]
-""",
-            "optimizer": """
-Analyze the optimization strategy provided by the user and extract 3-4 KEY INSIGHTS about what changes will be made.
-
-Focus on:
-- Keywords being added
-- Gaps being addressed
-- Strengths being emphasized
-- ATS improvements
-
-Format: Return ONLY a JSON array of objects with 'category' and 'message' fields.
-Keep each message under 80 characters.
-
-Example output:
-[
-  {"category": "keywords", "message": "Adding 'machine learning' and 'data pipeline' keywords"},
-  {"category": "gaps", "message": "Addressing missing cloud architecture experience"}
-]
-""",
-            "implementer": """
-Analyze the implementation output provided by the user and extract 3-4 KEY INSIGHTS about what was changed.
-
-Focus on:
-- Sections modified
-- Content added
-- Formatting improvements
-- Quantifiable changes
-
-Format: Return ONLY a JSON array of objects with 'category' and 'message' fields.
-Keep each message under 80 characters.
-
-Example output:
-[
-  {"category": "changes", "message": "Updated Experience and Skills sections"},
-  {"category": "metrics", "message": "Added 5 technical keywords"}
-]
-"""
+        file_map = {
+            "analyzer": "content_analyzer.md",
+            "optimizer": "content_optimizer.md",
+            "implementer": "content_implementer.md",
         }
-        return prompts.get(agent_type, prompts["analyzer"])
+        filename = file_map.get(agent_type, file_map["analyzer"])
+        return load_prompt("insights", filename)
 
 
 class QualityInsightExtractor(BaseInsightExtractor):
@@ -86,50 +37,12 @@ class QualityInsightExtractor(BaseInsightExtractor):
     
     def get_prompt(self, agent_type: str) -> str:
         """Get prompt for quality-checking agents."""
-        prompts = {
-            "validator": """
-Analyze the validation output provided by the user and extract 2-3 KEY METRICS or SCORES about resume quality.
-
-IGNORE any artifact references like "original version", "modified version", "document content".
-
-Focus ONLY on:
-- Numerical scores or percentages (ATS score, match %, compatibility)
-- Specific strengths found (e.g., "Strong Python experience match")
-- Critical gaps or recommendations (e.g., "Add more leadership examples")
-- Overall assessment (e.g., "Excellent fit for senior role")
-
-Format: Return ONLY a JSON array of objects with 'category' and 'message' fields.
-Keep each message under 80 characters.
-
-Example output:
-[
-  {"category": "score", "message": "ATS compatibility: 92%"},
-  {"category": "strength", "message": "Strong technical skills alignment"},
-  {"category": "recommendation", "message": "Consider adding more metrics to achievements"}
-]
-""",
-            "polish": """
-Analyze the polish output provided by the user and extract 1-2 KEY IMPROVEMENTS made to the resume.
-
-IGNORE any artifact references like "original version", "modified version", "document content".
-
-Focus ONLY on:
-- Specific formatting improvements (e.g., "Improved bullet point consistency")
-- Readability enhancements (e.g., "Simplified technical jargon")
-- Professional polish (e.g., "Enhanced action verbs throughout")
-- Final quality assessment (e.g., "Resume now ATS-optimized and polished")
-
-Format: Return ONLY a JSON array of objects with 'category' and 'message' fields.
-Keep each message under 80 characters.
-
-Example output:
-[
-  {"category": "formatting", "message": "Standardized section headers and spacing"},
-  {"category": "quality", "message": "Resume ready for submission"}
-]
-"""
+        file_map = {
+            "validator": "quality_validator.md",
+            "polish": "quality_polish.md",
         }
-        return prompts.get(agent_type, prompts["validator"])
+        filename = file_map.get(agent_type, file_map["validator"])
+        return load_prompt("insights", filename)
 
 
 class InsightExtractor:

@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { Badge } from '../shared';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface OptimizationStrategy {
   executive_summary: string;
@@ -47,9 +49,11 @@ export default function OptimizationReportTab({ optimizationStrategy }: Optimiza
       {optimizationStrategy.executive_summary && (
         <motion.section variants={itemVariants} className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Executive Summary</h2>
-          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {optimizationStrategy.executive_summary}
-          </p>
+          <div className="text-gray-700 leading-relaxed prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {optimizationStrategy.executive_summary}
+            </ReactMarkdown>
+          </div>
         </motion.section>
       )}
 
@@ -73,7 +77,9 @@ export default function OptimizationReportTab({ optimizationStrategy }: Optimiza
                   {section.recommendations.map((rec, recIndex) => (
                     <li key={recIndex} className="text-sm text-gray-700 leading-relaxed flex items-start gap-2">
                       <span className="text-blue-600 font-bold">→</span>
-                      <span>{rec}</span>
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{rec}</ReactMarkdown>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -105,7 +111,9 @@ export default function OptimizationReportTab({ optimizationStrategy }: Optimiza
                   <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>{strategy}</span>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{strategy}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>
@@ -135,7 +143,9 @@ export default function OptimizationReportTab({ optimizationStrategy }: Optimiza
                   <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  <span>{change}</span>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{change}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>

@@ -5,6 +5,8 @@ import { PROCESSING_ACTIVITIES, PROCESSING_PHASES, MOCK_INSIGHTS } from '../cons
 import type { Insight } from '../types';
 import { useProcessingJob } from '../hooks/useProcessingJob';
 import { apiClient } from '../services/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ProcessingScreenProps {
   onComplete: (appState: any) => void;
@@ -460,9 +462,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                   className="bg-surface-light rounded-lg shadow-sm px-4 py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-md"
                 >
                   <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
-                  <p className="text-sm text-text-main font-medium text-wrap">
-                    {insight.text}
-                  </p>
+                  <div className="text-sm text-text-main font-medium text-wrap prose prose-sm max-w-none prose-p:m-0">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.text}</ReactMarkdown>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>

@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface RequirementItemProps {
   requirement: string;
@@ -80,9 +82,9 @@ export default function RequirementItem({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <p className={`text-sm font-medium ${config.textColor}`}>
-                  {requirement}
-                </p>
+                <div className={`text-sm font-medium ${config.textColor} prose prose-sm max-w-none prose-p:m-0`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{requirement}</ReactMarkdown>
+                </div>
                 {isRequired && (
                   <span className="px-1.5 py-0.5 text-[10px] font-semibold text-red-700 bg-red-100 rounded">
                     REQUIRED
@@ -112,9 +114,9 @@ export default function RequirementItem({
               exit={{ opacity: 0, height: 0 }}
               className="mt-2 pt-2 border-t border-gray-200"
             >
-              <p className="text-xs text-gray-700 whitespace-pre-wrap">
-                {assessment}
-              </p>
+              <div className="text-xs text-gray-700 prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{assessment}</ReactMarkdown>
+              </div>
             </motion.div>
           )}
         </div>

@@ -3,6 +3,7 @@
 from typing import Any, Dict, Optional
 import streamlit as st
 import json
+from src.utils.prompt_loader import load_prompt
 
 from src.api.client_factory import get_client
 
@@ -21,18 +22,12 @@ def extract_job_metadata_with_llm(
     Returns:
         Dictionary with 'company_name' and 'job_title'
     """
-    prompt = f"""Extract the company name and job title from the following job posting. Return ONLY a JSON object with this exact structure:
+    # Load prompts from files
+    system_prompt = load_prompt("metadata_extractor_system.md")
+    user_template = load_prompt("metadata_extractor_user_template.md")
 
-{{
-  "company_name": "the company/organization name",
-  "job_title": "the job title/position"
-}}
-
-If you cannot find the company name or job title, use "Unknown Company" or "Unknown Position" respectively.
-
-Job Posting:
-{job_posting}
-"""
+    # Inject job posting
+    prompt = user_template.replace("{{JOB_POSTING}}", job_posting)
 
     if job_analysis:
         prompt += f"\n\nJob Analysis (may contain extracted info):\n{job_analysis}"
@@ -44,10 +39,7 @@ Job Posting:
         response = resolved_client.client.chat.completions.create(
             model=model,
             messages=[
-                {
-                    "role": "system",
-                    "content": "You are a metadata extraction assistant. Return only valid JSON.",
-                },
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,

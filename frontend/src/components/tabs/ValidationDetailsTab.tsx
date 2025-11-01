@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { ScoreCard, RequirementItem, Badge } from '../shared';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ValidationReport {
   overall_match_score: number;
@@ -106,7 +108,9 @@ export default function ValidationDetailsTab({ validationReport }: ValidationDet
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {index + 1}
                   </span>
-                  <span className="text-sm text-green-900">{strength}</span>
+                  <div className="text-sm text-green-900 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{strength}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>
@@ -144,7 +148,9 @@ export default function ValidationDetailsTab({ validationReport }: ValidationDet
                   >
                     {flag.severity || 'MEDIUM'}
                   </Badge>
-                  <p className="text-sm text-red-900 flex-1">{flag.description}</p>
+                  <div className="text-sm text-red-900 flex-1 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{flag.description}</ReactMarkdown>
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -177,7 +183,9 @@ export default function ValidationDetailsTab({ validationReport }: ValidationDet
                 key={index}
                 className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
               >
-                <p className="text-sm text-yellow-900">{risk}</p>
+                <div className="text-sm text-yellow-900 prose prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{risk}</ReactMarkdown>
+                </div>
               </div>
             ))}
           </div>
@@ -206,7 +214,9 @@ export default function ValidationDetailsTab({ validationReport }: ValidationDet
                   <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>{win}</span>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{win}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>

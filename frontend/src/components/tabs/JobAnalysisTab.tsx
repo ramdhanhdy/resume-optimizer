@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { KeywordChip, Badge } from '../shared';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface JobAnalysis {
   job_overview: string;
@@ -46,9 +48,11 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
       {jobAnalysis.job_overview && (
         <motion.section variants={itemVariants} className="bg-white border border-gray-200 rounded-lg p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Job Overview</h2>
-          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {jobAnalysis.job_overview}
-          </p>
+          <div className="text-gray-700 leading-relaxed prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {jobAnalysis.job_overview}
+            </ReactMarkdown>
+          </div>
         </motion.section>
       )}
 
@@ -74,7 +78,9 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
                     <span className="flex-shrink-0 w-5 h-5 rounded bg-red-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                       ✓
                     </span>
-                    <span className="text-sm text-red-900">{qual}</span>
+                    <div className="text-sm text-red-900 prose prose-sm max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{qual}</ReactMarkdown>
+                    </div>
                   </motion.li>
                 ))}
               </ul>
@@ -102,7 +108,9 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
                     <span className="flex-shrink-0 w-5 h-5 rounded bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                       +
                     </span>
-                    <span className="text-sm text-blue-900">{qual}</span>
+                    <div className="text-sm text-blue-900 prose prose-sm max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{qual}</ReactMarkdown>
+                    </div>
                   </motion.li>
                 ))}
               </ul>
@@ -134,7 +142,9 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
                   <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-sm text-purple-900">{req}</span>
+                  <div className="text-sm text-purple-900 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{req}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>
@@ -223,7 +233,9 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
                   <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>{signal}</span>
+                  <div className="text-sm text-green-900 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{signal}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>
@@ -253,7 +265,9 @@ export default function JobAnalysisTab({ jobAnalysis }: JobAnalysisTabProps) {
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {index + 1}
                   </span>
-                  <span className="text-sm text-blue-900">{rec}</span>
+                  <div className="text-sm text-blue-900 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{rec}</ReactMarkdown>
+                  </div>
                 </motion.li>
               ))}
             </ul>
