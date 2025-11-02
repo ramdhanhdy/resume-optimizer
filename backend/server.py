@@ -51,16 +51,19 @@ POLISH_MODEL = "zenmux::anthropic/claude-haiku-4.5"
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
 # CORS middleware
+origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Initialize database
-db = ApplicationDatabase()
+_db_path = os.getenv("DATABASE_PATH", "./data/applications.db")
+db = ApplicationDatabase(db_path=_db_path)
 
 # Initialize recovery service
 recovery_service = RecoveryService(db)

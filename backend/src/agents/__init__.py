@@ -6,7 +6,6 @@ from .optimizer_implementer import OptimizerImplementerAgent
 from .github_projects_agent import GitHubProjectsAgent
 from .validator import ValidatorAgent
 from .polish import PolishAgent
-from .renderer import RendererAgent
 from .profile_agent import ProfileAgent
 
 __all__ = [
@@ -16,6 +15,11 @@ __all__ = [
     "GitHubProjectsAgent",
     "ValidatorAgent",
     "PolishAgent",
-    "RendererAgent",
     "ProfileAgent",
 ]
+
+try:
+    from .renderer import RendererAgent  # type: ignore
+    __all__.append("RendererAgent")
+except Exception:
+    pass

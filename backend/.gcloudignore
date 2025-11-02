@@ -1,0 +1,39 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# VCS
+.git/
+.gitignore
+
+# Local env and secrets
+.env
+.env.*
+!*.example
+
+# Logs and temp
+*.log
+server.log
+logs/
+tmp/
+temp/
+
+# Local data and artifacts (not needed in container)
+data/**
+exports/**
+
+# Tests and samples
+test_*.py
+test_sample.pdf
+
+# Editors/IDE
+.vscode/
+.idea/
+*.code-workspace
