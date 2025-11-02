@@ -120,7 +120,9 @@ const InputScreen: React.FC<InputScreenProps> = ({ onStart }) => {
 
     try {
       // Call retry endpoint
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = (import.meta.env.VITE_API_URL !== undefined
+        ? import.meta.env.VITE_API_URL
+        : (import.meta.env.DEV ? 'http://localhost:8000' : ''));
       const response = await fetch(`${apiUrl}/api/optimize-retry`, {
         method: 'POST',
         headers: {
