@@ -214,6 +214,34 @@ export function useFocusRestore() {
 }
 
 /**
+ * Detect if the user is on a Mac/iOS device
+ * Uses modern userAgentData API with fallbacks for older browsers
+ */
+function isMacPlatform(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  // Modern API: User-Agent Client Hints
+  if ('userAgentData' in navigator && (navigator as any).userAgentData?.platform) {
+    const platform = (navigator as any).userAgentData.platform.toLowerCase();
+    return platform.includes('mac');
+  }
+
+  // Fallback 1: navigator.platform (deprecated but widely supported)
+  if (navigator.platform) {
+    return navigator.platform.includes('Mac');
+  }
+
+  // Fallback 2: User-Agent string parsing (last resort)
+  if (navigator.userAgent) {
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  return false;
+}
+
+/**
  * Hook for keyboard shortcuts with hints
  * Returns whether the shortcut is pressed and provides a hint string
  */
@@ -230,11 +258,14 @@ export function useKeyboardShortcut(
 
   useKeyPress(key, callback, { ...options, preventDefault: true });
 
-  // Build hint string (e.g., "Ctrl+Shift+K")
+  // Detect platform for proper modifier key symbols
+  const isMac = isMacPlatform();
+
+  // Build hint string (e.g., "Ctrl+Shift+K" or "⌘+Shift+K")
   const modifiers: string[] = [];
-  if (ctrl) modifiers.push(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl');
+  if (ctrl) modifiers.push(isMac ? '⌘' : 'Ctrl');
   if (shift) modifiers.push('Shift');
-  if (alt) modifiers.push(navigator.platform.includes('Mac') ? '⌥' : 'Alt');
+  if (alt) modifiers.push(isMac ? '⌥' : 'Alt');
 
   const hint = [...modifiers, key].join('+');
 
