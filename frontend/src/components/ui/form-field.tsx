@@ -26,6 +26,10 @@ export interface FormFieldProps
   required?: boolean;
   /** Additional className for the container */
   containerClassName?: string;
+  /** Text alignment for error message */
+  errorAlign?: 'left' | 'center' | 'right';
+  /** Text alignment for helper text */
+  helperAlign?: 'left' | 'center' | 'right';
 }
 
 const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
@@ -38,6 +42,8 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
       icon,
       required,
       containerClassName,
+      errorAlign,
+      helperAlign,
       className,
       ...props
     },
@@ -97,7 +103,11 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
         {error && (
           <p
             id={errorId}
-            className="text-sm text-destructive font-medium"
+            className={cn(
+              'text-sm text-destructive font-medium',
+              errorAlign === 'center' && 'text-center',
+              errorAlign === 'right' && 'text-right'
+            )}
             role="alert"
             aria-live="polite"
           >
@@ -109,7 +119,11 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
         {helperText && !error && (
           <div
             id={helperId}
-            className="text-xs text-muted-foreground leading-relaxed"
+            className={cn(
+              'text-xs text-muted-foreground leading-relaxed',
+              helperAlign === 'center' && 'text-center',
+              helperAlign === 'right' && 'text-right'
+            )}
           >
             {helperText}
           </div>

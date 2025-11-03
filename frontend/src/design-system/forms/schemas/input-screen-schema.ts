@@ -9,7 +9,8 @@ import { z } from 'zod';
 import { resumeFileSchema } from './resume-upload-schema';
 
 // URL validation regex
-const URL_REGEX = /^https?:\/\/.+/;
+// Accepts URLs with or without scheme (http/https), e.g., linkedin.com/jobs/...
+const URL_LAX_REGEX = /^(https?:\/\/)?([\w.-]+)\.[a-zA-Z]{2,}(\/\S*)?$/;
 const LINKEDIN_REGEX = /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/;
 const GITHUB_USERNAME_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 
@@ -25,12 +26,11 @@ export const jobInputSchema = z
   .min(1, 'Job posting cannot be empty')
   .refine(
     (value) => {
-      // If it's a URL, validate URL format
-      if (value.startsWith('http://') || value.startsWith('https://')) {
-        return URL_REGEX.test(value);
-      }
-      // If it's text, ensure meaningful content
-      const meaningfulContent = value.replace(/\s+/g, ' ').trim();
+      const v = value.trim();
+      // If it looks like a URL (scheme optional), accept
+      if (URL_LAX_REGEX.test(v)) return true;
+      // Otherwise require meaningful text content
+      const meaningfulContent = v.replace(/\s+/g, ' ').trim();
       return meaningfulContent.length >= 50;
     },
     {
@@ -79,11 +79,14 @@ export const githubTokenSchema = z
   .refine(
     (value) => {
       if (!value || value.trim() === '') return true;
-      // GitHub tokens start with ghp_, gho_, ghu_, ghs_, or ghr_
-      return /^gh[pousr]_[a-zA-Z0-9]{36,}$/.test(value);
+      const v = value.trim();
+      // Accept classic tokens (ghp_, gho_, ghu_, ghs_, ghr_) and fine-grained tokens (github_pat_)
+      const classic = /^gh[pousr]_[A-Za-z0-9]{30,}$/.test(v);
+      const fineGrained = /^github_pat_[A-Za-z0-9_]{20,}$/.test(v);
+      return classic || fineGrained;
     },
     {
-      message: 'Please enter a valid GitHub personal access token (starts with ghp_)',
+      message: 'Please enter a valid GitHub personal access token (e.g., ghp_… or github_pat_…) ',
     }
   );
 
@@ -107,7 +110,19 @@ export type InputScreenFormData = z.infer<typeof inputScreenSchema>;
  * Helper function to determine if job input is a URL
  */
 export function isJobUrl(jobInput: string): boolean {
-  return jobInput.startsWith('http://') || jobInput.startsWith('https://');
+  return URL_LAX_REGEX.test((jobInput || '').trim());
+}
+
+/**
+ * Normalize job input to include https:// if it looks like a URL without scheme
+ */
+export function normalizeJobInput(jobInput: string): string {
+  const v = (jobInput || '').trim();
+  if (!v) return v;
+  if (/^https?:\/\//.test(v)) return v;
+  // If it looks like a URL but missing scheme, prefix https://
+  if (URL_LAX_REGEX.test(v)) return `https://${v}`;
+  return v;
 }
 
 /**

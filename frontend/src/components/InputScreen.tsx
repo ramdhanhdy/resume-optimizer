@@ -18,6 +18,7 @@ import {
   inputScreenSchema,
   type InputScreenFormData,
   isJobUrl,
+  normalizeJobInput,
   validateResumeFile,
 } from '@/design-system/forms/schemas/input-screen-schema';
 import { slideUpVariants, fadeVariants, useReducedMotion } from '@/design-system/animations';
@@ -58,7 +59,8 @@ export default function InputScreen({ onStart }: InputScreenProps) {
     watch,
   } = useForm<InputScreenFormData>({
     resolver: zodResolver(inputScreenSchema),
-    mode: 'onBlur',
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       jobInput: '',
       linkedinUrl: '',
@@ -158,10 +160,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       return;
     }
 
+    const normalizedJobInput = normalizeJobInput(data.jobInput);
+
     onStart({
       resumeText,
-      jobInput: data.jobInput,
-      isUrl: isJobUrl(data.jobInput),
+      jobInput: normalizedJobInput,
+      isUrl: isJobUrl(normalizedJobInput),
       linkedinUrl: data.linkedinUrl?.trim() || undefined,
       githubUsername: data.githubUsername?.trim() || undefined,
       githubToken: data.githubToken?.trim() || undefined,
@@ -233,13 +237,22 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   };
 
   // Keyboard shortcut: Ctrl/Cmd + V to focus job input (for pasting)
+  // Do NOT intercept when user is already typing in an input/textarea/contentEditable.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        // Let browser handle paste, but ensure focus
-        const jobInput = document.getElementById('job-input');
-        if (jobInput && document.activeElement !== jobInput) {
-          e.preventDefault();
+        const active = document.activeElement as HTMLElement | null;
+        const isTypingTarget = !!active && (
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable === true
+        );
+        if (isTypingTarget) return; // allow normal paste into focused field
+
+        const jobInput = document.getElementById('job-input') as HTMLElement | null;
+        if (jobInput && active !== jobInput) {
+          // Focus job input and let default paste occur into it
+          // (do not preventDefault so paste proceeds to the newly focused element)
           jobInput.focus();
         }
       }
@@ -438,6 +451,8 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                     icon={<LinkedInIcon className="w-5 h-5 text-primary" />}
                     error={errors.linkedinUrl?.message}
                     helperText="Build a rich profile index for enhanced personalization across applications"
+                    errorAlign="center"
+                    helperAlign="center"
                     containerClassName="group"
                   />
 
@@ -455,6 +470,8 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                     }
                     error={errors.githubUsername?.message}
                     helperText="Showcase your open-source contributions and technical projects"
+                    errorAlign="center"
+                    helperAlign="center"
                     containerClassName="group"
                   />
 
@@ -476,6 +493,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                           label="GitHub Token"
                           placeholder="ghp_••••••••••••••••••••"
                           error={errors.githubToken?.message}
+                          errorAlign="center"
                           helperText={
                             <span>
                               <a
@@ -496,6 +514,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                               </code>
                             </span>
                           }
+                          helperAlign="center"
                         />
                       </motion.div>
                     )}

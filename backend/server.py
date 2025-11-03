@@ -45,8 +45,13 @@ from src.routes.recovery import router as recovery_router
 
 load_dotenv()
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3-max")
-POLISH_MODEL = "zenmux::anthropic/claude-haiku-4.5"
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL") or "qwen/qwen3-max"
+ANALYZER_MODEL = os.getenv("ANALYZER_MODEL") or DEFAULT_MODEL
+OPTIMIZER_MODEL = os.getenv("OPTIMIZER_MODEL") or DEFAULT_MODEL
+IMPLEMENTER_MODEL = os.getenv("IMPLEMENTER_MODEL") or DEFAULT_MODEL
+VALIDATOR_MODEL = os.getenv("VALIDATOR_MODEL") or DEFAULT_MODEL
+PROFILE_MODEL = os.getenv("PROFILE_MODEL") or DEFAULT_MODEL
+POLISH_MODEL = os.getenv("POLISH_MODEL") or "zenmux::anthropic/claude-sonnet-4.5"
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
@@ -286,7 +291,7 @@ async def analyze_job(request: JobAnalysisRequest):
         agent = JobAnalyzerAgent(client=client)
         analysis_result = ""
 
-        for chunk in agent.analyze_job(job_posting=job_text, model=DEFAULT_MODEL):
+        for chunk in agent.analyze_job(job_posting=job_text, model=ANALYZER_MODEL):
             analysis_result += chunk
         
         # Extract metadata (company, job title)
@@ -344,7 +349,7 @@ async def optimize_resume(request: ResumeOptimizationRequest):
         for chunk in agent.optimize_resume(
             resume_text=request.resume_text,
             job_analysis=job_analysis_text,
-            model=DEFAULT_MODEL,
+            model=OPTIMIZER_MODEL,
         ):
             optimization_result += chunk
 
@@ -352,7 +357,7 @@ async def optimize_resume(request: ResumeOptimizationRequest):
         db.update_application(
             request.application_id,
             original_resume_text=request.resume_text,
-            model_used=DEFAULT_MODEL,
+            model_used=OPTIMIZER_MODEL,
         )
         db.save_agent_output(
             application_id=request.application_id,
@@ -402,7 +407,7 @@ async def implement_optimization(request: ImplementationRequest):
         for chunk in agent.implement_optimizations(
             resume_text=original_resume,
             optimization_report=optimization_strategy,
-            model=DEFAULT_MODEL,
+            model=IMPLEMENTER_MODEL,
         ):
             implementation_result += chunk
         
@@ -413,7 +418,7 @@ async def implement_optimization(request: ImplementationRequest):
         db.update_application(
             request.application_id,
             optimized_resume_text=optimized_resume,
-            model_used=DEFAULT_MODEL,
+            model_used=IMPLEMENTER_MODEL,
         )
         db.save_agent_output(
             application_id=request.application_id,
@@ -464,7 +469,7 @@ async def validate_resume(request: ValidationRequest):
             optimized_resume=optimized_resume,
             job_posting=job_posting_text,
             job_analysis=job_analysis_text,
-            model=DEFAULT_MODEL,
+            model=VALIDATOR_MODEL,
         ):
             validation_result += chunk
 
@@ -524,7 +529,7 @@ async def polish_resume(request: PolishRequest):
         for chunk in agent.polish_resume(
             optimized_resume=optimized_resume,
             validation_report=validation_report,
-            model=DEFAULT_MODEL,
+            model=POLISH_MODEL,
         ):
             polish_result += chunk
 
@@ -535,7 +540,7 @@ async def polish_resume(request: PolishRequest):
         db.update_application(
             request.application_id,
             optimized_resume_text=final_resume,
-            model_used=DEFAULT_MODEL,
+            model_used=POLISH_MODEL,
         )
         db.save_agent_output(
             application_id=request.application_id,
@@ -959,7 +964,7 @@ async def run_pipeline_with_streaming(
                     profile_agent = ProfileAgent(client=client)
                     profile_result = ""
                     for chunk in profile_agent.index_profile(
-                        model=DEFAULT_MODEL,
+                        model=PROFILE_MODEL,
                         profile_text=profile_text or "",
                         profile_repos=profile_repos
                     ):
@@ -996,7 +1001,7 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent1, "Job Analyzer", "analyzing", job_id,
-                job_posting=job_text_final, model=DEFAULT_MODEL
+                job_posting=job_text_final, model=ANALYZER_MODEL
             )
         )
         print(f"✅ Agent 1 complete: {len(analysis_result)} chars")
@@ -1048,7 +1053,7 @@ async def run_pipeline_with_streaming(
                 agent_index=0,
                 agent_name="Job Analyzer",
                 agent_output={"text": analysis_result},
-                model_used=DEFAULT_MODEL
+                model_used=ANALYZER_MODEL
             )
             print(f"✅ Saved checkpoint for Agent 1")
         
@@ -1069,7 +1074,7 @@ async def run_pipeline_with_streaming(
                 run_agent_with_chunk_emission,
                 agent2, "Resume Optimizer", "planning", job_id,
                 resume_text=resume_text, job_analysis=analysis_result, 
-                profile_index=profile_index, model=DEFAULT_MODEL
+                profile_index=profile_index, model=OPTIMIZER_MODEL
             )
         )
         print(f"✅ Agent 2 complete: {len(optimization_result)} chars")
@@ -1107,7 +1112,7 @@ async def run_pipeline_with_streaming(
                 agent_index=1,
                 agent_name="Resume Optimizer",
                 agent_output={"text": optimization_result},
-                model_used=DEFAULT_MODEL
+                model_used=OPTIMIZER_MODEL
             )
             print(f"✅ Saved checkpoint for Agent 2")
         
@@ -1127,7 +1132,7 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent3, "Optimizer Implementer", "writing", job_id,
-                resume_text=resume_text, optimization_report=optimization_result, model=DEFAULT_MODEL
+                resume_text=resume_text, optimization_report=optimization_result, model=IMPLEMENTER_MODEL
             )
         )
         optimized_resume = extract_optimized_resume(implementation_result)
@@ -1167,7 +1172,7 @@ async def run_pipeline_with_streaming(
                 agent_index=2,
                 agent_name="Optimizer Implementer",
                 agent_output={"text": implementation_result, "optimized_resume": optimized_resume},
-                model_used=DEFAULT_MODEL
+                model_used=IMPLEMENTER_MODEL
             )
             print(f"✅ Saved checkpoint for Agent 3")
         
@@ -1187,7 +1192,7 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent4, "Validator", "validating", job_id,
-                optimized_resume=optimized_resume, job_posting=job_text_final, job_analysis=analysis_result, model=DEFAULT_MODEL
+                optimized_resume=optimized_resume, job_posting=job_text_final, job_analysis=analysis_result, model=VALIDATOR_MODEL
             )
         )
         print(f"✅ Agent 4 complete: {len(validation_result)} chars")
@@ -1258,7 +1263,7 @@ async def run_pipeline_with_streaming(
                 agent_index=3,
                 agent_name="Validator",
                 agent_output={"text": validation_result},
-                model_used=DEFAULT_MODEL
+                model_used=VALIDATOR_MODEL
             )
             print(f"✅ Saved checkpoint for Agent 4")
         
