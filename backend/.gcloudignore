@@ -37,3 +37,4 @@ test_sample.pdf
 .vscode/
 .idea/
 *.code-workspace
+**/authentication_and_metering_spec.md

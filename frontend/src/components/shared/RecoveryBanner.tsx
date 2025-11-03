@@ -1,11 +1,16 @@
 /**
  * Recovery Banner Component
- * Displays when user has preserved session data
+ *
+ * Displays when user has preserved session data.
+ * Uses design tokens, ARIA live regions, and accessible patterns.
  */
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { slideDownVariants, collapseVariants, useReducedMotion } from '@/design-system/animations';
 import { RecoverySession } from '../../services/storage';
 
 interface RecoveryBannerProps {
@@ -22,62 +27,85 @@ export default function RecoveryBanner({
   isRetrying = false,
 }: RecoveryBannerProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   const errorMessage = session.errorContext?.errorMessage || 'An error occurred during processing';
   const timeAgo = formatTimeAgo(session.createdAt);
 
-  // Determine banner color based on error category
+  // Determine banner color based on error category using design tokens
   const getBannerStyle = () => {
     switch (session.errorContext?.category) {
       case 'TRANSIENT':
         return {
-          bg: 'bg-blue-50',
-          border: 'border-blue-400',
-          text: 'text-blue-900',
-          icon: 'text-blue-600',
+          bg: 'bg-[#DBEAFE]',
+          border: 'border-[#60A5FA]',
+          text: 'text-[#1E3A8A]',
+          icon: 'text-[#2563EB]',
         };
       case 'PERMANENT':
         return {
-          bg: 'bg-red-50',
-          border: 'border-red-400',
-          text: 'text-red-900',
-          icon: 'text-red-600',
+          bg: 'bg-destructive/10',
+          border: 'border-destructive',
+          text: 'text-destructive',
+          icon: 'text-destructive',
         };
       default:
         return {
-          bg: 'bg-yellow-50',
-          border: 'border-yellow-400',
-          text: 'text-yellow-900',
-          icon: 'text-yellow-600',
+          bg: 'bg-[#FEF3C7]',
+          border: 'border-[#FBBF24]',
+          text: 'text-[#78350F]',
+          icon: 'text-[#D97706]',
         };
     }
   };
 
   const style = getBannerStyle();
 
+  // Get ARIA role based on severity
+  const getAriaRole = () => {
+    switch (session.errorContext?.category) {
+      case 'PERMANENT':
+        return 'alert';
+      default:
+        return 'status';
+    }
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className={`${style.bg} border-l-4 ${style.border} p-4 mb-6 rounded-r-lg shadow-sm`}
+      variants={prefersReducedMotion ? undefined : slideDownVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className={cn(
+        style.bg,
+        'border-l-4',
+        style.border,
+        'p-4 mb-6 rounded-r-lg shadow-sm'
+      )}
+      role={getAriaRole()}
+      aria-live="polite"
+      aria-atomic="true"
     >
       <div className="flex items-start">
-        <AlertCircle className={`w-5 h-5 ${style.icon} mt-0.5 flex-shrink-0`} />
+        <AlertCircle
+          className={cn('w-5 h-5', style.icon, 'mt-0.5 flex-shrink-0')}
+          aria-hidden="true"
+        />
 
         <div className="ml-3 flex-1">
-          <h3 className={`text-sm font-semibold ${style.text}`}>
+          <h3 className={cn('text-sm font-semibold', style.text)}>
             {session.errorContext?.category === 'TRANSIENT' && 'Temporary Error Occurred'}
             {session.errorContext?.category === 'RECOVERABLE' && 'Error During Processing'}
             {session.errorContext?.category === 'PERMANENT' && 'Action Required'}
             {!session.errorContext && 'Session Recovered'}
           </h3>
 
-          <p className={`text-sm ${style.text} mt-1 opacity-90`}>
+          <p className={cn('text-sm', style.text, 'mt-1 opacity-90')}>
             Your data from <strong>{timeAgo}</strong> has been preserved.
           </p>
 
-          <p className={`text-sm ${style.text} mt-2`}>
+          <p className={cn('text-sm', style.text, 'mt-2')}>
             {errorMessage}
           </p>
 
@@ -85,10 +113,17 @@ export default function RecoveryBanner({
           <AnimatePresence>
             {showDetails && session.errorContext && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className={`mt-3 p-3 ${style.bg} bg-opacity-50 rounded text-xs font-mono ${style.text}`}
+                variants={collapseVariants}
+                initial="collapsed"
+                animate="expanded"
+                exit="collapsed"
+                className={cn(
+                  'mt-3 p-3 rounded text-xs font-mono',
+                  style.bg,
+                  'bg-opacity-50',
+                  style.text
+                )}
+                aria-label="Error details"
               >
                 <div className="space-y-1">
                   <div><span className="font-semibold">Error ID:</span> {session.errorContext.errorId}</div>
@@ -105,7 +140,7 @@ export default function RecoveryBanner({
 
           {/* File Info */}
           {session.fileMetadata && (
-            <div className={`mt-3 text-xs ${style.text} opacity-75`}>
+            <div className={cn('mt-3 text-xs', style.text, 'opacity-75')}>
               File preserved: <strong>{session.fileMetadata.fileName}</strong> ({formatFileSize(session.fileMetadata.fileSize)})
             </div>
           )}
@@ -113,66 +148,86 @@ export default function RecoveryBanner({
           {/* Action Buttons */}
           <div className="mt-4 flex flex-wrap gap-3">
             {session.recovery.canManualRetry && (
-              <button
+              <Button
                 onClick={onRetry}
                 disabled={isRetrying}
-                className={`px-4 py-2 bg-white border-2 ${style.border} ${style.text} rounded-lg font-medium hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2`}
+                variant="outline"
+                className={cn(
+                  'border-2',
+                  style.border,
+                  style.text
+                )}
+                aria-label="Retry processing the resume"
               >
                 {isRetrying ? (
                   <>
                     <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="w-4 h-4 border-2 border-current border-t-transparent rounded-full"
+                      animate={{ rotate: prefersReducedMotion ? 0 : 360 }}
+                      transition={{
+                        duration: prefersReducedMotion ? 0 : 1,
+                        repeat: prefersReducedMotion ? 0 : Infinity,
+                        ease: 'linear'
+                      }}
+                      className="w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"
+                      aria-hidden="true"
                     />
-                    Retrying...
+                    <span>Retrying...</span>
                   </>
                 ) : (
                   'Retry Processing'
                 )}
-              </button>
+              </Button>
             )}
 
-            <button
+            <Button
               onClick={onStartFresh}
               disabled={isRetrying}
-              className={`px-4 py-2 bg-white border ${style.border} ${style.text} opacity-75 rounded-lg font-medium hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+              variant="outline"
+              className={cn(style.border, style.text, 'opacity-75 hover:opacity-100')}
+              aria-label="Dismiss session and start fresh"
             >
               Start Fresh
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => setShowDetails(!showDetails)}
-              className={`px-3 py-2 ${style.text} hover:opacity-75 text-sm flex items-center gap-1 transition-opacity`}
+              variant="ghost"
+              size="sm"
+              className={cn(style.text, 'hover:opacity-75')}
+              aria-expanded={showDetails}
+              aria-controls="error-details"
+              aria-label={showDetails ? 'Hide error details' : 'Show error details'}
             >
               {showDetails ? (
                 <>
                   Hide Details
-                  <ChevronUp className="w-4 h-4" />
+                  <ChevronUp className="w-4 h-4 ml-1" aria-hidden="true" />
                 </>
               ) : (
                 <>
                   Show Details
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-4 h-4 ml-1" aria-hidden="true" />
                 </>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Support Reference */}
-          <p className={`text-xs ${style.text} opacity-60 mt-3`}>
+          <p className={cn('text-xs', style.text, 'opacity-60 mt-3')}>
             Support Reference: {session.recovery.supportReferenceId}
           </p>
         </div>
 
         {/* Close Button */}
-        <button
+        <Button
           onClick={onStartFresh}
-          className={`${style.text} hover:opacity-75 transition-opacity ml-2`}
-          title="Dismiss and start fresh"
+          variant="ghost"
+          size="icon"
+          className={cn(style.text, 'hover:opacity-75 ml-2 h-8 w-8')}
+          aria-label="Dismiss session and start fresh"
         >
           <X className="w-5 h-5" />
-        </button>
+        </Button>
       </div>
     </motion.div>
   );

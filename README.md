@@ -1,6 +1,6 @@
 # AI Resume Optimizer
 
-A sophisticated full-stack AI-powered resume optimization application that uses a **deterministic 5-agent pipeline** to analyze job requirements and tailor your resume with ethical accuracy while maintaining professional authenticity.
+A full-stack AI-powered resume optimization application that uses adopts sequential multi-agent system to analyze job requirements and tailor your resume with ethical accuracy while maintaining professional authenticity.
 
 ## 🤖 Agent System Architecture
 
@@ -112,7 +112,9 @@ Profile Agent (Optional) → Agent 1 → Agent 2 → Agent 3 → Agent 4 → Age
 - TypeScript
 - Vite
 - Framer Motion (animations)
-- TailwindCSS (styling)
+- TailwindCSS v4 (styling)
+- shadcn/ui 2025 (component library)
+- Design System (tokens, theming, accessibility)
 
 ## Project Structure
 
@@ -142,8 +144,17 @@ resume-optimizer/
 ├── frontend/             # React application
 │   ├── src/
 │   │   ├── components/   # ⚛️ React components with streaming support
+│   │   │   └── ui/       # 🎨 shadcn/ui components
+│   │   ├── design-system/ # 🎨 Design tokens, theme, animations, forms
+│   │   │   ├── tokens/   # Colors, typography, spacing, shadows, borders
+│   │   │   ├── theme/    # Brand config, Tailwind preset, CSS variables
+│   │   │   ├── animations/ # Framer Motion variants, reduced motion
+│   │   │   └── forms/    # Zod schemas, React Hook Form, field wrappers
+│   │   ├── hooks/        # 🪝 Custom hooks (responsive, keyboard nav)
+│   │   ├── lib/          # 🛠️ Utilities (cn helper, etc.)
 │   │   ├── services/     # 🌐 API client with SSE handling
 │   │   └── types/        # 📝 TypeScript types
+│   ├── DESIGN_SYSTEM.md  # 📚 Design system documentation
 │   └── package.json
 ├── docs/                 # 📚 Comprehensive documentation
 │   ├── architecture/     # 🏗️ System architecture and agent design
@@ -161,6 +172,8 @@ resume-optimizer/
 
 **Quick Links:**
 - [Setup Guide](./docs/setup/SETUP.md) - Installation and configuration
+- [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system documentation
+- [Agent Guidelines](./AGENTS.md) - Complete project overview for AI agents
 - [Gemini API Setup](./docs/setup/GEMINI_SETUP.md) - Add Google Gemini support
 - [Integration Summary](./docs/integrations/INTEGRATION_SUMMARY.md) - Architecture overview
 - [Troubleshooting](./docs/troubleshooting/) - Common issues and fixes
@@ -310,6 +323,30 @@ cd frontend
 npm run dev
 ```
 
+### Frontend Design System
+
+The application uses a comprehensive design system built on **shadcn/ui (2025)** with modern tooling:
+
+**Key Features:**
+- 🎨 **200+ Design Tokens**: Colors, typography, spacing, shadows, borders, animations
+- 🧩 **shadcn Components**: 10+ accessible, customizable components
+- ♿ **WCAG 2.1 AA Compliance**: Built-in accessibility features
+- 📱 **Responsive Design**: Mobile-first with breakpoint hooks
+- 🎬 **Motion System**: 20+ Framer Motion variants with reduced motion support
+- 🎨 **Brand Customization**: White-labeling via environment variables
+- ✅ **Form Validation**: React Hook Form + Zod integration
+
+**Color System:**
+- Uses CSS variables (`--primary`, `--accent`) as single source of truth
+- Supports runtime theming via `applyBrandConfig()`
+- Alpha channel support: `bg-primary/90` for 90% opacity
+- Never use hardcoded hex colors - always use Tailwind utilities
+
+**Documentation:**
+- Full guide: [`frontend/DESIGN_SYSTEM.md`](./frontend/DESIGN_SYSTEM.md)
+- Component docs: `frontend/src/design-system/docs/README.md`
+- shadcn/ui docs: https://ui.shadcn.com/
+
 ### Building for Production
 
 Frontend:
@@ -355,9 +392,20 @@ Agent 4 provides multi-dimensional analysis:
 - **CORS errors**: Check CORS_ORIGINS in backend `.env`
 - **Build errors**: Delete `node_modules` and reinstall
 
+## 🚀 Deployment
+
+**Status**: Deployed and running
+
+- **Backend**: Google Cloud Run (`us-central1`)
+- **Frontend**: Vercel
+- **Product**: Resume-Agents
+- **Live**: https://resume-optimizer-eosin.vercel.app
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for internal deployment notes.
+
 ## License
 
-MIT License - Free to use and modify
+Proprietary - All rights reserved
 
 ## Credits
 

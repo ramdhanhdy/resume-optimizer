@@ -3,6 +3,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { applyBrandConfig, brandConfig } from './design-system/theme/brand-config';
+
+// Initialize brand configuration for runtime theming
+applyBrandConfig(brandConfig);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
