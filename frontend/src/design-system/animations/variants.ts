@@ -7,22 +7,7 @@
 
 import type { Variants, Transition } from 'framer-motion';
 import { animationTokens } from '../tokens/animations';
-
-// Base transition configuration
-const baseTransition: Transition = {
-  duration: animationTokens.durations.base / 1000, // Convert to seconds
-  ease: [0.4, 0.0, 0.2, 1], // Swift easing
-};
-
-const fastTransition: Transition = {
-  duration: animationTokens.durations.fast / 1000,
-  ease: [0.4, 0.0, 0.2, 1],
-};
-
-const slowTransition: Transition = {
-  duration: animationTokens.durations.slow / 1000,
-  ease: [0.4, 0.0, 0.2, 1],
-};
+import { baseTransition, fastTransition, slowTransition, bounceTransition } from './transitions';
 
 /**
  * Fade In/Out Variants
@@ -158,10 +143,7 @@ export const popVariants: Variants = {
   animate: {
     opacity: 1,
     scale: 1,
-    transition: {
-      duration: animationTokens.durations.base / 1000,
-      ease: [0.68, -0.55, 0.265, 1.55], // Bounce easing
-    },
+    transition: bounceTransition,
   },
   exit: {
     opacity: 0,

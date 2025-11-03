@@ -7,7 +7,6 @@
 
 import { Badge as ShadcnBadge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { colors } from '@/design-system/tokens';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -26,10 +25,10 @@ export default function Badge({
   const variantClasses = {
     default: 'bg-neutral-100 text-neutral-800 border-neutral-200',
     primary: 'bg-primary/10 text-primary border-primary/20',
-    success: 'bg-[#D1FAE5] text-[#065F46] border-[#6EE7B7]',
-    warning: 'bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]',
-    danger: 'bg-[#FEE2E2] text-[#991B1B] border-[#FCA5A5]',
-    info: 'bg-[#DBEAFE] text-[#1E40AF] border-[#93C5FD]'
+    success: 'bg-token-bg-success text-token-text-success border-token-border-success',
+    warning: 'bg-token-bg-warning text-token-text-warning border-token-border-warning',
+    danger: 'bg-token-bg-danger text-token-text-danger border-token-border-danger',
+    info: 'bg-token-bg-info text-token-text-info border-token-border-info'
   };
 
   const sizeClasses = {

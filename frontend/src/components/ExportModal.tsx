@@ -5,7 +5,7 @@
  * Uses shadcn Dialog with proper ARIA attributes and keyboard navigation.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,15 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, onRestart, a
 
   // Close modal on Escape key
   useEscapeKey(onClose);
+
+  // Reset transient state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null);
+      setIsDownloadingDocx(false);
+      setIsDownloadingPdf(false);
+    }
+  }, [isOpen]);
 
   const handleDownloadDocx = async () => {
     try {

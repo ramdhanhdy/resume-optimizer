@@ -5,7 +5,7 @@
  * Provides accessible keyboard interaction patterns.
  */
 
-import { useEffect, useCallback, useRef, RefObject } from 'react';
+import { useEffect, useCallback, useRef, useState, RefObject } from 'react';
 
 /**
  * Keyboard key codes for common keys
@@ -236,15 +236,22 @@ export function useKeyboardShortcut(
  * Hook for list navigation (commonly used in dropdowns, select)
  * @param itemCount - Number of items in the list
  * @param onSelect - Callback when an item is selected
+ * @param containerRef - Ref to the container element to scope keyboard navigation
  */
 export function useListNavigation(
   itemCount: number,
-  onSelect: (index: number) => void
+  onSelect: (index: number) => void,
+  containerRef: RefObject<HTMLElement>
 ) {
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
+      // Only handle keyboard events when focus is within the container
+      if (!containerRef.current?.contains(document.activeElement)) {
+        return;
+      }
+
       switch (event.key) {
         case Keys.ArrowDown:
           event.preventDefault();
@@ -271,16 +278,16 @@ export function useListNavigation(
           break;
       }
     },
-    [itemCount, selectedIndex, onSelect]
+    [itemCount, selectedIndex, onSelect, containerRef]
   );
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+    const element = containerRef.current;
+    if (!element) return;
+
+    element.addEventListener('keydown', handleKeyDown as any);
+    return () => element.removeEventListener('keydown', handleKeyDown as any);
+  }, [handleKeyDown, containerRef]);
 
   return { selectedIndex, setSelectedIndex };
 }
-
-// Fix: Import useState
-import { useState } from 'react';

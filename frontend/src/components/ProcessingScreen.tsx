@@ -385,9 +385,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
   return (
     <motion.div
       variants={prefersReducedMotion ? undefined : fadeVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
+      initial={prefersReducedMotion ? undefined : "initial"}
+      animate={prefersReducedMotion ? undefined : "animate"}
+      exit={prefersReducedMotion ? undefined : "exit"}
       className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-12 py-8 sm:py-16 relative overflow-hidden"
       role="status"
       aria-live="polite"
@@ -475,9 +475,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                 <motion.div
                   key={insight.id}
                   variants={prefersReducedMotion ? undefined : slideUpVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
+                  initial={prefersReducedMotion ? undefined : "initial"}
+                  animate={prefersReducedMotion ? undefined : "animate"}
+                  exit={prefersReducedMotion ? undefined : "exit"}
                   className="bg-surface-light rounded-lg shadow-sm px-3 sm:px-4 py-2 sm:py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-xs sm:max-w-md"
                   role="article"
                   aria-label={`Insight: ${insight.text}`}

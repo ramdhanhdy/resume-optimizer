@@ -23,9 +23,9 @@ export function useFormValidation<TFieldValues extends FieldValues = FieldValues
 ): UseFormReturn<TFieldValues> {
   return useForm<TFieldValues>({
     ...options,
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: options?.mode || 'onBlur', // Validate on blur by default
-  });
+  }) as UseFormReturn<TFieldValues>;
 }
 
 /**
@@ -60,8 +60,8 @@ export function getFieldState<TFieldValues extends FieldValues>(
   fieldName: keyof TFieldValues
 ): 'valid' | 'invalid' | 'idle' {
   const { errors, touchedFields, dirtyFields } = form.formState;
-  const isTouched = touchedFields[fieldName];
-  const isDirty = dirtyFields[fieldName];
+  const isTouched = touchedFields[fieldName as string];
+  const isDirty = dirtyFields[fieldName as string];
   const hasError = !!errors[fieldName];
 
   if (!isTouched && !isDirty) return 'idle';
@@ -73,7 +73,7 @@ export function getFieldState<TFieldValues extends FieldValues>(
  * Format Zod error for display
  */
 export function formatZodError(error: z.ZodError): string[] {
-  return error.errors.map((err) => err.message);
+  return error.issues.map((err) => err.message);
 }
 
 /**

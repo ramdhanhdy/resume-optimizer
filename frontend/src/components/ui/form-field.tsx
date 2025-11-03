@@ -18,8 +18,8 @@ export interface FormFieldProps
   id?: string;
   /** Error message to display */
   error?: string;
-  /** Optional helper text */
-  helperText?: string;
+  /** Optional helper text (supports rich content) */
+  helperText?: React.ReactNode;
   /** Icon to display before label */
   icon?: React.ReactNode;
   /** Whether the field is required */
@@ -105,12 +105,12 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
 
         {/* Helper Text */}
         {helperText && !error && (
-          <p
+          <div
             id={helperId}
             className="text-xs text-muted-foreground leading-relaxed"
           >
             {helperText}
-          </p>
+          </div>
         )}
       </div>
     );

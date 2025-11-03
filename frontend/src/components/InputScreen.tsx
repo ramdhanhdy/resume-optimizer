@@ -254,9 +254,9 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   return (
     <motion.div
       variants={prefersReducedMotion ? undefined : slideUpVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
+      initial={prefersReducedMotion ? undefined : "initial"}
+      animate={prefersReducedMotion ? undefined : "animate"}
+      exit={prefersReducedMotion ? undefined : "exit"}
       className="min-h-screen flex items-center justify-center p-4 sm:p-8"
       role="main"
       aria-label="Resume optimization form"
@@ -278,8 +278,8 @@ export default function InputScreen({ onStart }: InputScreenProps) {
         <div className="text-center mb-8">
           <motion.h1
             variants={prefersReducedMotion ? undefined : fadeVariants}
-            initial="initial"
-            animate="animate"
+            initial={prefersReducedMotion ? undefined : "initial"}
+            animate={prefersReducedMotion ? undefined : "animate"}
             className="text-4xl sm:text-5xl font-semibold text-foreground tracking-tight"
           >
             Transform Your Resume

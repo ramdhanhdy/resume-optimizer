@@ -6,46 +6,22 @@
  */
 
 import { z } from 'zod';
+import { resumeFileSchema } from './resume-upload-schema';
 
 // URL validation regex
 const URL_REGEX = /^https?:\/\/.+/;
 const LINKEDIN_REGEX = /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/;
 const GITHUB_USERNAME_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 
-/**
- * File size and type constraints
- */
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/msword', // .doc
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-] as const;
-
-/**
- * Resume file validation
- */
-export const resumeFileSchema = z
-  .instanceof(File, { message: 'Please upload a resume file' })
-  .refine((file) => file.size > 0, {
-    message: 'File cannot be empty',
-  })
-  .refine((file) => file.size <= MAX_FILE_SIZE, {
-    message: 'File size must be less than 10MB',
-  })
-  .refine((file) => ACCEPTED_FILE_TYPES.includes(file.type as any), {
-    message: 'File must be PDF, DOCX, DOC, or image (PNG, JPG)',
-  });
+// Re-export resume file validation from shared schema
+export { resumeFileSchema };
 
 /**
  * Job posting input validation
  * Supports both URL and direct text input
  */
 export const jobInputSchema = z
-  .string({ required_error: 'Job posting is required' })
+  .string({ error: 'Job posting is required' })
   .min(1, 'Job posting cannot be empty')
   .refine(
     (value) => {
@@ -149,7 +125,7 @@ export function validateInputScreenForm(
   } catch (error) {
     if (error instanceof z.ZodError) {
       const errors: Record<string, string> = {};
-      error.errors.forEach((err) => {
+      error.issues.forEach((err) => {
         const path = err.path.join('.');
         errors[path] = err.message;
       });
@@ -186,7 +162,7 @@ export function validateResumeFile(file: File): {
     if (error instanceof z.ZodError) {
       return {
         isValid: false,
-        error: error.errors[0]?.message || 'Invalid file',
+        error: error.issues[0]?.message || 'Invalid file',
       };
     }
     return {

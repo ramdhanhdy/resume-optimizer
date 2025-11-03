@@ -37,10 +37,10 @@ export default function RecoveryBanner({
     switch (session.errorContext?.category) {
       case 'TRANSIENT':
         return {
-          bg: 'bg-[#DBEAFE]',
-          border: 'border-[#60A5FA]',
-          text: 'text-[#1E3A8A]',
-          icon: 'text-[#2563EB]',
+          bg: 'bg-token-semantic-info-bg',
+          border: 'border-token-semantic-info-border',
+          text: 'text-token-semantic-info-text',
+          icon: 'text-token-semantic-info-icon',
         };
       case 'PERMANENT':
         return {
@@ -51,10 +51,10 @@ export default function RecoveryBanner({
         };
       default:
         return {
-          bg: 'bg-[#FEF3C7]',
-          border: 'border-[#FBBF24]',
-          text: 'text-[#78350F]',
-          icon: 'text-[#D97706]',
+          bg: 'bg-token-semantic-warning-bg',
+          border: 'border-token-semantic-warning-border',
+          text: 'text-token-semantic-warning-text',
+          icon: 'text-token-semantic-warning-icon',
         };
     }
   };

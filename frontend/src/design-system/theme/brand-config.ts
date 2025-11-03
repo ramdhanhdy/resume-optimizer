@@ -198,6 +198,11 @@ export function hexToHSL(hex: string): string {
  * Call this function on app initialization
  */
 export function applyBrandConfig(config: BrandConfig): void {
+  // Early return for non-browser environments (SSR, tests, Node)
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   const root = document.documentElement;
 
   // Apply color variables
@@ -218,7 +223,7 @@ export function applyBrandConfig(config: BrandConfig): void {
   if (config.theme.radiusScale !== undefined) {
     const baseRadius = 8 * config.theme.radiusScale; // 8px is the base
     root.style.setProperty('--radius-lg', `${baseRadius}px`);
-    root.style.setProperty('--radius', `${baseRadius * 0.625}rem`); // shadcn radius
+    root.style.setProperty('--radius', `${(baseRadius * 0.625) / 16}rem`); // shadcn radius (convert px to rem)
   }
 
   // Update document title and meta tags
@@ -234,6 +239,10 @@ export function applyBrandConfig(config: BrandConfig): void {
  * Update meta tag content
  */
 function updateMetaTag(name: string, content: string): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   let meta = document.querySelector(`meta[name="${name}"]`);
   if (!meta) {
     meta = document.createElement('meta');
@@ -247,6 +256,10 @@ function updateMetaTag(name: string, content: string): void {
  * Update favicon
  */
 function updateFavicon(href: string): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
   if (!link) {
     link = document.createElement('link');

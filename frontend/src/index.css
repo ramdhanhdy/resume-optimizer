@@ -44,6 +44,34 @@
 
   --radius: 0.5rem;
 
+  /* Status colors for badges and indicators */
+  --token-bg-success: #D1FAE5;
+  --token-text-success: #065F46;
+  --token-border-success: #6EE7B7;
+  
+  --token-bg-warning: #FEF3C7;
+  --token-text-warning: #92400E;
+  --token-border-warning: #FCD34D;
+  
+  --token-bg-danger: #FEE2E2;
+  --token-text-danger: #991B1B;
+  --token-border-danger: #FCA5A5;
+  
+  --token-bg-info: #DBEAFE;
+  --token-text-info: #1E40AF;
+  --token-border-info: #93C5FD;
+
+  /* Semantic color variations */
+  --token-semantic-info-bg: #DBEAFE;
+  --token-semantic-info-border: #60A5FA;
+  --token-semantic-info-text: #1E3A8A;
+  --token-semantic-info-icon: #2563EB;
+  
+  --token-semantic-warning-bg: #FEF3C7;
+  --token-semantic-warning-border: #FBBF24;
+  --token-semantic-warning-text: #78350F;
+  --token-semantic-warning-icon: #D97706;
+
   /* Existing custom tokens */
   --radius-lg: 8px;
   --shadow-subtle: 0 1px 3px rgba(0,0,0,0.08);

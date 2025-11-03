@@ -141,17 +141,13 @@ export function FieldGroup({
 }: FieldGroupProps) {
   return (
     <fieldset className={cn('field-group border-none p-0', className)}>
-      {(legend || description) && (
-        <div className="mb-4">
-          {legend && (
-            <legend className="text-lg font-semibold text-foreground mb-1">
-              {legend}
-            </legend>
-          )}
-          {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
-          )}
-        </div>
+      {legend && (
+        <legend className="text-lg font-semibold text-foreground mb-4">
+          {legend}
+        </legend>
+      )}
+      {description && (
+        <p className="text-sm text-muted-foreground mb-4">{description}</p>
       )}
       <div className="space-y-4">{children}</div>
     </fieldset>
