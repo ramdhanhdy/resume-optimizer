@@ -43,8 +43,9 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
     },
     ref
   ) => {
-    // Generate unique ID if not provided
-    const fieldId = id || React.useId();
+    // Generate unique ID unconditionally (Rules of Hooks)
+    const generatedId = React.useId();
+    const fieldId = id ?? generatedId;
     const errorId = `${fieldId}-error`;
     const helperId = `${fieldId}-helper`;
 
@@ -66,7 +67,7 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
                 *
               </span>
             )}
-            {!required && props.placeholder && (
+            {!required && (
               <span className="text-muted-foreground font-normal text-xs">
                 (optional)
               </span>
@@ -84,10 +85,11 @@ const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
             className
           )}
           aria-invalid={error ? 'true' : 'false'}
-          aria-describedby={cn(
-            error && errorId,
-            helperText && !error && helperId
-          )}
+          aria-describedby={
+            [error && errorId, helperText && !error && helperId]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
           {...props}
         />
 

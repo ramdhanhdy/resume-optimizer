@@ -75,7 +75,7 @@ export function FieldWrapper({
         >
           {label}
           {required && (
-            <span className="text-error ml-1" aria-label="required">
+            <span className="text-error ml-1">
               *
             </span>
           )}

@@ -23,6 +23,9 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
  */
 export const resumeFileSchema = z
   .instanceof(File, { message: 'Please upload a file' })
+  .refine((file) => file.size > 0, {
+    message: 'File cannot be empty',
+  })
   .refine((file) => file.size <= MAX_FILE_SIZE, {
     message: 'File size must be less than 10MB',
   })

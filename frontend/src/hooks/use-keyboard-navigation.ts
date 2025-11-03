@@ -103,15 +103,22 @@ export function useEnterKey(callback: () => void, options?: { preventDefault?: b
  * @param onDown - Callback for Down arrow
  * @param onLeft - Callback for Left arrow
  * @param onRight - Callback for Right arrow
+ * @param containerRef - Ref to the container element to scope arrow key navigation
  */
 export function useArrowKeys(
   onUp?: () => void,
   onDown?: () => void,
   onLeft?: () => void,
-  onRight?: () => void
+  onRight?: () => void,
+  containerRef?: RefObject<HTMLElement>
 ) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // If container ref is provided, only handle events when focus is within the container
+      if (containerRef?.current && !containerRef.current.contains(document.activeElement)) {
+        return;
+      }
+
       switch (event.key) {
         case Keys.ArrowUp:
           event.preventDefault();
@@ -132,9 +139,11 @@ export function useArrowKeys(
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onUp, onDown, onLeft, onRight]);
+    // Attach listener to container if provided, otherwise use document for backwards compatibility
+    const element = containerRef?.current || document;
+    element.addEventListener('keydown', handleKeyDown as any);
+    return () => element.removeEventListener('keydown', handleKeyDown as any);
+  }, [onUp, onDown, onLeft, onRight, containerRef]);
 }
 
 /**

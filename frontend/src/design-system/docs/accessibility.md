@@ -5,7 +5,7 @@ Reference checklist for meeting the team’s WCAG 2.1 AA accessibility goals acr
 ## Principles
 - Maintain semantic HTML structure and meaningful ARIA labels.
 - Ensure focus is never trapped unintentionally; leverage `useFocusTrap` and `useFocusRestore`.
-- Respect reduced motion preferences through the animation hooks.
+- Respect reduced motion preferences using `useReducedMotion()` hook from `@/design-system/animations`, which detects the `prefers-reduced-motion` media query and provides utilities like `safeVariants()` and `safeDuration()` to conditionally disable animations.
 
 ## Testing Checklist
 - Verify keyboard-only navigation for primary flows.
