@@ -11,6 +11,7 @@ backend/*.pyc
 backend/.pytest_cache/
 backend/data/
 backend/temp/
+backend/exports/**
 
 # Node
 frontend/node_modules/
@@ -54,4 +55,6 @@ backend/fix_app_67.py
 backend/fix_app65_direct.py
 backend/fix_app65_polish.py
 backend/fix_docx_table_formatting.py
-.gitignore
+docs/specs/authentication_and_metering_spec.md
+backend/exports/HumanResocia_AIEngineer_Dejitare/MuhammadHidayat_Resume_AIEngineer.docx
+backend/exports/Avinity_Analytics_AI_Engineer_Automation/resume.docx

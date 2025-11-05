@@ -7,6 +7,9 @@ import { useProcessingJob } from '../hooks/useProcessingJob';
 import { apiClient } from '../services/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { fadeVariants, slideUpVariants } from '@/design-system/animations/variants';
+import { useReducedMotion } from '@/design-system/animations/use-reduced-motion';
+import { useEscapeKey } from '@/hooks';
 
 interface ProcessingScreenProps {
   onComplete: (appState: any) => void;
@@ -33,6 +36,15 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
   // Simplified insight display - just track by ID
   const [insights, setInsights] = useState<Insight[]>([]);
   const seenInsightIds = React.useRef<Set<string>>(new Set());
+  
+  // Reduced motion support
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Escape key to cancel (future enhancement - currently no-op)
+  useEscapeKey(() => {
+    // TODO: Implement cancellation logic when backend supports it
+    console.log('⏹️ Processing cancellation requested (not yet implemented)');
+  });
 
   // Reset on new job
   useEffect(() => {
@@ -372,16 +384,20 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
-      className="min-h-screen flex flex-col items-center justify-center px-12 py-16 relative overflow-hidden"
+      variants={prefersReducedMotion ? undefined : fadeVariants}
+      initial={prefersReducedMotion ? undefined : "initial"}
+      animate={prefersReducedMotion ? undefined : "animate"}
+      exit={prefersReducedMotion ? undefined : "exit"}
+      className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-12 py-8 sm:py-16 relative overflow-hidden"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label="Resume processing in progress"
     >
       {/* Phase Progress Bar - Top */}
-      <div className="absolute top-12 left-0 right-0 px-12">
+      <div className="absolute top-8 sm:top-12 left-0 right-0 px-4 sm:px-12">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-1 sm:gap-2" role="progressbar" aria-label="Processing phases" aria-valuenow={currentPhaseIndex + 1} aria-valuemin={1} aria-valuemax={phases.length}>
             {phases.map((phase, index) => {
               const isComplete = index < currentPhaseIndex;
               const isCurrent = index === currentPhaseIndex;
@@ -390,25 +406,28 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
               return (
                 <React.Fragment key={phase.key}>
                   {/* Phase Step */}
-                  <div className="flex flex-col items-center gap-2 flex-1">
+                  <div className="flex flex-col items-center gap-1 sm:gap-2 flex-1">
                     <motion.div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
                         isComplete
                           ? 'bg-accent border-accent'
                           : isCurrent
                           ? 'bg-accent/20 border-accent animate-pulse'
                           : 'bg-surface-light border-border-subtle'
                       }`}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: index * 0.1 }}
+                      initial={prefersReducedMotion ? false : { scale: 0.8, opacity: 0 }}
+                      animate={prefersReducedMotion ? false : { scale: 1, opacity: 1 }}
+                      transition={prefersReducedMotion ? { duration: 0 } : { delay: index * 0.1 }}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      aria-label={`${phase.label}: ${isComplete ? 'completed' : isCurrent ? 'in progress' : 'pending'}`}
+                      role="status"
                     >
                       {isComplete ? (
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <span className={`text-sm font-semibold ${
+                        <span className={`text-xs sm:text-sm font-semibold ${
                           isCurrent ? 'text-accent' : 'text-text-main/40'
                         }`}>
                           {index + 1}
@@ -416,12 +435,12 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                       )}
                     </motion.div>
                     <motion.p
-                      className={`text-xs font-medium text-center transition-colors duration-300 ${
+                      className={`text-xs font-medium text-center transition-colors duration-300 hidden sm:block ${
                         isCurrent ? 'text-text-main' : 'text-text-main/50'
                       }`}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 + 0.1 }}
+                      initial={prefersReducedMotion ? false : { opacity: 0, y: -10 }}
+                      animate={prefersReducedMotion ? false : { opacity: 1, y: 0 }}
+                      transition={prefersReducedMotion ? { duration: 0 } : { delay: index * 0.1 + 0.1 }}
                     >
                       {phase.label}
                     </motion.p>
@@ -429,13 +448,13 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                   
                   {/* Connector Line */}
                   {index < phases.length - 1 && (
-                    <div className="flex-1 h-[2px] -mt-8 relative">
+                    <div className="flex-1 h-[2px] -mt-6 sm:-mt-8 relative">
                       <div className="absolute inset-0 bg-border-subtle" />
                       <motion.div
                         className="absolute inset-0 bg-accent"
-                        initial={{ scaleX: 0 }}
+                        initial={prefersReducedMotion ? { scaleX: index < currentPhaseIndex ? 1 : 0 } : { scaleX: 0 }}
                         animate={{ scaleX: index < currentPhaseIndex ? 1 : 0 }}
-                        transition={{ duration: 0.5, ease: 'easeInOut' }}
+                        transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.5, ease: 'easeInOut' }}
                         style={{ transformOrigin: 'left' }}
                       />
                     </div>
@@ -448,21 +467,23 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       </div>
 
       {/* Insights - Upper portion */}
-      <div className="absolute top-40 left-0 right-0 px-12">
+      <div className="absolute top-32 sm:top-40 left-0 right-0 px-4 sm:px-12">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-wrap gap-3 justify-center">
+          <div className="flex flex-wrap gap-2 sm:gap-3 justify-center" role="feed" aria-label="Processing insights" aria-busy="true">
             <AnimatePresence mode="popLayout">
               {insights.slice(0, 6).map((insight, index) => (
                 <motion.div
                   key={insight.id}
-                  initial={{ opacity: 0, scale: 0.8, y: -20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, y: -20 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
-                  className="bg-surface-light rounded-lg shadow-sm px-4 py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-md"
+                  variants={prefersReducedMotion ? undefined : slideUpVariants}
+                  initial={prefersReducedMotion ? undefined : "initial"}
+                  animate={prefersReducedMotion ? undefined : "animate"}
+                  exit={prefersReducedMotion ? undefined : "exit"}
+                  className="bg-surface-light rounded-lg shadow-sm px-3 sm:px-4 py-2 sm:py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-xs sm:max-w-md"
+                  role="article"
+                  aria-label={`Insight: ${insight.text}`}
                 >
-                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
-                  <div className="text-sm text-text-main font-medium text-wrap prose prose-sm max-w-none prose-p:m-0">
+                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" aria-hidden="true" />
+                  <div className="text-xs sm:text-sm text-text-main font-medium text-wrap prose prose-sm max-w-none prose-p:m-0">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.text}</ReactMarkdown>
                   </div>
                 </motion.div>
@@ -474,11 +495,11 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
       {/* Main Status Text - Centered, 65% down */}
       <div className="flex-1 flex items-center justify-center">
-        <div className="max-w-2xl mx-auto text-center relative" style={{ marginTop: '10vh' }}>
+        <div className="max-w-2xl mx-auto text-center relative px-4" style={{ marginTop: '10vh' }}>
           {/* Breathing Ring Animation */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
             {/* Multiple expanding rings */}
-            {[0, 1, 2].map((index) => (
+            {!prefersReducedMotion && [0, 1, 2].map((index) => (
               <motion.div
                 key={index}
                 className="absolute rounded-full border-2 border-accent/40"
@@ -500,52 +521,60 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
               />
             ))}
             {/* Central pulsing circle */}
-            <motion.div
-              className="absolute rounded-full bg-accent/8"
-              style={{
-                width: '200px',
-                height: '200px',
-                filter: 'blur(4px)',
-              }}
-              animate={{
-                scale: [1, 1.08, 1],
-                opacity: [0.25, 0.4, 0.25],
-              }}
-              transition={{
-                duration: 3.5,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            />
+            {!prefersReducedMotion && (
+              <motion.div
+                className="absolute rounded-full bg-accent/8"
+                style={{
+                  width: '200px',
+                  height: '200px',
+                  filter: 'blur(4px)',
+                }}
+                animate={{
+                  scale: [1, 1.08, 1],
+                  opacity: [0.25, 0.4, 0.25],
+                }}
+                transition={{
+                  duration: 3.5,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+              />
+            )}
           </div>
           
           {/* Text with shimmer effect */}
           <AnimatePresence mode="wait">
             <motion.div
               key={currentActivity}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
+              initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+              animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? {} : { opacity: 0, y: -10 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.3 }}
               className="relative z-10"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
             >
-              <p className="text-3xl font-semibold tracking-tight text-text-main relative inline-block">
+              <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-text-main relative inline-block">
                 {currentActivity}
                 {/* Shimmer overlay */}
-                <motion.span
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                  style={{
-                    backgroundSize: '200% 100%',
-                  }}
-                  animate={{
-                    backgroundPosition: ['-200% 0', '200% 0'],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: 'linear',
-                  }}
-                />
+                {!prefersReducedMotion && (
+                  <motion.span
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    style={{
+                      backgroundSize: '200% 100%',
+                    }}
+                    animate={{
+                      backgroundPosition: ['-200% 0', '200% 0'],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -553,12 +582,19 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       </div>
 
       {/* Thin Progress Bar - Bottom */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-border-subtle/30">
+      <div 
+        className="absolute bottom-0 left-0 right-0 h-1 bg-border-subtle/30" 
+        role="progressbar" 
+        aria-label="Overall processing progress"
+        aria-valuenow={Math.round(progress)} 
+        aria-valuemin={0} 
+        aria-valuemax={100}
+      >
         <motion.div
           className="h-full bg-gradient-to-r from-accent to-accent/70"
           initial={{ width: '0%' }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
+          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.3, ease: 'easeOut' }}
         />
       </div>
     </motion.div>
