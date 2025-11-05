@@ -42,6 +42,7 @@ from src.streaming.insight_listener import run_insight_listener
 from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
+from src.app.services.persistence import save_profile as persist_profile
 
 load_dotenv()
 
@@ -971,7 +972,33 @@ async def run_pipeline_with_streaming(
                         profile_result += chunk
                     profile_index = profile_result
                     print(f"✅ Profile index built: {len(profile_index)} chars")
-                    
+
+                    if profile_index and (profile_text or profile_repos):
+                        try:
+                            profile_sources = []
+                            if linkedin_url:
+                                profile_sources.append(f"linkedin:{linkedin_url}")
+                            if github_username:
+                                profile_sources.append(f"github:{github_username}")
+
+                            combined_profile_text = profile_text or ""
+                            if profile_repos:
+                                combined_profile_text = (
+                                    (combined_profile_text + "\n\n" if combined_profile_text else "")
+                                    + "GitHub repositories:\n"
+                                    + json.dumps(profile_repos, ensure_ascii=False)
+                                )
+
+                            saved_profile_id = persist_profile(
+                                db,
+                                sources=profile_sources,
+                                profile_text=combined_profile_text,
+                                profile_index=profile_index,
+                            )
+                            print(f"✅ Persisted profile snapshot ID: {saved_profile_id}")
+                        except Exception as persist_err:
+                            print(f"⚠️ Failed to persist profile snapshot: {persist_err}")
+
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-done", "system", "high",
                         "Profile index ready - will enhance optimization", "profiling"
@@ -1132,7 +1159,10 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent3, "Optimizer Implementer", "writing", job_id,
-                resume_text=resume_text, optimization_report=optimization_result, model=IMPLEMENTER_MODEL
+                resume_text=resume_text,
+                optimization_report=optimization_result,
+                profile_index=profile_index,
+                model=IMPLEMENTER_MODEL
             )
         )
         optimized_resume = extract_optimized_resume(implementation_result)
@@ -1192,7 +1222,11 @@ async def run_pipeline_with_streaming(
             functools.partial(
                 run_agent_with_chunk_emission,
                 agent4, "Validator", "validating", job_id,
-                optimized_resume=optimized_resume, job_posting=job_text_final, job_analysis=analysis_result, model=VALIDATOR_MODEL
+                optimized_resume=optimized_resume,
+                job_posting=job_text_final,
+                job_analysis=analysis_result,
+                profile_index=profile_index,
+                model=VALIDATOR_MODEL
             )
         )
         print(f"✅ Agent 4 complete: {len(validation_result)} chars")
