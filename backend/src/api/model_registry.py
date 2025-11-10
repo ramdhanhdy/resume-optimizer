@@ -82,6 +82,23 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "qwen/qwen3-max",
     },
+    "openrouter::openrouter/polaris-alpha": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+        },
+        "api_model": "openrouter/polaris-alpha",
+    },
+    "openrouter::moonshotai/kimi-k2-thinking": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "moonshotai/kimi-k2-thinking",
+    },
     "google/gemini-2.0-flash-exp:free": {
         "provider": "openrouter",
         "capabilities": {"supports_files": True, "supports_images": True},

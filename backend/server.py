@@ -54,6 +54,14 @@ VALIDATOR_MODEL = os.getenv("VALIDATOR_MODEL") or DEFAULT_MODEL
 PROFILE_MODEL = os.getenv("PROFILE_MODEL") or DEFAULT_MODEL
 POLISH_MODEL = os.getenv("POLISH_MODEL") or "zenmux::anthropic/claude-sonnet-4.5"
 
+# Per-agent temperature settings
+ANALYZER_TEMPERATURE = float(os.getenv("ANALYZER_TEMPERATURE", "0.3"))
+OPTIMIZER_TEMPERATURE = float(os.getenv("OPTIMIZER_TEMPERATURE", "0.7"))
+IMPLEMENTER_TEMPERATURE = float(os.getenv("IMPLEMENTER_TEMPERATURE", "0.1"))
+VALIDATOR_TEMPERATURE = float(os.getenv("VALIDATOR_TEMPERATURE", "0.2"))
+PROFILE_TEMPERATURE = float(os.getenv("PROFILE_TEMPERATURE", "0.1"))
+POLISH_TEMPERATURE = float(os.getenv("POLISH_TEMPERATURE", "0.8"))
+
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
 # CORS middleware
@@ -292,7 +300,7 @@ async def analyze_job(request: JobAnalysisRequest):
         agent = JobAnalyzerAgent(client=client)
         analysis_result = ""
 
-        for chunk in agent.analyze_job(job_posting=job_text, model=ANALYZER_MODEL):
+        for chunk in agent.analyze_job(job_posting=job_text, model=ANALYZER_MODEL, temperature=ANALYZER_TEMPERATURE):
             analysis_result += chunk
         
         # Extract metadata (company, job title)
@@ -351,6 +359,7 @@ async def optimize_resume(request: ResumeOptimizationRequest):
             resume_text=request.resume_text,
             job_analysis=job_analysis_text,
             model=OPTIMIZER_MODEL,
+            temperature=OPTIMIZER_TEMPERATURE,
         ):
             optimization_result += chunk
 
@@ -409,6 +418,7 @@ async def implement_optimization(request: ImplementationRequest):
             resume_text=original_resume,
             optimization_report=optimization_strategy,
             model=IMPLEMENTER_MODEL,
+            temperature=IMPLEMENTER_TEMPERATURE,
         ):
             implementation_result += chunk
         
@@ -471,6 +481,7 @@ async def validate_resume(request: ValidationRequest):
             job_posting=job_posting_text,
             job_analysis=job_analysis_text,
             model=VALIDATOR_MODEL,
+            temperature=VALIDATOR_TEMPERATURE,
         ):
             validation_result += chunk
 
@@ -531,6 +542,7 @@ async def polish_resume(request: PolishRequest):
             optimized_resume=optimized_resume,
             validation_report=validation_report,
             model=POLISH_MODEL,
+            temperature=POLISH_TEMPERATURE,
         ):
             polish_result += chunk
 
@@ -967,7 +979,8 @@ async def run_pipeline_with_streaming(
                     for chunk in profile_agent.index_profile(
                         model=PROFILE_MODEL,
                         profile_text=profile_text or "",
-                        profile_repos=profile_repos
+                        profile_repos=profile_repos,
+                        temperature=PROFILE_TEMPERATURE
                     ):
                         profile_result += chunk
                     profile_index = profile_result

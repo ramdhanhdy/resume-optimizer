@@ -182,9 +182,9 @@ for bullet_text in ['Achievement 1', 'Achievement 2']:
 - **Contact Info:** 2-3 lines
 - **Education:** 15-25 lines
 - **Experience:** 70-100 lines (main content with good detail)
-- **Projects:** 25-40 lines (if included)
+- **Projects:** 35-50 lines (if included)
 - **Skills:** 8-15 lines
-- **Total Target:** ~120-160 lines including spacing
+- **Total Target:** ~140-200 lines including spacing
 
 **If Content is Too Long (exceeds 3 pages):**
 1. Prioritize keeping most relevant experience
