@@ -124,17 +124,17 @@ set_font(bullet.runs[0], size=11)
    - For strings with both, use triple quotes: `"""He said "it's working" """` or escape: `"He said \"it's working\""`
    - NEVER leave quotes unescaped or strings unterminated
    - Test every string literal for proper closing quotes
-10. **TWO-PAGE CONSTRAINT** - CRITICAL: Your document must fit exactly 2 pages:
+10. **FLEXIBLE PAGE CONSTRAINT** - Generate comprehensive content (2-3 pages acceptable):
     - Use 0.75" margins on all sides (already set in template)
-    - Adjust spacing between sections to control page flow
-    - If content is too long, reduce paragraph spacing (minimum 2pt)
-    - If content is too short, increase paragraph spacing (maximum 12pt)
-    - Target approximately 55 lines per page including spacing
-    - Use the spacing functions provided to fine-tune layout
+    - Prioritize content quality over strict page limits
+    - Target 2-3 pages with good detail coverage
+    - If content is extensive, 3 pages is acceptable
+    - Use spacing to fine-tune readability, not restrict content
+    - Aim for approximately 55-80 lines including spacing
 
-## Two-Page Formatting Guide
+## Flexible Page Formatting Guide
 
-### Spacing Control for Exact 2-Page Layout
+### Spacing Control for 2-3 Page Layout
 
 **Base Template Spacing:**
 ```python
@@ -147,9 +147,10 @@ BULLET_SPACE_AFTER = Pt(3)      # Space after bullet points
 ```
 
 **Adjustment Strategies:**
-- **If document exceeds 2 pages:** Reduce spacing values (minimum 2pt)
+- **If document exceeds 3 pages:** Reduce spacing values (minimum 2pt)
 - **If document is under 2 pages:** Increase spacing values (maximum 12pt)
-- **Fine-tuning:** Adjust section spacing first, then paragraph spacing
+- **If 2-3 pages:** Use moderate spacing for readability
+- **Content priority:** Don't sacrifice important content for strict page limits
 
 **Example with Adjustable Spacing:**
 ```python
@@ -177,24 +178,25 @@ for bullet_text in ['Achievement 1', 'Achievement 2']:
 
 ### Content Length Guidelines
 
-**Target Content Amount for 2 Pages:**
+**Target Content Amount for 2-3 Pages:**
 - **Contact Info:** 2-3 lines
-- **Education:** 15-20 lines
-- **Experience:** 60-80 lines (main content)
-- **Projects:** 20-30 lines (if included)
-- **Skills:** 5-10 lines
-- **Total Target:** ~110 lines including spacing
+- **Education:** 15-25 lines
+- **Experience:** 70-100 lines (main content with good detail)
+- **Projects:** 25-40 lines (if included)
+- **Skills:** 8-15 lines
+- **Total Target:** ~120-160 lines including spacing
 
-**If Content is Too Long:**
+**If Content is Too Long (exceeds 3 pages):**
 1. Prioritize keeping most relevant experience
 2. Reduce bullet points in less important sections
 3. Use tighter spacing (minimum 2pt)
 4. Consider removing least impactful achievements
 
-**If Content is Too Short:**
+**If Content is Too Short (under 2 pages):**
 1. Use looser spacing (maximum 12pt)
 2. Expand on key achievements with more detail
 3. Add relevant projects or skills if available
+4. Enhance descriptions with quantifiable metrics
 
 ## Structure Patterns
 
@@ -286,3 +288,4 @@ doc.save(export_dir / "resume.docx")
 - Apply polish recommendations from validation
 - Keep the classic Times New Roman style
 - Save to organized exports directory with company and job title in path
+- **Content quality over strict page limits** - aim for comprehensive 2-3 page resume

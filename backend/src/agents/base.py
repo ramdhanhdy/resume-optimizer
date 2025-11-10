@@ -48,7 +48,7 @@ class BaseAgent:
         file_path: Optional[str] = None,
         file_type: Optional[str] = None,
         temperature: float = 0.65,
-        max_tokens: int = 20000,
+        max_tokens: int = 32000,
         thinking_budget: Optional[int] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Execute agent with streaming response."""

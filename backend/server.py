@@ -855,7 +855,7 @@ async def run_pipeline_with_streaming(
     session_id = None
 
     try:
-        print(f"🚀 Starting pipeline for job_id: {job_id}")
+        print(f"Starting pipeline for job_id: {job_id}")
 
         # Create recovery session for this pipeline run
         session_id = recovery_service.create_session(

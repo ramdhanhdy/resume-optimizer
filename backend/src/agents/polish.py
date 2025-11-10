@@ -82,17 +82,18 @@ PAGE FORMATTING GUIDANCE:
             
             guidance = f"Estimated current page count: {estimated_pages:.1f} pages\n"
             
-            if estimated_pages > 2.1:  # More conservative threshold
+            # Relaxed page constraints - allow up to 3 pages with flexible spacing
+            if estimated_pages > 3.1:  # Much higher threshold
                 guidance += """
-RECOMMENDED SPACING ADJUSTMENTS (to fit 2 pages):
+RECOMMENDED SPACING ADJUSTMENTS (to fit 3 pages):
 - Use reduced spacing: section_space_before = Pt(4), section_space_after = Pt(2)
 - Use tight paragraph spacing: para_space_before = Pt(3), para_space_after = Pt(3)
 - Use minimal bullet spacing: bullet_space = Pt(1)
 - Consider reducing bullet points in less critical sections
 """
-            elif estimated_pages < 1.9:  # More conservative threshold
+            elif estimated_pages < 2.5:  # Allow more content before expanding
                 guidance += """
-RECOMMENDED SPACING ADJUSTMENTS (to fill 2 pages):
+RECOMMENDED SPACING ADJUSTMENTS (to fill 2-3 pages):
 - Use standard spacing: section_space_before = Pt(8), section_space_after = Pt(4)
 - Use normal paragraph spacing: para_space_before = Pt(6), para_space_after = Pt(6)
 - Use standard bullet spacing: bullet_space = Pt(3)
@@ -100,13 +101,13 @@ RECOMMENDED SPACING ADJUSTMENTS (to fill 2 pages):
 """
             else:
                 guidance += """
-RECOMMENDED SPACING ADJUSTMENTS (already close to 2 pages):
+RECOMMENDED SPACING ADJUSTMENTS (already good length for 2-3 pages):
 - Use moderate spacing: section_space_before = Pt(6), section_space_after = Pt(3)
 - Use moderate paragraph spacing: para_space_before = Pt(4), para_space_after = Pt(4)
 - Use moderate bullet spacing: bullet_space = Pt(2)
 """
             
-            guidance += "\nRemember: Adjust spacing gradually and aim for exactly 2 pages with 0.75\" margins."
+            guidance += "\nRemember: Adjust spacing gradually and aim for 2-3 pages with 0.75\" margins. Quality content is more important than strict page limits."
             
             return guidance
             
@@ -117,5 +118,5 @@ Page estimation failed. Use standard spacing:
 - section_space_before = Pt(6), section_space_after = Pt(3)
 - para_space_before = Pt(4), para_space_after = Pt(4)
 - bullet_space = Pt(2)
-Adjust as needed to achieve exactly 2 pages.
+Aim for 2-3 pages with good content coverage.
 """
