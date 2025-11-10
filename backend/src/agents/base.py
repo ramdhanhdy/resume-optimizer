@@ -50,6 +50,12 @@ class BaseAgent:
         temperature: float = 0.65,
         max_tokens: int = 32000,
         thinking_budget: Optional[int] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Any] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Execute agent with streaming response."""
         # If using the facade, prefer its DTO-based streaming
@@ -66,6 +72,18 @@ class BaseAgent:
             provider_options: Dict[str, Any] = {}
             if thinking_budget is not None:
                 provider_options["thinking_budget"] = thinking_budget
+            if top_p is not None:
+                provider_options["top_p"] = top_p
+            if top_k is not None:
+                provider_options["top_k"] = top_k
+            if frequency_penalty is not None:
+                provider_options["frequency_penalty"] = frequency_penalty
+            if presence_penalty is not None:
+                provider_options["presence_penalty"] = presence_penalty
+            if seed is not None:
+                provider_options["seed"] = seed
+            if stop is not None:
+                provider_options["stop"] = stop
             stream = self.client.stream(
                 request,
                 model=model,
@@ -84,6 +102,12 @@ class BaseAgent:
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "thinking_budget": thinking_budget,
+                "top_p": top_p,
+                "top_k": top_k,
+                "frequency_penalty": frequency_penalty,
+                "presence_penalty": presence_penalty,
+                "seed": seed,
+                "stop": stop,
             }
 
             sig = inspect.signature(self.client.stream_completion)

@@ -9,6 +9,8 @@ from typing import Any, Dict, Generator, Optional
 from google import genai
 from google.genai import types
 
+from .pricing import get_pricing_manager, TokenUsage, CostBreakdown
+
 
 class GeminiClient:
     """Client for interacting with Google Gemini API."""
@@ -27,6 +29,9 @@ class GeminiClient:
 
         self.last_request_cost = 0.0
         self.total_cost = 0.0
+        self.last_usage: Optional[TokenUsage] = None
+        self.last_cost_breakdown: Optional[CostBreakdown] = None
+        self.pricing_manager = get_pricing_manager()
 
     def _encode_file(self, file_path: str) -> str:
         """Encode file to base64 for API transmission.
@@ -96,6 +101,12 @@ class GeminiClient:
         temperature: float = 0.7,
         max_tokens: int = 4000,
         thinking_budget: Optional[int] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[List[str]] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Stream completion from Gemini API.
 
@@ -105,9 +116,15 @@ class GeminiClient:
             text_content: Text input from user
             file_path: Path to uploaded file
             file_type: MIME type of file
-            temperature: Sampling temperature
+            temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum tokens to generate
             thinking_budget: Thinking budget for models that support it
+            top_p: Nucleus sampling threshold (0.0-1.0)
+            top_k: Top-k sampling limit
+            frequency_penalty: Penalize token frequency (0.0-1.0 for Gemini)
+            presence_penalty: Penalize token presence (0.0-1.0 for Gemini)
+            seed: Random seed for deterministic outputs
+            stop: Stop sequences (list of strings)
 
         Yields:
             Response chunks as they arrive
@@ -124,6 +141,22 @@ class GeminiClient:
             "temperature": temperature,
             "max_output_tokens": max_tokens,
         }
+
+        # Add optional parameters (Gemini uses camelCase for some)
+        if top_p is not None:
+            config_kwargs["top_p"] = top_p
+        if top_k is not None:
+            config_kwargs["top_k"] = top_k
+        if frequency_penalty is not None:
+            # Gemini uses 0.0-1.0 range, normalize if needed
+            config_kwargs["frequency_penalty"] = max(0.0, min(1.0, frequency_penalty))
+        if presence_penalty is not None:
+            # Gemini uses 0.0-1.0 range, normalize if needed
+            config_kwargs["presence_penalty"] = max(0.0, min(1.0, presence_penalty))
+        if seed is not None:
+            config_kwargs["seed"] = seed
+        if stop is not None:
+            config_kwargs["stop_sequences"] = stop if isinstance(stop, list) else [stop]
 
         # Add thinking config if budget is specified and model supports it
         if thinking_budget is not None and "2.5" in model:
@@ -154,75 +187,63 @@ class GeminiClient:
                 if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
                     usage_metadata = chunk.usage_metadata
 
-            # Calculate cost based on actual token usage
+            # Extract token usage from metadata
             input_tokens = 0
             output_tokens = 0
+            thinking_tokens = 0
 
             if usage_metadata:
                 input_tokens = getattr(usage_metadata, "prompt_token_count", 0)
-                output_tokens = getattr(usage_metadata, "candidates_token_count", 0)
+                # candidates_token_count includes both output and thinking tokens
+                total_candidate_tokens = getattr(usage_metadata, "candidates_token_count", 0)
+                # Extract thinking tokens if available (Gemini 2.5 models)
+                thinking_tokens = getattr(usage_metadata, "thoughts_token_count", 0)
+                output_tokens = total_candidate_tokens - thinking_tokens
             else:
                 # Fallback to estimation if metadata not available
-                input_tokens = self._estimate_tokens(prompt + (text_content or ""))
-                output_tokens = self._estimate_tokens(full_response)
+                input_tokens = self.pricing_manager.estimate_tokens(prompt + (text_content or ""))
+                output_tokens = self.pricing_manager.estimate_tokens(full_response)
 
-            cost = self._calculate_cost(model, input_tokens, output_tokens)
-            self.last_request_cost = cost
-            self.total_cost += cost
+            # Calculate cost using pricing manager
+            usage = TokenUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                thinking_tokens=thinking_tokens,
+                total_tokens=input_tokens + output_tokens + thinking_tokens
+            )
+            cost_breakdown = self.pricing_manager.calculate_cost("gemini", model, usage)
+            
+            self.last_usage = usage
+            self.last_cost_breakdown = cost_breakdown
+            self.last_request_cost = cost_breakdown.total_cost
+            self.total_cost += cost_breakdown.total_cost
 
             return {
                 "full_response": full_response,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                "cost": cost,
+                "thinking_tokens": thinking_tokens,
+                "total_tokens": usage.total_tokens,
+                "cost": cost_breakdown.total_cost,
+                "cost_breakdown": {
+                    "input_cost": cost_breakdown.input_cost,
+                    "output_cost": cost_breakdown.output_cost,
+                    "thinking_cost": cost_breakdown.thinking_cost,
+                    "total_cost": cost_breakdown.total_cost,
+                },
                 "model": model,
             }
 
         except Exception as exc:
             raise Exception(f"Gemini API error: {str(exc)}") from exc
 
-    def _estimate_tokens(self, text: str) -> int:
-        """Rough token estimation (4 chars per token average).
-
-        Args:
-            text: Text to estimate
-
-        Returns:
-            Estimated token count
-        """
-        return len(text) // 4 if text else 0
-
-    def _calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost based on Gemini pricing.
-
-        Args:
-            model: Model identifier
-            input_tokens: Number of input tokens
-            output_tokens: Number of output tokens (includes thinking tokens)
-
-        Returns:
-            Cost in USD
-        """
-        # Pricing per million tokens (as of Oct 2025)
-        # Free tier exists but we'll use paid tier pricing for cost tracking
-        pricing = {
-            "gemini-2.5-pro": {"input": 1.25, "output": 10.0},
-            "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
-            "gemini-2.5-flash-preview-09-2025": {"input": 0.30, "output": 2.50},
-            "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
-            "gemini-2.5-flash-lite-preview-09-2025": {"input": 0.10, "output": 0.40},
-            "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
-            "gemini-2.0-flash-lite": {"input": 0.075, "output": 0.30},
-        }
-
-        # Default pricing if model not found
-        default_price = {"input": 0.30, "output": 2.50}
-        model_price = pricing.get(model, default_price)
-
-        input_cost = (input_tokens / 1_000_000) * model_price["input"]
-        output_cost = (output_tokens / 1_000_000) * model_price["output"]
-
-        return input_cost + output_cost
+    def get_last_usage(self) -> Optional[TokenUsage]:
+        """Get token usage from last request."""
+        return self.last_usage
+    
+    def get_last_cost_breakdown(self) -> Optional[CostBreakdown]:
+        """Get detailed cost breakdown from last request."""
+        return self.last_cost_breakdown
 
     def get_last_cost(self) -> float:
         """Get cost of last request."""

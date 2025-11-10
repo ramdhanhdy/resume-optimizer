@@ -39,6 +39,7 @@ class LongCatClient:
         temperature: float = 0.7,
         max_tokens: int = 10000,
         thinking_budget: Optional[int] = None,
+        top_p: Optional[float] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Stream completion from LongCat API.
 
@@ -48,9 +49,10 @@ class LongCatClient:
             text_content: Text input from user
             file_path: Unsupported for LongCat (included for signature parity)
             file_type: Unsupported for LongCat (included for signature parity)
-            temperature: Sampling temperature
+            temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum tokens to generate
             thinking_budget: Thinking time budget in tokens (LongCat-Flash-Thinking only)
+            top_p: Nucleus sampling threshold (0.0-1.0)
 
         Yields:
             Response chunks as they arrive
@@ -71,10 +73,14 @@ class LongCatClient:
             params = {
                 "model": model,
                 "messages": messages,
-                "temperature": temperature,
+                "temperature": max(0.0, min(1.0, temperature)),  # LongCat limit
                 "max_tokens": max_tokens,
                 "stream": True,
             }
+            
+            # Add optional parameters
+            if top_p is not None:
+                params["top_p"] = top_p
             
             # Add thinking_budget only for LongCat-Flash-Thinking model
             if thinking_budget is not None and model == "LongCat-Flash-Thinking":

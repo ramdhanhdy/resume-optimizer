@@ -16,6 +16,8 @@ from typing import (
 
 from openai import OpenAI
 
+from .pricing import get_pricing_manager, TokenUsage, CostBreakdown
+
 
 class _TextContentParam(TypedDict):
     type: Literal["text"]
@@ -67,6 +69,9 @@ class OpenRouterClient:
 
         self.last_request_cost = 0.0
         self.total_cost = 0.0
+        self.last_usage: Optional[TokenUsage] = None
+        self.last_cost_breakdown: Optional[CostBreakdown] = None
+        self.pricing_manager = get_pricing_manager()
 
     def _encode_file(self, file_path: str) -> str:
         """Encode file to base64 for API transmission.
@@ -139,6 +144,12 @@ class OpenRouterClient:
         file_type: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4000,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Stream completion from OpenRouter API.
 
@@ -148,8 +159,14 @@ class OpenRouterClient:
             text_content: Text input from user
             file_path: Path to uploaded file
             file_type: MIME type of file
-            temperature: Sampling temperature
+            temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum tokens to generate
+            top_p: Nucleus sampling threshold (0.0-1.0)
+            top_k: Top-k sampling limit
+            frequency_penalty: Penalize token frequency (-2.0 to 2.0)
+            presence_penalty: Penalize token presence (-2.0 to 2.0)
+            seed: Random seed for deterministic outputs
+            stop: Stop sequences (string or list of strings)
 
         Yields:
             Response chunks as they arrive
@@ -165,89 +182,97 @@ class OpenRouterClient:
         ]
 
         try:
-            stream: Any = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True,
-                extra_headers={
+            # Build parameters with optional values
+            params: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+                "extra_headers": {
                     "HTTP-Referer": "https://github.com/yourusername/resume-optimizer",
                     "X-Title": "Resume Optimizer",
                 },
-            )
+            }
+            
+            # Add optional parameters if provided
+            if top_p is not None:
+                params["top_p"] = top_p
+            if top_k is not None:
+                params["top_k"] = top_k
+            if frequency_penalty is not None:
+                params["frequency_penalty"] = frequency_penalty
+            if presence_penalty is not None:
+                params["presence_penalty"] = presence_penalty
+            if seed is not None:
+                params["seed"] = seed
+            if stop is not None:
+                params["stop"] = stop
+            
+            stream: Any = self.client.chat.completions.create(**params)
 
             full_response = ""
+            usage_data = None
+            
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     content_chunk = chunk.choices[0].delta.content
                     full_response += content_chunk
                     yield content_chunk
+                
+                # Capture usage data if available in final chunk
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage_data = chunk.usage
 
-            # Estimate cost (rough approximation based on token usage)
-            # OpenRouter provides this in response headers, but for streaming
-            # we'll estimate based on common pricing
-            input_tokens = self._estimate_tokens(prompt + str(text_content))
-            output_tokens = self._estimate_tokens(full_response)
+            # Extract token usage (actual from API or estimated)
+            if usage_data:
+                input_tokens = getattr(usage_data, 'prompt_tokens', 0)
+                output_tokens = getattr(usage_data, 'completion_tokens', 0)
+                total_tokens = getattr(usage_data, 'total_tokens', input_tokens + output_tokens)
+            else:
+                # Fallback to estimation
+                input_tokens = self.pricing_manager.estimate_tokens(prompt + str(text_content or ""))
+                output_tokens = self.pricing_manager.estimate_tokens(full_response)
+                total_tokens = input_tokens + output_tokens
 
-            # Rough cost estimation (will vary by model)
-            cost = self._estimate_cost(model, input_tokens, output_tokens)
-            self.last_request_cost = cost
-            self.total_cost += cost
+            # Calculate cost using pricing manager
+            usage = TokenUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens
+            )
+            cost_breakdown = self.pricing_manager.calculate_cost("openrouter", model, usage)
+            
+            self.last_usage = usage
+            self.last_cost_breakdown = cost_breakdown
+            self.last_request_cost = cost_breakdown.total_cost
+            self.total_cost += cost_breakdown.total_cost
 
             return {
                 "full_response": full_response,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                "cost": cost,
+                "total_tokens": total_tokens,
+                "cost": cost_breakdown.total_cost,
+                "cost_breakdown": {
+                    "input_cost": cost_breakdown.input_cost,
+                    "output_cost": cost_breakdown.output_cost,
+                    "platform_fee": cost_breakdown.platform_fee,
+                    "total_cost": cost_breakdown.total_cost,
+                },
                 "model": model,
             }
 
         except Exception as e:
             raise Exception(f"OpenRouter API error: {str(e)}")
 
-    def _estimate_tokens(self, text: str) -> int:
-        """Rough token estimation (4 chars per token average).
-
-        Args:
-            text: Text to estimate
-
-        Returns:
-            Estimated token count
-        """
-        return len(text) // 4
-
-    def _estimate_cost(
-        self, model: str, input_tokens: int, output_tokens: int
-    ) -> float:
-        """Estimate cost based on model and token usage.
-
-        Args:
-            model: Model identifier
-            input_tokens: Number of input tokens
-            output_tokens: Number of output tokens
-
-        Returns:
-            Estimated cost in USD
-        """
-        # Rough pricing estimates per million tokens
-        pricing = {
-            "anthropic/claude-3.5-sonnet": {"input": 3.0, "output": 15.0},
-            "anthropic/claude-3-opus": {"input": 15.0, "output": 75.0},
-            "openai/gpt-4-turbo": {"input": 10.0, "output": 30.0},
-            "openai/gpt-4o": {"input": 5.0, "output": 15.0},
-            "google/gemini-2.0-flash-exp": {"input": 0.0, "output": 0.0},  # Free
-            "meta-llama/llama-3.3-70b-instruct": {"input": 0.5, "output": 0.8},
-        }
-
-        # Default pricing if model not in list
-        default_price = {"input": 1.0, "output": 2.0}
-        model_price = pricing.get(model, default_price)
-
-        input_cost = (input_tokens / 1_000_000) * model_price["input"]
-        output_cost = (output_tokens / 1_000_000) * model_price["output"]
-
-        return input_cost + output_cost
+    def get_last_usage(self) -> Optional[TokenUsage]:
+        """Get token usage from last request."""
+        return self.last_usage
+    
+    def get_last_cost_breakdown(self) -> Optional[CostBreakdown]:
+        """Get detailed cost breakdown from last request."""
+        return self.last_cost_breakdown
 
     def get_last_cost(self) -> float:
         """Get cost of last request."""

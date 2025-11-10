@@ -33,6 +33,12 @@ class MultiProviderClient:
         temperature: float = 0.7,
         max_tokens: int = 5000,
         thinking_budget: Optional[int] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Any] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         caps = get_capabilities(model)
         api_model = get_api_model(model)
@@ -55,6 +61,20 @@ class MultiProviderClient:
 
         if thinking_budget is not None and supports_thinking_budget(model):
             kwargs["thinking_budget"] = thinking_budget
+        
+        # Add optional generation parameters if provided
+        if top_p is not None:
+            kwargs["top_p"] = top_p
+        if top_k is not None:
+            kwargs["top_k"] = top_k
+        if frequency_penalty is not None:
+            kwargs["frequency_penalty"] = frequency_penalty
+        if presence_penalty is not None:
+            kwargs["presence_penalty"] = presence_penalty
+        if seed is not None:
+            kwargs["seed"] = seed
+        if stop is not None:
+            kwargs["stop"] = stop
 
         # Dispatch and stream
         stream = client.stream_completion(**kwargs)

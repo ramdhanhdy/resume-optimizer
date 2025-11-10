@@ -106,6 +106,12 @@ class ZenmuxClient:
         file_type: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 6000,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         content = self._prepare_content(text_content, file_path, file_type)
 
@@ -115,13 +121,30 @@ class ZenmuxClient:
         ]
 
         try:
-            stream: Any = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True,
-            )
+            # Build parameters with optional values
+            params: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
+            
+            # Add optional parameters if provided
+            if top_p is not None:
+                params["top_p"] = top_p
+            if top_k is not None:
+                params["top_k"] = top_k
+            if frequency_penalty is not None:
+                params["frequency_penalty"] = frequency_penalty
+            if presence_penalty is not None:
+                params["presence_penalty"] = presence_penalty
+            if seed is not None:
+                params["seed"] = seed
+            if stop is not None:
+                params["stop"] = stop
+            
+            stream: Any = self.client.chat.completions.create(**params)
 
             full_response = ""
             for chunk in stream:
