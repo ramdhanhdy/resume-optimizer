@@ -1,0 +1,367 @@
+{
+  "version": "2025-01-10-v2",
+  "schema": "model-centric",
+  "description": "Model-centric pricing with transparent provider markups",
+  
+  "base_models": {
+    "anthropic/claude-3.5-sonnet": {
+      "display_name": "Claude 3.5 Sonnet",
+      "vendor": "anthropic",
+      "base_pricing": {
+        "input": 3.0,
+        "output": 15.0
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    },
+    "anthropic/claude-sonnet-4.5": {
+      "display_name": "Claude Sonnet 4.5",
+      "vendor": "anthropic",
+      "base_pricing": {
+        "input": 3.0,
+        "output": 15.0
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    },
+    "anthropic/claude-3-opus": {
+      "display_name": "Claude 3 Opus",
+      "vendor": "anthropic",
+      "base_pricing": {
+        "input": 15.0,
+        "output": 75.0
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    },
+    "anthropic/claude-haiku-4.5": {
+      "display_name": "Claude Haiku 4.5",
+      "vendor": "anthropic",
+      "base_pricing": {
+        "input": 1.0,
+        "output": 5.0
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    },
+    "openai/gpt-4-turbo": {
+      "display_name": "GPT-4 Turbo",
+      "vendor": "openai",
+      "base_pricing": {
+        "input": 10.0,
+        "output": 30.0
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "openai/gpt-4o": {
+      "display_name": "GPT-4o",
+      "vendor": "openai",
+      "base_pricing": {
+        "input": 5.0,
+        "output": 15.0
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "openai/gpt-5": {
+      "display_name": "GPT-5",
+      "vendor": "openai",
+      "base_pricing": {
+        "input": 7.5,
+        "output": 22.5
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "gemini-2.5-flash": {
+      "display_name": "Gemini 2.5 Flash",
+      "vendor": "google",
+      "base_pricing": {
+        "input": 0.30,
+        "output": 2.50,
+        "thinking": 2.50
+      },
+      "context_window": 1000000,
+      "supports_thinking": true
+    },
+    "gemini-2.5-pro": {
+      "display_name": "Gemini 2.5 Pro",
+      "vendor": "google",
+      "base_pricing": {
+        "input": 1.25,
+        "output": 10.0,
+        "thinking": 10.0
+      },
+      "context_window": 1000000,
+      "supports_thinking": true
+    },
+    "gemini-2.5-flash-lite": {
+      "display_name": "Gemini 2.5 Flash Lite",
+      "vendor": "google",
+      "base_pricing": {
+        "input": 0.10,
+        "output": 0.40,
+        "thinking": 0.40
+      },
+      "context_window": 1000000,
+      "supports_thinking": true
+    },
+    "gemini-2.0-flash": {
+      "display_name": "Gemini 2.0 Flash",
+      "vendor": "google",
+      "base_pricing": {
+        "input": 0.10,
+        "output": 0.40
+      },
+      "context_window": 1000000,
+      "supports_thinking": false
+    },
+    "gemini-2.0-flash-lite": {
+      "display_name": "Gemini 2.0 Flash Lite",
+      "vendor": "google",
+      "base_pricing": {
+        "input": 0.075,
+        "output": 0.30
+      },
+      "context_window": 1000000,
+      "supports_thinking": false
+    },
+    "qwen/qwen3-max": {
+      "display_name": "Qwen 3 Max",
+      "vendor": "alibaba",
+      "base_pricing": {
+        "input": 0.8,
+        "output": 2.4
+      },
+      "context_window": 32000,
+      "supports_thinking": false
+    },
+    "meta-llama/llama-3.3-70b-instruct": {
+      "display_name": "Llama 3.3 70B Instruct",
+      "vendor": "meta",
+      "base_pricing": {
+        "input": 0.5,
+        "output": 0.8
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "x-ai/grok-4-fast": {
+      "display_name": "Grok 4 Fast",
+      "vendor": "x-ai",
+      "base_pricing": {
+        "input": 2.0,
+        "output": 10.0
+      },
+      "context_window": 131072,
+      "supports_thinking": false
+    },
+    "cerebras/qwen-3-235b-a22b-instruct-2507": {
+      "display_name": "Qwen 3 235B Instruct (Cerebras)",
+      "vendor": "cerebras",
+      "base_pricing": {
+        "input": 0.60,
+        "output": 1.20
+      },
+      "context_window": 32000,
+      "supports_thinking": false
+    },
+    "cerebras/gpt-oss-120b": {
+      "display_name": "GPT OSS 120B (Cerebras)",
+      "vendor": "cerebras",
+      "base_pricing": {
+        "input": 0.35,
+        "output": 0.75
+      },
+      "context_window": 32000,
+      "supports_thinking": false
+    },
+    "cerebras/qwen-3-coder-480b": {
+      "display_name": "Qwen 3 Coder 480B (Cerebras)",
+      "vendor": "cerebras",
+      "base_pricing": {
+        "input": 2.00,
+        "output": 2.00
+      },
+      "context_window": 32000,
+      "supports_thinking": false
+    },
+    "LongCat-Flash-Chat": {
+      "display_name": "LongCat Flash Chat",
+      "vendor": "meituan",
+      "base_pricing": {
+        "input": 0.15,
+        "output": 0.75
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "LongCat-Flash-Thinking": {
+      "display_name": "LongCat Flash Thinking",
+      "vendor": "meituan",
+      "base_pricing": {
+        "input": 0.15,
+        "output": 0.75,
+        "thinking": 0.75
+      },
+      "context_window": 128000,
+      "supports_thinking": true
+    },
+    "moonshotai/kimi-k2-0905": {
+      "display_name": "Kimi K2 0905",
+      "vendor": "moonshot",
+      "base_pricing": {
+        "input": 0.75,
+        "output": 2.25
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    },
+    "inclusionai/ring-mini-2.0": {
+      "display_name": "Ring Mini 2.0",
+      "vendor": "inclusion",
+      "base_pricing": {
+        "input": 0.075,
+        "output": 0.225
+      },
+      "context_window": 32000,
+      "supports_thinking": false
+    },
+    "inclusionai/ring-flash-2.0": {
+      "display_name": "Ring Flash 2.0",
+      "vendor": "inclusion",
+      "base_pricing": {
+        "input": 0.20,
+        "output": 0.60
+      },
+      "context_window": 128000,
+      "supports_thinking": false
+    },
+    "minimax/minimax-m2": {
+      "display_name": "MiniMax M2",
+      "vendor": "minimax",
+      "base_pricing": {
+        "input": 0.50,
+        "output": 1.50
+      },
+      "context_window": 200000,
+      "supports_thinking": false
+    }
+  },
+  
+  "providers": {
+    "openrouter": {
+      "markup_type": "platform_fee",
+      "platform_fee_percent": 5.5,
+      "description": "OpenRouter adds 5.5% platform fee on top of base model pricing",
+      "supported_models": [
+        "anthropic/claude-3.5-sonnet",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-3-opus",
+        "openai/gpt-4-turbo",
+        "openai/gpt-4o",
+        "openai/gpt-5",
+        "qwen/qwen3-max",
+        "meta-llama/llama-3.3-70b-instruct",
+        "x-ai/grok-4-fast"
+      ],
+      "model_overrides": {
+        "google/gemini-2.0-flash-exp:free": {
+          "input": 0.0,
+          "output": 0.0,
+          "reason": "Free tier offering"
+        }
+      }
+    },
+    
+    "zenmux": {
+      "markup_type": "multiplier",
+      "description": "Zenmux applies premium markup multipliers to base model pricing",
+      "default_multiplier": {
+        "input": 4.0,
+        "output": 4.0
+      },
+      "supported_models": [
+        "openai/gpt-5",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-haiku-4.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "moonshotai/kimi-k2-0905",
+        "inclusionai/ring-mini-2.0",
+        "inclusionai/ring-flash-2.0",
+        "minimax/minimax-m2"
+      ],
+      "model_specific_markup": {
+        "openai/gpt-5": {
+          "input_multiplier": 2.67,
+          "output_multiplier": 2.67,
+          "reason": "Premium GPT-5 access"
+        },
+        "anthropic/claude-sonnet-4.5": {
+          "input_multiplier": 4.0,
+          "output_multiplier": 2.4,
+          "reason": "Higher output multiplier"
+        },
+        "gemini-2.5-pro": {
+          "input_multiplier": 4.0,
+          "output_multiplier": 1.5,
+          "reason": "Competitive Gemini Pro pricing"
+        },
+        "gemini-2.5-flash": {
+          "input_multiplier": 5.0,
+          "output_multiplier": 1.8,
+          "reason": "Premium flash access"
+        },
+        "gemini-2.5-flash-lite": {
+          "input_multiplier": 5.0,
+          "output_multiplier": 3.75,
+          "reason": "Premium lite access"
+        }
+      }
+    },
+    
+    "gemini": {
+      "markup_type": "direct",
+      "description": "Direct Google Gemini API pricing with no markup",
+      "supported_models": [
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite"
+      ]
+    },
+    
+    "cerebras": {
+      "markup_type": "direct",
+      "description": "Direct Cerebras Inference API pricing with no markup",
+      "supported_models": [
+        "cerebras/qwen-3-235b-a22b-instruct-2507",
+        "cerebras/gpt-oss-120b",
+        "cerebras/qwen-3-coder-480b"
+      ]
+    },
+    
+    "longcat": {
+      "markup_type": "direct",
+      "description": "Direct Meituan LongCat API pricing with no markup",
+      "supported_models": [
+        "LongCat-Flash-Chat",
+        "LongCat-Flash-Thinking"
+      ]
+    }
+  },
+  
+  "model_aliases": {
+    "claude-sonnet": "anthropic/claude-sonnet-4.5",
+    "claude-opus": "anthropic/claude-3-opus",
+    "claude-haiku": "anthropic/claude-haiku-4.5",
+    "gpt5": "openai/gpt-5",
+    "gpt-4o": "openai/gpt-4o",
+    "gemini-flash": "gemini-2.5-flash",
+    "gemini-pro": "gemini-2.5-pro"
+  }
+}

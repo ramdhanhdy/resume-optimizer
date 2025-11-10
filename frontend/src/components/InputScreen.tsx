@@ -411,7 +411,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
               type="button"
               variant="ghost"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-sm font-medium text-primary hover:text-primary/80"
+              className="text-sm font-medium text-primary hover:bg-primary/10 hover:text-primary/90"
               aria-expanded={showAdvanced}
               aria-controls="advanced-options"
               aria-label={

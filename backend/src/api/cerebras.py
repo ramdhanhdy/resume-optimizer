@@ -125,6 +125,8 @@ class CerebrasClient:
         file_type: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4000,
+        top_p: Optional[float] = None,
+        seed: Optional[int] = None,
     ) -> Generator[str, None, Dict[str, Any]]:
         """Stream completion from Cerebras API.
 
@@ -134,8 +136,10 @@ class CerebrasClient:
             text_content: Text input from user
             file_path: Path to uploaded file (note: text-only models)
             file_type: MIME type of file
-            temperature: Sampling temperature
+            temperature: Sampling temperature (0.0-1.5)
             max_tokens: Maximum tokens to generate
+            top_p: Nucleus sampling threshold (0.0-1.0)
+            seed: Random seed for deterministic outputs
 
         Yields:
             Response chunks as they arrive
@@ -151,13 +155,22 @@ class CerebrasClient:
         ]
 
         try:
-            stream: Any = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True,
-            )
+            # Build parameters with optional values
+            params: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": max(0.0, min(1.5, temperature)),  # Cerebras limit
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
+            
+            # Add optional parameters if provided
+            if top_p is not None:
+                params["top_p"] = top_p
+            if seed is not None:
+                params["seed"] = seed
+            
+            stream: Any = self.client.chat.completions.create(**params)
 
             full_response = ""
             for chunk in stream:
