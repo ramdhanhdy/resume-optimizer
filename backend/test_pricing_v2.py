@@ -114,8 +114,24 @@ def test_pricing_with_multiplier():
     print(f"  Final input: ${pricing['input']}/1M tokens")
     print(f"  Final output: ${pricing['output']}/1M tokens")
     print(f"  Markup: {pricing['markup_applied']}")
-    print(f"  Input multiplier: {pricing['input'] / pricing['base_input']:.2f}x")
-    print(f"  Output multiplier: {pricing['output'] / pricing['base_output']:.2f}x")
+    
+    # Calculate input multiplier with safety checks
+    base_input = pricing.get('base_input')
+    input_price = pricing.get('input')
+    if base_input and base_input > 0 and input_price:
+        input_multiplier = input_price / base_input
+        print(f"  Input multiplier: {input_multiplier:.2f}x")
+    else:
+        print(f"  Input multiplier: N/A")
+    
+    # Calculate output multiplier with safety checks
+    base_output = pricing.get('base_output')
+    output_price = pricing.get('output')
+    if base_output and base_output > 0 and output_price:
+        output_multiplier = output_price / base_output
+        print(f"  Output multiplier: {output_multiplier:.2f}x")
+    else:
+        print(f"  Output multiplier: N/A")
     print()
 
 def test_cost_calculation_openrouter():
@@ -210,7 +226,12 @@ def test_cost_comparison():
     most_expensive = max(costs, key=lambda x: x[1].total_cost)
     
     price_diff = most_expensive[1].total_cost - cheapest[1].total_cost
-    price_ratio = most_expensive[1].total_cost / cheapest[1].total_cost
+    
+    # Calculate price ratio with zero-division guard
+    if cheapest[1].total_cost == 0:
+        price_ratio = float('inf')
+    else:
+        price_ratio = most_expensive[1].total_cost / cheapest[1].total_cost
     
     print(f"Cheapest: {cheapest[0]} at ${cheapest[1].total_cost:.6f}")
     print(f"Most expensive: {most_expensive[0]} at ${most_expensive[1].total_cost:.6f}")
