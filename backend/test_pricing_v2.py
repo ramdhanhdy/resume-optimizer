@@ -27,7 +27,7 @@ def test_basic_loading():
     print("=" * 60)
     
     pm = PricingManager(use_v2=True)
-    print(f"✓ Pricing manager loaded")
+    print("✓ Pricing manager loaded")
     print(f"  Version: {pm._config.get('version')}")
     print(f"  Schema: {pm._config.get('schema')}")
     print(f"  Base models count: {len(pm._config.get('base_models', {}))}")
@@ -122,7 +122,7 @@ def test_pricing_with_multiplier():
         input_multiplier = input_price / base_input
         print(f"  Input multiplier: {input_multiplier:.2f}x")
     else:
-        print(f"  Input multiplier: N/A")
+        print("  Input multiplier: N/A")
     
     # Calculate output multiplier with safety checks
     base_output = pricing.get('base_output')
@@ -131,7 +131,7 @@ def test_pricing_with_multiplier():
         output_multiplier = output_price / base_output
         print(f"  Output multiplier: {output_multiplier:.2f}x")
     else:
-        print(f"  Output multiplier: N/A")
+        print("  Output multiplier: N/A")
     print()
 
 def test_cost_calculation_openrouter():
@@ -189,8 +189,8 @@ def test_cost_calculation_zenmux():
     print("Rates:")
     print(f"  Base input:  ${cost.base_input_price_per_1m:.2f}/1M tokens")
     print(f"  Base output: ${cost.base_output_price_per_1m:.2f}/1M tokens")
-    print(f"  Final input:  ${cost.input_price_per_1m:.2f}/1M tokens ({cost.input_price_per_1m / cost.base_input_price_per_1m:.1f}x)")
-    print(f"  Final output: ${cost.output_price_per_1m:.2f}/1M tokens ({cost.output_price_per_1m / cost.base_output_price_per_1m:.1f}x)")
+    print(f"  Final input:  ${cost.input_price_per_1m:.2f}/1M tokens ({cost.input_price_per_1m / cost.base_input_price_per_1m:.1f}x)" if cost.base_input_price_per_1m > 0 else "  Final input:  ${cost.input_price_per_1m:.2f}/1M tokens (N/A)")
+    print(f"  Final output: ${cost.output_price_per_1m:.2f}/1M tokens ({cost.output_price_per_1m / cost.base_output_price_per_1m:.1f}x)" if cost.base_output_price_per_1m > 0 else "  Final output: ${cost.output_price_per_1m:.2f}/1M tokens (N/A)")
     print()
 
 def test_cost_comparison():
