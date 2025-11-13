@@ -128,6 +128,24 @@ if [ "$SETUP_SECRETS" = true ]; then
   create_or_update_secret "zenmux-api-key" "ZENMUX_API_KEY"
   
   echo ""
+  echo -e "${BLUE}🔑 Granting Cloud Run service account access to secrets...${NC}"
+  
+  # Get the Cloud Run service account (use project number)
+  PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+  SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+  
+  # Grant access to all secrets
+  for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key"; do
+    echo -e "${BLUE}  Granting access to: $secret${NC}"
+    gcloud secrets add-iam-policy-binding "$secret" \
+      --member="serviceAccount:$SERVICE_ACCOUNT" \
+      --role="roles/secretmanager.secretAccessor" \
+      --project="$PROJECT_ID" \
+      --condition=None \
+      --quiet
+  done
+  
+  echo ""
   echo -e "${GREEN}✅ Secrets setup complete!${NC}"
   echo ""
 fi
@@ -164,6 +182,9 @@ ENV_VARS+=",PROFILE_TEMPERATURE=0.6"
 ENV_VARS+=",POLISH_TEMPERATURE=0.7"
 
 # Deploy to Cloud Run
+# Single-instance mode: Fixes race conditions by ensuring all requests hit same instance
+# This preserves in-memory state (_event_history, _subscribers) across SSE connections
+# Trade-off: No horizontal scaling (max ~1000 concurrent connections)
 gcloud run deploy "$SERVICE_NAME" \
   --source . \
   --region "$REGION" \
@@ -175,8 +196,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
-  --max-instances 20 \
-  --min-instances 0
+  --max-instances 1 \
+  --min-instances 1
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \

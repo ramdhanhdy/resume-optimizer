@@ -22,10 +22,72 @@ class StreamManager:
         self._loop = None  # Will be set to main event loop
     
     async def subscribe(self, job_id: str) -> asyncio.Queue:
-        """Subscribe to events for a specific job."""
+        """Subscribe to events for a specific job.
+        
+        IMPORTANT: Replays all historical events before subscribing to live events.
+        This fixes the race condition where frontend connects to SSE after pipeline
+        has already emitted initial events (job_status:started, application_id, etc).
+        """
         queue = asyncio.Queue(maxsize=100)
+        
         async with self._lock:
+            # REPLAY: Send all historical events to catch up late subscribers
+            for event_dict in self._event_history.get(job_id, []):
+                try:
+                    # Reconstruct event from stored dict based on 'type' field
+                    event_type = event_dict.get('type')
+                    
+                    # Map event type to class and reconstruct
+                    if event_type == 'job_status':
+                        from .events import JobStatusEvent
+                        event = JobStatusEvent(**event_dict)
+                    elif event_type == 'step_progress':
+                        from .events import StepProgressEvent
+                        event = StepProgressEvent(**event_dict)
+                    elif event_type == 'insight_emitted':
+                        from .events import InsightEvent
+                        event = InsightEvent(**event_dict)
+                    elif event_type == 'metric_update':
+                        from .events import MetricUpdateEvent
+                        event = MetricUpdateEvent(**event_dict)
+                    elif event_type == 'validation_update':
+                        from .events import ValidationUpdateEvent
+                        event = ValidationUpdateEvent(**event_dict)
+                    elif event_type == 'agent_step_started':
+                        from .events import AgentStepStartedEvent
+                        event = AgentStepStartedEvent(**event_dict)
+                    elif event_type == 'agent_step_completed':
+                        from .events import AgentStepCompletedEvent
+                        event = AgentStepCompletedEvent(**event_dict)
+                    elif event_type == 'agent_chunk':
+                        from .events import AgentChunkEvent
+                        event = AgentChunkEvent(**event_dict)
+                    elif event_type == 'heartbeat':
+                        from .events import HeartbeatEvent
+                        event = HeartbeatEvent(**event_dict)
+                    elif event_type == 'done':
+                        from .events import DoneEvent
+                        event = DoneEvent(**event_dict)
+                    elif event_type == 'error':
+                        from .events import ErrorEvent
+                        event = ErrorEvent(**event_dict)
+                    else:
+                        # Unknown event type, skip
+                        print(f"⚠️ Unknown event type for replay: {event_type}")
+                        continue
+                    
+                    # Add to queue (non-blocking since we're filling an empty queue)
+                    await queue.put(event)
+                    
+                except Exception as e:
+                    # Log but don't fail subscription on replay errors
+                    print(f"⚠️ Failed to replay event for job {job_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # SUBSCRIBE: Add to live subscribers after replay completes
             self._subscribers[job_id].add(queue)
+        
         return queue
     
     async def unsubscribe(self, job_id: str, queue: asyncio.Queue):
