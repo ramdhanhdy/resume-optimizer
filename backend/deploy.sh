@@ -189,12 +189,16 @@ SECRET_MAPPING+=",ZENMUX_API_KEY=zenmux-api-key:latest"
 
 # Non-sensitive environment variables
 # Note: PORT is automatically set by Cloud Run (always 8080)
-# Read model configs from .env file
+# Read model configs from .env file (use set -a to export all variables)
+set -a
 source .env 2>/dev/null || source .env.cloudrun 2>/dev/null || true
+set +a
 
+# For Cloud Run deployment, use * for CORS (simpler) or hardcode production domains
+# The CORS_ORIGINS from .env might have special chars that break gcloud CLI
 ENV_VARS="DATABASE_PATH=/tmp/applications.db"
 ENV_VARS+=",HOST=0.0.0.0"
-ENV_VARS+=",CORS_ORIGINS=${CORS_ORIGINS:-*}"
+ENV_VARS+=",CORS_ORIGINS=*"
 ENV_VARS+=",DEFAULT_MODEL=${DEFAULT_MODEL:-gemini::gemini-2.5-pro}"
 ENV_VARS+=",ANALYZER_MODEL=${ANALYZER_MODEL:-gemini::gemini-2.5-pro}"
 ENV_VARS+=",OPTIMIZER_MODEL=${OPTIMIZER_MODEL:-openrouter::moonshotai/kimi-k2-thinking}"
