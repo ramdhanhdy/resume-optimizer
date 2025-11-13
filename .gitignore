@@ -67,3 +67,5 @@ docs/specs/llm-provider-parameters/implementation-summary.md
 docs/specs/llm-provider-parameters/phase3-model-centric-pricing.md
 docs/specs/llm-provider-parameters/README.md
 docs/specs/authentication-and-metering/authentication_and_metering_spec.md
+backend/.env.cloudrun
+backend/.env.cloudrun

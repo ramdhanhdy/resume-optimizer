@@ -9,7 +9,7 @@ from src.utils.prompt_loader import load_prompt
 class BaseInsightExtractor:
     """Base class for insight extraction."""
     
-    def __init__(self, model: str = "cerebras::qwen-3-235b-a22b-instruct-2507"):
+    def __init__(self, model: str = "gemini::gemini-2.5-flash"):
         self.client = create_client()
         self.model = model
     

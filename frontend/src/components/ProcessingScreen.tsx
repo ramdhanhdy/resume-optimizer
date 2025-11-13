@@ -66,10 +66,10 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
     hasStartedRef.current = true;
 
     let cancelled = false;
-    let progressInterval: NodeJS.Timeout;
-    let activityInterval: NodeJS.Timeout;
-    let phaseInterval: NodeJS.Timeout;
-    let insightInterval: NodeJS.Timeout;
+    let progressInterval: NodeJS.Timeout | undefined;
+    let activityInterval: NodeJS.Timeout | undefined;
+    let phaseInterval: NodeJS.Timeout | undefined;
+    let insightInterval: NodeJS.Timeout | undefined;
 
     const runPipeline = async () => {
       console.log('🚀 Starting pipeline with:', { resumeText: resumeText.substring(0, 50) + '...', jobText, jobUrl });
@@ -192,47 +192,49 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
     runPipeline();
 
-    // Overall progress and completion timer (fallback)
-    progressInterval = setInterval(() => {
-      setProgress(p => {
-        const newProgress = Math.min(p + 1, 95); // Cap at 95% until real completion
-        return newProgress;
-      });
-    }, 100);
+    if (!USE_STREAMING) {
+      // Overall progress and completion timer (fallback)
+      progressInterval = setInterval(() => {
+        setProgress(p => {
+          const newProgress = Math.min(p + 1, 95); // Cap at 95% until real completion
+          return newProgress;
+        });
+      }, 100);
 
-    // Activity text cycling
-    let activityIndex = 0;
-    activityInterval = setInterval(() => {
-      activityIndex = (activityIndex + 1) % PROCESSING_ACTIVITIES.length;
-      setCurrentActivity(PROCESSING_ACTIVITIES[activityIndex]);
-    }, TOTAL_DURATION / PROCESSING_ACTIVITIES.length);
+      // Activity text cycling
+      let activityIndex = 0;
+      activityInterval = setInterval(() => {
+        activityIndex = (activityIndex + 1) % PROCESSING_ACTIVITIES.length;
+        setCurrentActivity(PROCESSING_ACTIVITIES[activityIndex]);
+      }, TOTAL_DURATION / PROCESSING_ACTIVITIES.length);
 
-    // Phase text cycling
-    let phaseIndex = 0;
-    phaseInterval = setInterval(() => {
-        phaseIndex = (phaseIndex + 1) % PROCESSING_PHASES.length;
-        setCurrentPhase(PROCESSING_PHASES[phaseIndex]);
-    }, TOTAL_DURATION / PROCESSING_PHASES.length);
+      // Phase text cycling
+      let phaseIndex = 0;
+      phaseInterval = setInterval(() => {
+          phaseIndex = (phaseIndex + 1) % PROCESSING_PHASES.length;
+          setCurrentPhase(PROCESSING_PHASES[phaseIndex]);
+      }, TOTAL_DURATION / PROCESSING_PHASES.length);
 
 
-    // Insight card stacking
-    let insightIndex = 0;
-    insightInterval = setInterval(() => {
-      if (insightIndex < MOCK_INSIGHTS.length) {
-        setInsights(currentInsights => [MOCK_INSIGHTS[insightIndex], ...currentInsights].slice(0, 4));
-        insightIndex++;
-      } else {
-        clearInterval(insightInterval);
-      }
-    }, TOTAL_DURATION / (MOCK_INSIGHTS.length + 1));
+      // Insight card stacking
+      let insightIndex = 0;
+      insightInterval = setInterval(() => {
+        if (insightIndex < MOCK_INSIGHTS.length) {
+          setInsights(currentInsights => [MOCK_INSIGHTS[insightIndex], ...currentInsights].slice(0, 4));
+          insightIndex++;
+        } else {
+          clearInterval(insightInterval);
+        }
+      }, TOTAL_DURATION / (MOCK_INSIGHTS.length + 1));
+    }
 
     return () => {
       console.log('🛑 Component unmounting, cleaning up timers (pipeline continues)...');
       cancelled = true;  // Only prevents onComplete callback
-      clearInterval(progressInterval);
-      clearInterval(activityInterval);
-      clearInterval(phaseInterval);
-      clearInterval(insightInterval);
+      if (progressInterval) clearInterval(progressInterval);
+      if (activityInterval) clearInterval(activityInterval);
+      if (phaseInterval) clearInterval(phaseInterval);
+      if (insightInterval) clearInterval(insightInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeText, jobText, jobUrl]);
