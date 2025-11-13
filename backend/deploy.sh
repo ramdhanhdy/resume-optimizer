@@ -81,8 +81,11 @@ create_or_update_secret() {
   local secret_value="${!env_var_name}"
   
   if [ -z "$secret_value" ]; then
+    # Try .env first, then .env.cloudrun as fallback
     if [ -f .env ]; then
       secret_value=$(grep "^${env_var_name}=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    elif [ -f .env.cloudrun ]; then
+      secret_value=$(grep "^${env_var_name}=" .env.cloudrun | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     fi
   fi
   
@@ -111,12 +114,18 @@ if [ "$SETUP_SECRETS" = true ]; then
   echo -e "${BLUE}🔐 Setting up secrets in Secret Manager...${NC}"
   echo ""
   
-  # Check if .env file exists
-  if [ ! -f .env ]; then
-    echo -e "${RED}❌ Error: .env file not found${NC}"
+  # Check if .env or .env.cloudrun file exists
+  if [ ! -f .env ] && [ ! -f .env.cloudrun ]; then
+    echo -e "${RED}❌ Error: No .env or .env.cloudrun file found${NC}"
     echo "Please create a .env file with your API keys"
     echo "See .env.example for reference"
     exit 1
+  fi
+  
+  if [ -f .env ]; then
+    echo -e "${GREEN}📄 Reading secrets from .env${NC}"
+  else
+    echo -e "${YELLOW}📄 Reading secrets from .env.cloudrun${NC}"
   fi
   
   # Create/update secrets for API keys
@@ -147,6 +156,7 @@ if [ "$SETUP_SECRETS" = true ]; then
   
   echo ""
   echo -e "${GREEN}✅ Secrets setup complete!${NC}"
+  echo -e "${YELLOW}⚠️  Note: Secrets updated. Deployment will fetch new versions.${NC}"
   echo ""
 fi
 
@@ -155,6 +165,8 @@ echo -e "${BLUE}🚀 Deploying to Cloud Run...${NC}"
 echo ""
 
 # Build secret mapping for gcloud command
+# Note: Using :latest ensures Cloud Run picks up new secret versions
+# If secrets were just updated, Cloud Run will fetch the new version on next deployment
 SECRET_MAPPING="OPENROUTER_API_KEY=openrouter-api-key:latest"
 SECRET_MAPPING+=",EXA_API_KEY=exa-api-key:latest"
 SECRET_MAPPING+=",GEMINI_API_KEY=gemini-api-key:latest"
@@ -164,23 +176,26 @@ SECRET_MAPPING+=",ZENMUX_API_KEY=zenmux-api-key:latest"
 
 # Non-sensitive environment variables
 # Note: PORT is automatically set by Cloud Run (always 8080)
+# Read model configs from .env file
+source .env 2>/dev/null || source .env.cloudrun 2>/dev/null || true
+
 ENV_VARS="DATABASE_PATH=/tmp/applications.db"
 ENV_VARS+=",HOST=0.0.0.0"
-ENV_VARS+=",CORS_ORIGINS=*"
-ENV_VARS+=",DEFAULT_MODEL=gemini::gemini-2.5-pro"
-ENV_VARS+=",ANALYZER_MODEL=gemini::gemini-2.5-pro"
-ENV_VARS+=",OPTIMIZER_MODEL=openrouter::moonshotai/kimi-k2-thinking"
-ENV_VARS+=",IMPLEMENTER_MODEL=openrouter::anthropic/claude-sonnet-4.5"
-ENV_VARS+=",VALIDATOR_MODEL=openrouter::gemini::gemini-2.5-pro"
-ENV_VARS+=",PROFILE_MODEL=openrouter::anthropic/claude-sonnet-4.5"
-ENV_VARS+=",POLISH_MODEL=openrouter::anthropic/claude-sonnet-4.5"
-ENV_VARS+=",INSIGHT_MODEL=openrouter::x-ai/grok-4-fast"
-ENV_VARS+=",ANALYZER_TEMPERATURE=0.6"
-ENV_VARS+=",OPTIMIZER_TEMPERATURE=1"
-ENV_VARS+=",IMPLEMENTER_TEMPERATURE=0.6"
-ENV_VARS+=",VALIDATOR_TEMPERATURE=0.2"
-ENV_VARS+=",PROFILE_TEMPERATURE=0.6"
-ENV_VARS+=",POLISH_TEMPERATURE=0.7"
+ENV_VARS+=",CORS_ORIGINS=${CORS_ORIGINS:-*}"
+ENV_VARS+=",DEFAULT_MODEL=${DEFAULT_MODEL:-gemini::gemini-2.5-pro}"
+ENV_VARS+=",ANALYZER_MODEL=${ANALYZER_MODEL:-gemini::gemini-2.5-pro}"
+ENV_VARS+=",OPTIMIZER_MODEL=${OPTIMIZER_MODEL:-openrouter::moonshotai/kimi-k2-thinking}"
+ENV_VARS+=",IMPLEMENTER_MODEL=${IMPLEMENTER_MODEL:-openrouter::anthropic/claude-sonnet-4.5}"
+ENV_VARS+=",VALIDATOR_MODEL=${VALIDATOR_MODEL:-gemini::gemini-2.5-pro}"
+ENV_VARS+=",PROFILE_MODEL=${PROFILE_MODEL:-openrouter::anthropic/claude-sonnet-4.5}"
+ENV_VARS+=",POLISH_MODEL=${POLISH_MODEL:-openrouter::anthropic/claude-sonnet-4.5}"
+ENV_VARS+=",INSIGHT_MODEL=${INSIGHT_MODEL:-openrouter::x-ai/grok-4-fast}"
+ENV_VARS+=",ANALYZER_TEMPERATURE=${ANALYZER_TEMPERATURE:-0.6}"
+ENV_VARS+=",OPTIMIZER_TEMPERATURE=${OPTIMIZER_TEMPERATURE:-1}"
+ENV_VARS+=",IMPLEMENTER_TEMPERATURE=${IMPLEMENTER_TEMPERATURE:-0.6}"
+ENV_VARS+=",VALIDATOR_TEMPERATURE=${VALIDATOR_TEMPERATURE:-0.2}"
+ENV_VARS+=",PROFILE_TEMPERATURE=${PROFILE_TEMPERATURE:-0.6}"
+ENV_VARS+=",POLISH_TEMPERATURE=${POLISH_TEMPERATURE:-0.7}"
 
 # Deploy to Cloud Run
 # Single-instance mode: Fixes race conditions by ensuring all requests hit same instance
