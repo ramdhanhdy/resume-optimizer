@@ -95,6 +95,41 @@ class ApplicationDatabase:
             """
         )
 
+        # Run metadata table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS run_metadata (
+                job_id TEXT PRIMARY KEY,
+                client_id TEXT,
+                status TEXT DEFAULT 'pending',
+                application_id INTEGER,
+                last_event_id INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (application_id) REFERENCES applications(id)
+            )
+            """
+        )
+
+        # Run events table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS run_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                payload TEXT,
+                ts INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(job_id, seq),
+                FOREIGN KEY (job_id) REFERENCES run_metadata(job_id)
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_events_job_seq ON run_events(job_id, seq)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_metadata_client ON run_metadata(client_id)")
+
         self.conn.commit()
         self._run_migrations()
 
@@ -716,6 +751,165 @@ class ApplicationDatabase:
         )
         self.conn.commit()
         return cursor.rowcount
+
+    # --- Run metadata & streaming state ---
+    def create_run_metadata(self, job_id: str, client_id: str, status: str = "pending") -> None:
+        """Insert or update run metadata for a job."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO run_metadata (job_id, client_id, status)
+            VALUES (?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                client_id = excluded.client_id,
+                status = excluded.status,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (job_id, client_id, status),
+        )
+        self.conn.commit()
+
+    def update_run_metadata(
+        self,
+        job_id: str,
+        status: Optional[str] = None,
+        application_id: Optional[int] = None,
+        last_event_id: Optional[int] = None,
+    ) -> None:
+        """Update run metadata fields."""
+        fields = []
+        params = []
+
+        if status is not None:
+            fields.append("status = ?")
+            params.append(status)
+        if application_id is not None:
+            fields.append("application_id = ?")
+            params.append(application_id)
+        if last_event_id is not None:
+            fields.append("last_event_id = ?")
+            params.append(last_event_id)
+
+        if not fields:
+            return
+
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+        query = f"UPDATE run_metadata SET {', '.join(fields)} WHERE job_id = ?"
+        params.append(job_id)
+
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        self.conn.commit()
+
+    def record_run_event(self, job_id: str, seq: int, event_dict: Dict[str, Any]) -> None:
+        """Persist a streaming event for a job."""
+        cursor = self.conn.cursor()
+        payload = json.dumps(event_dict)
+        cursor.execute(
+            """
+            INSERT INTO run_events (job_id, seq, type, payload, ts)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, seq) DO UPDATE SET
+                type = excluded.type,
+                payload = excluded.payload,
+                ts = excluded.ts
+            """,
+            (job_id, seq, event_dict.get("type"), payload, event_dict.get("ts")),
+        )
+        self.conn.commit()
+        self.update_run_metadata(job_id, last_event_id=seq)
+
+    def get_run_events(
+        self,
+        job_id: str,
+        after_seq: Optional[int] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Fetch run events for a job."""
+        cursor = self.conn.cursor()
+        if after_seq is None:
+            cursor.execute(
+                """
+                SELECT seq, payload
+                FROM run_events
+                WHERE job_id = ?
+                ORDER BY seq ASC
+                LIMIT ?
+                """,
+                (job_id, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT seq, payload
+                FROM run_events
+                WHERE job_id = ? AND seq > ?
+                ORDER BY seq ASC
+                LIMIT ?
+                """,
+                (job_id, after_seq, limit),
+            )
+
+        rows = cursor.fetchall()
+        events = []
+        for row in rows:
+            payload = json.loads(row["payload"]) if row["payload"] else {}
+            payload["event_id"] = row["seq"]
+            events.append(payload)
+        return events
+
+    def get_last_run_event_seq(self, job_id: str) -> Optional[int]:
+        """Return the last recorded event sequence for a job."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT seq FROM run_events
+            WHERE job_id = ?
+            ORDER BY seq DESC
+            LIMIT 1
+            """,
+            (job_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return row["seq"]
+
+    def get_run_metadata(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch run metadata for a job."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT *
+            FROM run_metadata
+            WHERE job_id = ?
+            """,
+            (job_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return dict(row)
+
+    def count_runs_for_client(self, client_id: str) -> int:
+        """Count the number of runs associated with a client ID."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM run_metadata
+            WHERE client_id = ?
+            """,
+            (client_id,),
+        )
+        result = cursor.fetchone()
+        return int(result["count"]) if result else 0
+
+    def purge_run_events(self, job_id: str) -> None:
+        """Delete persisted events for a job."""
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM run_events WHERE job_id = ?", (job_id,))
+        self.conn.commit()
 
     def close(self):
         """Close database connection."""

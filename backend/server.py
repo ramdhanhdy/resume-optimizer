@@ -1,6 +1,6 @@
 """FastAPI server for Resume Optimizer backend."""
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -36,6 +36,7 @@ from src.streaming import (
     AgentStepStartedEvent,
     AgentStepCompletedEvent,
     AgentChunkEvent,
+    RunStore,
 )
 from src.streaming.insight_extractor import insight_extractor
 from src.streaming.insight_listener import run_insight_listener
@@ -78,9 +79,13 @@ app.add_middleware(
 # Initialize database
 _db_path = os.getenv("DATABASE_PATH", "./data/applications.db")
 db = ApplicationDatabase(db_path=_db_path)
+run_store = RunStore(db)
+stream_manager.attach_store(run_store)
 
 # Initialize recovery service
 recovery_service = RecoveryService(db)
+
+MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
 
 # Store in app state for access in routes
 app.state.db = db
@@ -842,12 +847,25 @@ async def get_application_reports(application_id: int):
 
 
 @app.post("/api/pipeline/start")
-async def start_pipeline(request: PipelineRequest):
+async def start_pipeline(request: PipelineRequest, http_request: Request):
     """Start the full pipeline with streaming support."""
     import uuid
-    
+
+    client_id = http_request.headers.get("x-client-id") or http_request.headers.get("X-Client-Id")
+    if not client_id:
+        client_host = http_request.client.host if http_request.client else "anonymous"
+        client_id = f"ip:{client_host}"
+
+    run_count = run_store.count_runs_for_client(client_id)
+    if run_count >= MAX_FREE_RUNS:
+        raise HTTPException(
+            status_code=429,
+            detail="Free demo limit reached. Please contact the maintainer for additional runs.",
+        )
+
     job_id = str(uuid.uuid4())
-    
+    run_store.create_run(job_id=job_id, client_id=client_id, status="queued")
+
     # Start pipeline in background
     asyncio.create_task(run_pipeline_with_streaming(
         job_id=job_id,
@@ -858,7 +876,7 @@ async def start_pipeline(request: PipelineRequest):
         github_username=request.github_username,
         github_token=request.github_token,
     ))
-    
+
     return {
         "success": True,
         "job_id": job_id,
@@ -879,9 +897,11 @@ async def run_pipeline_with_streaming(
     """Run the full pipeline and emit streaming events."""
     insight_listener_task = None
     session_id = None
+    app_id: Optional[int] = None
 
     try:
         print(f"Starting pipeline for job_id: {job_id}")
+        run_store.update_status(job_id, status="running")
 
         # Create recovery session for this pipeline run
         session_id = recovery_service.create_session(
@@ -928,6 +948,7 @@ async def run_pipeline_with_streaming(
             job_text_final = job_text
         else:
             await stream_manager.emit(JobStatusEvent.create(job_id, "failed"))
+            run_store.update_status(job_id, status="failed")
             print("❌ No job text or URL provided")
             return
         
@@ -1085,6 +1106,7 @@ async def run_pipeline_with_streaming(
             job_posting_text=job_text_final,
             original_resume_text=resume_text,
         )
+        run_store.update_status(job_id, application_id=app_id)
         
         # Emit application_id as metric for frontend
         await stream_manager.emit(MetricUpdateEvent.create(
@@ -1400,6 +1422,10 @@ async def run_pipeline_with_streaming(
         # Emit completion
         await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
         await stream_manager.emit(DoneEvent(job_id=job_id))
+        if app_id is not None:
+            run_store.update_status(job_id, status="completed", application_id=app_id)
+        else:
+            run_store.update_status(job_id, status="completed")
 
         # Store application_id in job metadata for retrieval
         await stream_manager.emit(MetricUpdateEvent.create(job_id, "application_id", app_id))
@@ -1439,6 +1465,7 @@ async def run_pipeline_with_streaming(
             f"Pipeline failed: {str(e)}"
         ))
         await stream_manager.emit(DoneEvent(job_id=job_id))
+        run_store.update_status(job_id, status="failed")
     
     finally:
         # Clean up insight listener
@@ -1465,50 +1492,82 @@ async def get_job_snapshot(job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+SSE_MIN_CHUNK_BYTES = 4096
+SSE_PADDING_COMMENT = ":" + (" " * 2048) + "\n"
+SSE_PADDING_COMMENT_BYTES = len(SSE_PADDING_COMMENT.encode("utf-8"))
+
+
+def _serialize_sse_payload(payload: dict, event_id: Optional[int] = None) -> str:
+    """Serialize payload to SSE format with padding to flush Cloud Run buffers."""
+    chunk = ""
+    if event_id is not None:
+        chunk += f"id: {event_id}\n"
+    chunk += f"data: {json.dumps(payload)}\n\n"
+    chunk_bytes = len(chunk.encode("utf-8"))
+
+    if chunk_bytes < SSE_MIN_CHUNK_BYTES:
+        needed = SSE_MIN_CHUNK_BYTES - chunk_bytes
+        # Ensure we always exceed the threshold
+        padding_count = (needed // SSE_PADDING_COMMENT_BYTES) + 1
+        chunk += SSE_PADDING_COMMENT * padding_count
+    return chunk
+
+
 @app.get("/api/jobs/{job_id}/stream")
-async def stream_job_events(job_id: str):
-    """Stream job events via SSE.
-    
-    IMPORTANT: Includes padding to force flush Cloud Run buffers.
-    Cloud Run buffers SSE responses until 4KB is accumulated, causing events
-    to arrive in bursts. We add 2KB padding comments to force immediate flush.
-    """
-    
+async def stream_job_events(job_id: str, request: Request):
+    """Stream job events via SSE with padding to force Cloud Run flushes."""
+
     async def event_generator():
         """Generate SSE events."""
-        queue = await stream_manager.subscribe(job_id)
-        
-        # Padding to force flush Cloud Run buffers (must exceed 4KB threshold)
-        # SSE comment lines (starting with :) are ignored by EventSource
-        padding = ":" + (" " * 2048) + "\n"
-        
+        last_event_id_header = request.headers.get("last-event-id")
+        after_event_id: Optional[int] = None
+        if last_event_id_header:
+            try:
+                after_event_id = int(last_event_id_header)
+            except ValueError:
+                after_event_id = None
+        queue = await stream_manager.subscribe(job_id, after_event_id=after_event_id)
+
         try:
-            # Send initial heartbeat WITH PADDING
-            yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n{padding}\n"
-            
+            # Send initial heartbeat
+            loop = asyncio.get_event_loop()
+            heartbeat_payload = {
+                "type": "heartbeat",
+                "ts": int(loop.time() * 1000),
+                "job_id": job_id,
+            }
+            yield _serialize_sse_payload(heartbeat_payload)
+
             # Stream events
             while True:
                 try:
                     # Wait for event with timeout for heartbeat
-                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    
+                    item = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    event = getattr(item, "event", item)
+                    event_id = getattr(item, "event_id", None)
+
                     # Serialize event
                     event_data = event.model_dump() if hasattr(event, 'model_dump') else event
-                    yield f"data: {json.dumps(event_data)}\n\n{padding}\n"
-                    
+                    yield _serialize_sse_payload(event_data, event_id=event_id)
+
                     # Check if done
                     if event.type == "done":
                         break
-                        
+
                 except asyncio.TimeoutError:
-                    # Send heartbeat WITH PADDING
-                    yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n{padding}\n"
-                    
+                    loop = asyncio.get_event_loop()
+                    heartbeat_payload = {
+                        "type": "heartbeat",
+                        "ts": int(loop.time() * 1000),
+                        "job_id": job_id,
+                    }
+                    yield _serialize_sse_payload(heartbeat_payload)
+
         except asyncio.CancelledError:
             pass
         finally:
             await stream_manager.unsubscribe(job_id, queue)
-    
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

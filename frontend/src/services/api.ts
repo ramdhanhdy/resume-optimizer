@@ -1,4 +1,5 @@
 import type { ResumeChange } from '../types';
+import { getClientId } from '../utils/clientId';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -57,17 +58,24 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  private buildClientHeaders(): Record<string, string> {
+    const clientId = getClientId();
+    return clientId ? { 'X-Client-Id': clientId } : {};
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const clientHeaders = this.buildClientHeaders();
     
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          ...clientHeaders,
           ...options.headers,
         },
       });
@@ -87,10 +95,12 @@ class ApiClient {
   async uploadResume(file: File): Promise<UploadResumeResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    const headers = this.buildClientHeaders();
 
     const response = await fetch(`${this.baseUrl}/api/upload-resume`, {
       method: 'POST',
       body: formData,
+      headers,
     });
 
     if (!response.ok) {
@@ -147,7 +157,10 @@ class ApiClient {
 
   async exportResume(application_id: number, format: string = 'docx'): Promise<Blob> {
     const response = await fetch(
-      `${this.baseUrl}/api/export/${application_id}?format=${format}`
+      `${this.baseUrl}/api/export/${application_id}?format=${format}`,
+      {
+        headers: this.buildClientHeaders(),
+      }
     );
 
     if (!response.ok) {

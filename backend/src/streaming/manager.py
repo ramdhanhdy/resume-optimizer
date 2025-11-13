@@ -1,11 +1,37 @@
 """Stream manager for handling SSE connections and event broadcasting."""
 
 import asyncio
-import json
+import os
 import threading
-from typing import Dict, Set, Optional
 from collections import defaultdict
-from .events import ProcessingEvent, HeartbeatEvent, DoneEvent
+from dataclasses import dataclass
+from typing import Dict, Set, Optional, List, TYPE_CHECKING
+
+from .events import (
+    ProcessingEvent,
+    HeartbeatEvent,
+    DoneEvent,
+    JobStatusEvent,
+    StepProgressEvent,
+    InsightEvent,
+    MetricUpdateEvent,
+    ValidationUpdateEvent,
+    DiffChunkEvent,
+    ErrorEvent,
+    AgentStepStartedEvent,
+    AgentStepCompletedEvent,
+    AgentChunkEvent,
+)
+
+if TYPE_CHECKING:
+    from .run_store import RunStore
+
+
+@dataclass
+class StreamQueueItem:
+    """Envelope containing an event and its sequential ID."""
+    event: ProcessingEvent
+    event_id: int
 
 
 class StreamManager:
@@ -16,79 +42,82 @@ class StreamManager:
         self._subscribers: Dict[str, Set[asyncio.Queue]] = defaultdict(set)
         # job_id -> list of events (for snapshot/replay)
         self._event_history: Dict[str, list] = defaultdict(list)
+        self._event_seq: Dict[str, int] = defaultdict(int)
         # job_id -> job status
         self._job_status: Dict[str, dict] = {}
         self._lock = asyncio.Lock()
         self._loop = None  # Will be set to main event loop
+        self._history_limit = int(os.getenv("STREAM_HISTORY_LIMIT", "500"))
+        self._store: Optional["RunStore"] = None
+        self._event_type_map = {
+            "job_status": JobStatusEvent,
+            "step_progress": StepProgressEvent,
+            "insight_emitted": InsightEvent,
+            "metric_update": MetricUpdateEvent,
+            "validation_update": ValidationUpdateEvent,
+            "diff_chunk": DiffChunkEvent,
+            "error": ErrorEvent,
+            "heartbeat": HeartbeatEvent,
+            "done": DoneEvent,
+            "agent_step_started": AgentStepStartedEvent,
+            "agent_step_completed": AgentStepCompletedEvent,
+            "agent_chunk": AgentChunkEvent,
+        }
     
-    async def subscribe(self, job_id: str) -> asyncio.Queue:
+    def attach_store(self, store: "RunStore") -> None:
+        """Attach persistent run store."""
+        self._store = store
+
+    async def subscribe(self, job_id: str, after_event_id: Optional[int] = None) -> asyncio.Queue:
         """Subscribe to events for a specific job.
         
         IMPORTANT: Replays all historical events before subscribing to live events.
         This fixes the race condition where frontend connects to SSE after pipeline
         has already emitted initial events (job_status:started, application_id, etc).
         """
-        queue = asyncio.Queue(maxsize=100)
+        queue: asyncio.Queue = asyncio.Queue()
         
         async with self._lock:
-            # REPLAY: Send all historical events to catch up late subscribers
-            for event_dict in self._event_history.get(job_id, []):
-                try:
-                    # Reconstruct event from stored dict based on 'type' field
-                    event_type = event_dict.get('type')
-                    
-                    # Map event type to class and reconstruct
-                    if event_type == 'job_status':
-                        from .events import JobStatusEvent
-                        event = JobStatusEvent(**event_dict)
-                    elif event_type == 'step_progress':
-                        from .events import StepProgressEvent
-                        event = StepProgressEvent(**event_dict)
-                    elif event_type == 'insight_emitted':
-                        from .events import InsightEvent
-                        event = InsightEvent(**event_dict)
-                    elif event_type == 'metric_update':
-                        from .events import MetricUpdateEvent
-                        event = MetricUpdateEvent(**event_dict)
-                    elif event_type == 'validation_update':
-                        from .events import ValidationUpdateEvent
-                        event = ValidationUpdateEvent(**event_dict)
-                    elif event_type == 'agent_step_started':
-                        from .events import AgentStepStartedEvent
-                        event = AgentStepStartedEvent(**event_dict)
-                    elif event_type == 'agent_step_completed':
-                        from .events import AgentStepCompletedEvent
-                        event = AgentStepCompletedEvent(**event_dict)
-                    elif event_type == 'agent_chunk':
-                        from .events import AgentChunkEvent
-                        event = AgentChunkEvent(**event_dict)
-                    elif event_type == 'heartbeat':
-                        from .events import HeartbeatEvent
-                        event = HeartbeatEvent(**event_dict)
-                    elif event_type == 'done':
-                        from .events import DoneEvent
-                        event = DoneEvent(**event_dict)
-                    elif event_type == 'error':
-                        from .events import ErrorEvent
-                        event = ErrorEvent(**event_dict)
-                    else:
-                        # Unknown event type, skip
-                        print(f"⚠️ Unknown event type for replay: {event_type}")
-                        continue
-                    
-                    # Add to queue (non-blocking since we're filling an empty queue)
-                    await queue.put(event)
-                    
-                except Exception as e:
-                    # Log but don't fail subscription on replay errors
-                    print(f"⚠️ Failed to replay event for job {job_id}: {e}")
-                    import traceback
-                    traceback.print_exc()
-            
-            # SUBSCRIBE: Add to live subscribers after replay completes
+            history_snapshot: List[dict] = list(self._event_history.get(job_id, []))
+            if not history_snapshot:
+                history_snapshot = self._load_history_locked(job_id)
             self._subscribers[job_id].add(queue)
         
+        replay_items: List[StreamQueueItem] = []
+        for event_dict in history_snapshot:
+            event_id = event_dict.get("event_id")
+            if after_event_id is not None and event_id is not None:
+                if event_id <= after_event_id:
+                    continue
+            envelope = self._deserialize_event(event_dict)
+            if envelope:
+                replay_items.append(envelope)
+        
+        for envelope in replay_items:
+            try:
+                await queue.put(envelope)
+            except Exception as exc:
+                print(f"⚠️ Failed to enqueue replay event for job {job_id}: {exc}")
+        
         return queue
+
+    def _deserialize_event(self, event_dict: dict) -> Optional[StreamQueueItem]:
+        """Convert stored event dict back into a queue envelope."""
+        try:
+            event_type = event_dict.get("type")
+            event_cls = self._event_type_map.get(event_type)
+            if not event_cls:
+                print(f"⚠️ Unknown event type for replay: {event_type}")
+                return None
+            payload = dict(event_dict)
+            event_id = payload.pop("event_id", None)
+            event = event_cls(**payload)
+            return StreamQueueItem(event=event, event_id=event_id or 0)
+        except Exception as exc:
+            print(f"⚠️ Failed to deserialize event: {exc}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     async def unsubscribe(self, job_id: str, queue: asyncio.Queue):
         """Unsubscribe from job events."""
@@ -103,19 +132,33 @@ class StreamManager:
         job_id = event.job_id
         
         async with self._lock:
+            self._ensure_event_seq_locked(job_id)
+            self._event_seq[job_id] += 1
+            event_seq = self._event_seq[job_id]
             # Store in history
-            self._event_history[job_id].append(event.model_dump())
+            event_dict = event.model_dump()
+            event_dict["event_id"] = event_seq
+            history = self._event_history[job_id]
+            history.append(event_dict)
+            if len(history) > self._history_limit:
+                del history[: len(history) - self._history_limit]
             
             # Update job status cache
             if event.type == "job_status":
                 self._job_status[job_id] = event.payload
+                if self._store:
+                    self._store.update_status(job_id, status=event.payload.get("status"))
+
+            if self._store and event.type != "heartbeat":
+                self._store.append_event(job_id, event_seq, event_dict)
             
             # Broadcast to subscribers
             if job_id in self._subscribers:
                 dead_queues = set()
+                envelope = StreamQueueItem(event=event, event_id=event_seq)
                 for queue in self._subscribers[job_id]:
                     try:
-                        queue.put_nowait(event)
+                        queue.put_nowait(envelope)
                     except asyncio.QueueFull:
                         # Mark for removal if queue is full
                         dead_queues.add(queue)
@@ -128,7 +171,13 @@ class StreamManager:
         """Get current snapshot of job state."""
         async with self._lock:
             events = self._event_history.get(job_id, [])
+            if not events:
+                events = self._load_history_locked(job_id)
             status = self._job_status.get(job_id, {"status": "unknown"})
+            if status.get("status") == "unknown" and self._store:
+                metadata = self._store.get_run_metadata(job_id)
+                if metadata and metadata.get("status"):
+                    status = {"status": metadata["status"]}
             
             # Extract recent chunks and insights for the snapshot
             recent_chunks = []
@@ -169,7 +218,11 @@ class StreamManager:
                 for queue in self._subscribers[job_id]:
                     # Send done event
                     try:
-                        queue.put_nowait(DoneEvent(job_id=job_id))
+                        envelope = StreamQueueItem(
+                            event=DoneEvent(job_id=job_id),
+                            event_id=self._event_seq.get(job_id, 0),
+                        )
+                        queue.put_nowait(envelope)
                     except:
                         pass
                 del self._subscribers[job_id]
@@ -208,6 +261,30 @@ class StreamManager:
         except (RuntimeError, AttributeError):
             # Loop is closed or not running, ignore silently
             pass
+
+    def _load_history_locked(self, job_id: str) -> List[dict]:
+        """Load history from persistent store while lock is held."""
+        if not self._store:
+            return []
+        events = self._store.fetch_events(job_id)
+        if not events:
+            return []
+        snapshot = [dict(evt) for evt in events]
+        self._event_history[job_id] = list(snapshot)
+        last_seq = snapshot[-1].get("event_id")
+        if last_seq:
+            self._event_seq[job_id] = last_seq
+        return snapshot
+
+    def _ensure_event_seq_locked(self, job_id: str) -> None:
+        """Ensure event sequence counter starts from persisted value."""
+        if self._event_seq.get(job_id, 0) > 0:
+            return
+        if not self._store:
+            return
+        last_seq = self._store.get_last_event_id(job_id)
+        if last_seq:
+            self._event_seq[job_id] = last_seq
 
 
 # Global stream manager instance

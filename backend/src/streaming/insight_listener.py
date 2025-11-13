@@ -78,7 +78,8 @@ class InsightListener:
             while True:
                 try:
                     # Wait for event with timeout for periodic cleanup
-                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    item = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    event = getattr(item, "event", item)
                     
                     if event.type == "agent_chunk":
                         await self._handle_chunk_event(event)

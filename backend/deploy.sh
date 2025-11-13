@@ -217,6 +217,14 @@ echo "  1. Test the API: curl $SERVICE_URL/"
 echo "  2. Update frontend VITE_API_URL to: $SERVICE_URL"
 echo "  3. Monitor logs: gcloud run logs tail $SERVICE_NAME --region $REGION"
 echo ""
+echo -e "${BLUE}🌐 Making service publicly accessible...${NC}"
+gcloud run services add-iam-policy-binding "$SERVICE_NAME" \
+  --region "$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project "$PROJECT_ID" \
+  --quiet
+  
 echo -e "${YELLOW}⚠️  Note: SQLite database in /tmp is ephemeral${NC}"
 echo "  Data will be lost when container restarts"
 echo "  Consider migrating to Cloud SQL for production"

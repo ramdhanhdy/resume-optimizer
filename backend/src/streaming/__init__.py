@@ -18,6 +18,7 @@ from .events import (
 from .manager import StreamManager, stream_manager
 from .insight_extractor import InsightExtractor, insight_extractor
 from .insight_listener import run_insight_listener
+from .run_store import RunStore
 
 __all__ = [
     "ProcessingEvent",
@@ -38,4 +39,5 @@ __all__ = [
     "InsightExtractor",
     "insight_extractor",
     "run_insight_listener",
+    "RunStore",
 ]
