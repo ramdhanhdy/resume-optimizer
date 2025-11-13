@@ -11,10 +11,11 @@ class BaseInsightExtractor:
     
     def __init__(self, model: str = None):
         import os
-        from src.server import INSIGHT_MODEL
         
         self.client = create_client()
-        self.model = model or INSIGHT_MODEL
+        # Use environment variable directly to avoid circular import with server.py
+        default_model = os.getenv("INSIGHT_MODEL") or os.getenv("DEFAULT_MODEL") or "gemini::gemini-2.5-flash"
+        self.model = model or default_model
     
     def get_prompt(self, agent_type: str) -> str:
         """Override in subclasses to provide specific prompts."""
