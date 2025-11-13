@@ -17,7 +17,7 @@ Profile Agent (Optional) → Agent 1 → Agent 2 → Agent 3 → Agent 4 → Age
 - **🔍 Profile Agent** (Optional) - Builds context from LinkedIn/GitHub
 - **📋 Agent 1** - Job Analysis: Extracts requirements, role signals, and keywords from job postings
 - **🎯 Agent 2** - Resume Optimizer: Generates targeted optimization strategy using evidence-based analysis
-- **⚙️ Agent 3** - Optimizer Implementer: Applies strategic changes to the candidate's resume
+- **⚙️ Agent 3** - Resume Builder: Applies strategic changes to the candidate's resume
 - **✅ Agent 4** - Validator: Evaluates optimized resume with scoring and red flag analysis
 - **✨ Agent 5** - Polish: Applies validator recommendations for final refinement and generates DOCX-ready output
 
@@ -293,7 +293,11 @@ resume-optimizer/
 │   │   ├── experimentation-tracking/
 │   │   └── llm-provider-parameters/
 │   ├── troubleshooting/          # Troubleshooting guides
+│   ├── API_REFERENCE.md         # Complete API documentation
+│   ├── DEVELOPMENT.md           # Development workflows
 │   ├── DOCUMENTATION_INDEX.md   # Documentation navigation
+│   ├── TROUBLESHOOTING.md       # Common issues and solutions
+│   ├── USER_GUIDE.md            # Usage workflow guide
 │   └── README.md                # Docs overview
 ├── exports/                      # Generated resumes storage
 ├── .gitignore                   # Git ignore rules
@@ -309,457 +313,73 @@ resume-optimizer/
 📚 **[View Complete Documentation](./docs/DOCUMENTATION_INDEX.md)** - Complete index of all documentation organized by purpose.
 
 **Quick Links:**
-- [Setup Guide](./docs/setup/SETUP.md) - Comprehensive installation and configuration
-- [Gemini Setup Guide](./docs/setup/GEMINI_SETUP.md) - Google Gemini API configuration
+- [Setup Guide](./docs/SETUP.md) - Installation and configuration
+- [User Guide](./docs/USER_GUIDE.md) - Step-by-step usage workflow
+- [API Reference](./docs/API_REFERENCE.md) - Complete API documentation
+- [Development Guide](./docs/DEVELOPMENT.md) - Development workflows and tools
+- [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system documentation
 - [Agent Development Guide](./AGENTS.md) - Complete project overview for AI agents
-- [Architecture Design Pattern](./docs/architecture/AGENTS_DESIGN_PATTERN.md) - 5-agent pipeline architecture
-- [Integration Summary](./docs/integrations/INTEGRATION_SUMMARY.md) - Full-stack integration overview
-- [Streaming Specification](./docs/specs/streaming_specification.md) - Real-time streaming architecture
-- [Deployment Guides](./docs/specs/deployment/) - Cloud Run, Vercel, hybrid deployment options
-- [Troubleshooting](./docs/troubleshooting/) - Common issues and solutions
 
-## Setup
+## Quick Start
 
 ### Prerequisites
 
 - **Python 3.11+** (with `uv` package manager recommended)
 - **Node.js 20+** with npm
-- API keys for at least one LLM provider (OpenRouter, Gemini, Cerebras, etc.)
+- API keys for at least one LLM provider
 
-### Backend Setup
-
-1. **Navigate to the backend directory:**
-```bash
-cd backend
-```
-
-2. **Create and activate virtual environment (using uv):**
-```bash
-uv venv
-# Windows (CMD): .\.venv\Scripts\activate
-# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-```
-
-3. **Install dependencies:**
-```bash
-uv pip install -r requirements.txt
-```
-
-4. **Create environment file:**
-```bash
-cp .env.example .env  # or copy .env.example .env on Windows
-```
-
-5. **Configure your API keys in `.env`:**
-
-**Required (minimum one provider):**
-```bash
-OPENROUTER_API_KEY=your_openrouter_key_here
-# or
-GEMINI_API_KEY=your_gemini_key_here
-```
-
-**Optional (additional providers):**
-```bash
-CEREBRAS_API_KEY=your_cerebras_key_here
-EXA_API_KEY=your_exa_key_here
-ZENMUX_API_KEY=your_zenmux_key_here
-LONGCAT_API_KEY=your_longcat_key_here
-```
-
-**Advanced Configuration (per-agent models):**
-```bash
-# Individual models for each agent (defaults shown)
-ANALYZER_MODEL=gemini::gemini-2.5-pro
-OPTIMIZER_MODEL=openrouter::openai/gpt-5.1
-IMPLEMENTER_MODEL=openrouter::anthropic/claude-sonnet-4.5
-VALIDATOR_MODEL=gemini::gemini-2.5-pro
-POLISH_MODEL=openrouter::anthropic/claude-sonnet-4.5
-PROFILE_MODEL=openrouter::anthropic/claude-sonnet-4.5
-INSIGHT_MODEL=openrouter::x-ai/grok-4-fast
-```
-
-**Per-Agent Temperature Settings:**
-```bash
-ANALYZER_TEMPERATURE=0.6
-OPTIMIZER_TEMPERATURE=1
-IMPLEMENTER_TEMPERATURE=0.6
-VALIDATOR_TEMPERATURE=0.2
-PROFILE_TEMPERATURE=0.6
-POLISH_TEMPERATURE=0.7
-```
-
-**Rate Limiting:**
-```bash
-# Maximum free runs per client (default: 5)
-MAX_FREE_RUNS=5
-```
-
-**Database:**
-```bash
-# SQLite database path (Cloud Run uses /tmp for ephemeral storage)
-DATABASE_PATH=./data/applications.db
-```
-
-**CORS Configuration:**
-```bash
-# Comma-separated list of allowed origins (use * for development)
-CORS_ORIGINS=*
-```
-
-### Frontend Setup
-
-1. **Navigate to the frontend directory:**
-```bash
-cd frontend
-```
-
-2. **Install dependencies:**
-```bash
-npm ci  # or npm install
-```
-
-3. **Create environment file:**
-```bash
-cp .env.example .env.local
-# On Windows: copy .env.example .env.local
-```
-
-4. **Configure frontend environment variables:**
-
-```bash
-# Backend API URL (development)
-VITE_API_URL=http://localhost:8000
-
-# Optional: Brand customization
-# VITE_BRAND_NAME=Resume Optimizer
-# VITE_PRIMARY_COLOR=#0274BD
-# VITE_ACCENT_COLOR=#F57251
-```
-
-**Note:** In production (Vercel), `VITE_API_URL` should be set to `/api` to use the Vercel rewrite proxy.
-
-## Running the Application
-
-### Quick Start (Both Services)
-
-**Windows:**
-```bash
-.\start.bat
-```
-
-**macOS/Linux:**
-```bash
-bash ./start.sh
-```
-
-### Individual Services
+### Installation
 
 **Backend:**
 ```bash
 cd backend
-python server.py
-```
-
-**Alternative (with hot reload):**
-```bash
-cd backend
-uvicorn server:app --reload --host 0.0.0.0 --port 8000
+uv venv
+source .venv/bin/activate  # Windows: .\.venv\Scripts\activate
+uv pip install -r requirements.txt
+cp .env.example .env
+# Configure API keys in .env
 ```
 
 **Frontend:**
 ```bash
 cd frontend
+npm ci
+cp .env.example .env.local
+```
+
+### Running the Application
+
+**Quick Start (Both Services):**
+```bash
+# Windows:
+.\start.bat
+
+# macOS/Linux:
+bash ./start.sh
+```
+
+**Individual Services:**
+```bash
+# Backend:
+cd backend
+python server.py
+
+# Frontend:
+cd frontend
 npm run dev
 ```
 
-**Preview production build:**
-```bash
-cd frontend
-npm run build
-npm run preview
-```
+**Access:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
 
-### Accessing the Application
-
-- **Frontend**: http://localhost:5173 (Vite default)
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs (Swagger UI)
-
-## Usage
-
-### 🚀 Agent-Powered Optimization Workflow
-
-1. **📤 Upload Resume**: Upload your resume in PDF, DOCX, TXT, or HTML format
-2. **🔗 Provide Job Details**: Paste the job posting URL (auto-fetched via Exa API) or enter text manually
-3. **🎯 Optional Profile Enhancement**: Add LinkedIn URL and/or GitHub username for contextual evidence
-4. **🤖 Agent Pipeline Execution**: The sequential pipeline processes your application with real-time updates:
-   - **Step 0 - Profile Building** (Optional): Creates evidence index from LinkedIn/GitHub
-   - **Step 1 - Job Analysis**: Extracts requirements, role signals, and keywords
-   - **Step 2 - Strategy Generation**: Creates evidence-based optimization plan  
-   - **Step 3 - Implementation**: Applies strategic changes to your resume
-   - **Step 4 - Validation**: Evaluates accuracy, scores match (1-100), and flags issues
-   - **Step 5 - Polish**: Refines output for professional presentation with DOCX-ready formatting
-
-5. **📊 Review Results**: Compare before/after versions with detailed validation scores and red flag analysis
-6. **📈 Cost Tracking**: View real-time cost estimates for the optimization process
-7. **💾 Save & Export**: Download optimized resume in DOCX, PDF, or HTML format
-8. **🔄 Reconnect Anytime**: Pipeline state is persisted, allowing reconnection and resuming from any point
-
-### Rate Limiting & Free Tier
-
-The application includes built-in rate limiting to prevent abuse:
-- **Free Tier**: 5 resume generations per client (browser)
-- **Client Tracking**: Uses LocalStorage to maintain client ID across sessions
-- **Rate Limit Response**: HTTP 429 with `Retry-After` header when limit exceeded
-- **Configurable**: Set `MAX_FREE_RUNS` environment variable to adjust limits
-
-### Event Persistence & Replay
-
-All pipeline events are persisted to SQLite, enabling:
-- **Reconnection**: Resume from the last known event after network interruption
-- **Event Replay**: Replay previous runs for debugging or demonstration
-- **State Recovery**: Serverless containers can recover state after restart
-- **Snapshot Access**: Get current pipeline state at any time via `/api/jobs/{id}/snapshot`
-
-## API Endpoints
-
-### Main Pipeline
-- `POST /api/pipeline/start` - Start full pipeline with streaming
-  - **Request**: `{ resume, job_posting_url, job_posting_text, client_id }`
-  - **Response**: Job ID for streaming
-  - **Headers**: `X-Client-ID` for rate limiting
-- `GET /api/jobs/{job_id}/stream` - Server-Sent Events for real-time progress
-  - **Features**: Event persistence, reconnection support, replay capability
-  - **Parameters**: `?after_event_id={last_event_id}` for resuming
-- `GET /api/jobs/{job_id}/snapshot` - Get current pipeline state
-  - **Includes**: Agent outputs, validation scores, generated resume, run metadata
-
-### Core Endpoints
-- `POST /api/upload-resume` - Upload and parse resume file
-  - **Supports**: PDF, DOCX, TXT, HTML
-  - **Returns**: Parsed text content
-- `POST /api/scan-resume` - Scan resume for detailed structure
-  - **Extracts**: Contact info, sections, chronology, achievements
-- `POST /api/analyze-job` - Analyze job posting (Agent 1)
-  - **Input**: URL (via Exa API) or raw text
-  - **Output**: Requirements, role signals, keywords
-- `POST /api/optimize-resume` - Generate optimization strategy (Agent 2)
-  - **Output**: Evidence-based optimization plan
-- `POST /api/implement` - Apply optimizations (Agent 3)
-  - **Output**: Optimized resume content
-- `POST /api/validate` - Validate resume (Agent 4)
-  - **Output**: Multi-dimensional scores, red flags, recommendations
-- `POST /api/polish` - Final polish (Agent 5)
-  - **Output**: DOCX-ready resume with formatting guidance
-
-### Export & Download
-- `GET /api/export/{id}` - Export optimized resume
-  - **Formats**: DOCX, PDF (via conversion)
-  - **Includes**: Formatted document with styles
-- `GET /api/download/{filename}` - Download exported file
-
-### Application Management
-- `GET /api/applications` - List all applications
-  - **Response**: Array of application metadata
-- `GET /api/application/{id}` - Get application details
-  - **Includes**: Full pipeline results, scores, generated resume
-
-### GitHub Integration
-- `POST /api/curate-github` - Curate relevant GitHub projects
-  - **Input**: GitHub username
-  - **Output**: Curated project list with descriptions
-
-### Recovery & Health
-- `GET /api/health` - Health check endpoint
-- `GET /api/recovery/{run_id}/status` - Check recovery status
-- `POST /api/recovery/{run_id}/resume` - Resume from checkpoint
-
-### Event Streaming
-All SSE events include:
-- `event`: Event type (e.g., `job_status`, `agent_step`, `insight`)
-- `id`: Monotonically increasing event ID
-- `data`: JSON payload
-- `retry`: Reconnection timeout
-
-**Event Types:**
-- `job_status` - Job state changes
-- `agent_step` - Agent execution progress
-- `agent_chunk` - Real-time agent output chunks
-- `insight` - Extracted insights
-- `metrics` - Cost and performance metrics
-- `done` - Pipeline completion
-
-## Development
-
-### Code Quality
-
-**Backend (Python):**
-```bash
-cd backend
-
-# Format code (requires black and ruff)
-black .
-ruff check . --fix
-```
-
-**Frontend (TypeScript/React):**
-```bash
-cd frontend
-
-# Lint code (ESLint configured)
-npm run lint
-
-# Type check (no compilation needed)
-npx tsc --noEmit
-```
-
-### Testing
-
-**Backend Unit Tests:**
-```bash
-cd backend
-python -m pytest
-```
-
-**Frontend Tests:**
-```bash
-cd frontend
-# TODO: Add Vitest for unit tests and Playwright/Cypress for E2E
-# npm test (when test runner is configured)
-```
-
-### Frontend Design System
-
-The application uses a comprehensive design system built on **shadcn/ui (2025)** with modern tooling:
-
-**Key Features:**
-- **200+ Design Tokens**: Colors, typography, spacing, shadows, borders, animations in `@/design-system/tokens`
-- **shadcn Components**: 10+ accessible, customizable components (Button, Card, Badge, Dialog, Input, Tabs, Tooltip)
-- **WCAG 2.1 AA Compliance**: Built-in accessibility features including keyboard navigation and reduced motion
-- **Responsive Design**: Mobile-first with breakpoint hooks (`useIsMobile`, `useBreakpoint`)
-- **Motion System**: 20+ Framer Motion variants with `useReducedMotion` hook
-- **Brand Customization**: White-labeling via CSS variables and `applyBrandConfig()`
-- **Form Validation**: React Hook Form + Zod integration with reusable field wrappers
-
-**Color System:**
-- CSS variables (`--primary: 199 97% 42%`, `--accent: 14 88% 63%`) defined in `src/index.css`
-- Tailwind utilities reference CSS variables: `bg-primary`, `text-primary`, `border-primary/90`
-- Runtime theming via `VITE_PRIMARY_COLOR`, `VITE_BRAND_NAME` environment variables
-- **Never use hardcoded hex colors** - always use Tailwind utilities
-
-**Component Usage:**
-```typescript
-import { Button } from '@/components/ui/button';
-import { useFormValidation } from '@/design-system/forms';
-import { slideUpVariants, useReducedMotion } from '@/design-system/animations';
-```
-
-**Documentation:**
-- Design System Guide: [`frontend/DESIGN_SYSTEM.md`](./frontend/DESIGN_SYSTEM.md)
-- Component Docs: [`frontend/src/design-system/docs/README.md`](./frontend/src/design-system/docs/README.md)
-- shadcn/ui Docs: https://ui.shadcn.com/
-
-### Continuous Integration
-
-**TODO:** Add GitHub Actions for:
-- Backend: black, ruff, pytest
-- Frontend: ESLint, TypeScript type checking, test runner
-- Build verification for both frontend and backend
-
-## 🛡️ Ethical Guidelines & Validation
-
-### Multi-Layer Safety System
-
-All agents follow strict ethical guidelines with **deterministic validation**:
-
-- **🚫 No Fabrication Rule**: Never create false employers, titles, dates, or metrics
-- **📝 Evidence-Based Approach**: All optimizations backed by actual experience
-- **⚠️ Conservative Phrasing**: Uses cautious language when uncertain
-- **✅ Validation Layer**: Agent 4 performs comprehensive fact-checking and scoring
-- **🔍 Red Flag Detection**: Identifies potentially unsupported claims
-- **🎯 Final Review**: Agent 5 removes any unsupported claims before output
-
-### Validation Scoring System
-
-Agent 4 provides multi-dimensional analysis:
-- **📊 Match Score**: Overall alignment with job requirements
-- **⚠️ Risk Assessment**: Red flags for potentially exaggerated claims
-- **📈 Improvement Metrics**: Quantified enhancement areas
-- **🎯 Recommendation Engine**: Specific suggestions for improvement
-
-**Our Philosophy**: Present your TRUE qualifications optimally, not create fictional credentials.
-
-## Troubleshooting
-
-### Backend Issues
-
-**Import errors:**
-- Ensure virtual environment is activated
-- Run `python -m pip install -r requirements.txt` to verify dependencies
-
-**API errors:**
-- Verify API keys in `.env` file are correct
-- Check provider-specific error messages in logs
-- Ensure model names match supported providers (see `backend/src/api/model_registry.py`)
-
-**Database errors:**
-- Ensure `DATABASE_PATH` directory exists
-- Check file permissions on SQLite database
-- In Cloud Run, remember data is ephemeral (use `/tmp`)
-
-**SSE/streaming issues:**
-- SSE buffering in Cloud Run requires proper configuration (see deployment guide)
-- Check Cloud Run minimum instance settings to prevent cold starts
-- Enable event persistence for reliability
-
-**Rate limiting errors:**
-- Check `MAX_FREE_RUNS` environment variable
-- Verify client ID is being sent in `X-Client-ID` header
-- Clear browser LocalStorage if client ID issues persist
-
-### Frontend Issues
-
-**Connection errors:**
-- Ensure backend is running on the correct port (default: 8000)
-- Check `VITE_API_URL` in frontend `.env.local`
-- Verify CORS settings in backend `.env`
-
-**Build errors:**
-- Delete `node_modules` and `package-lock.json`
-- Run `npm ci` to reinstall clean dependencies
-- Check Node.js version (requires 20+)
-
-**Streaming/SSE errors:**
-- Check browser console for connection errors
-- Verify backend `/api/jobs/{id}/stream` endpoint is accessible
-- Ensure Cloud Run is configured for streaming (padding enabled)
-
-**Styling issues:**
-- Never use hardcoded hex colors (e.g., `text-[#0274BD]`)
-- Always use Tailwind utilities that reference CSS variables (e.g., `text-primary`)
-- Check CSS variables are defined in `frontend/src/index.css`
-- Verify `applyBrandConfig()` is called in `frontend/src/index.tsx`
-
-### Common Solutions
-
-**CORS errors in development:**
-```bash
-# In backend .env
-CORS_ORIGINS=*
-```
-
-**Cloud Run SSE buffering:**
-- Events include padding to force buffer flushes
-- Configure minimum instances to reduce cold starts
-- Use event persistence for reliability
-
-**Model errors:**
-- Check model supports required capabilities (`supports_files`, `supports_images`)
-- Some models don't support temperature (e.g., GPT-5.1)
-- Verify API keys have sufficient quota
+For detailed instructions, see:
+- [Setup Guide](./docs/SETUP.md) - Complete installation guide
+- [User Guide](./docs/USER_GUIDE.md) - Usage workflow
+- [Development Guide](./docs/DEVELOPMENT.md) - Development workflows
+- [Troubleshooting Guide](./docs/TROUBLESHOOTING.md) - Common issues
 
 ## 🚀 Deployment
 
@@ -767,8 +387,7 @@ The application is production-ready and deployed using modern cloud platforms:
 
 ### Current Deployment
 
-- **Backend**: Google Cloud Run (us-central1)
-  - **URL**: https://resume-optimizer-backend-784455190453.us-central1.run.app
+- **Backend**: Google Cloud Run 
   - **Features**: Auto-scaling, SSE streaming support, Secret Manager integration
 - **Frontend**: Vercel
   - **URL**: https://resume-optimizer-eosin.vercel.app
@@ -821,7 +440,29 @@ Current SQLite setup is ephemeral. For production persistence:
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions and troubleshooting.
 
+## 🛡️ Ethical Guidelines & Validation
+
+### Multi-Layer Safety System
+
+All agents follow strict ethical guidelines with **deterministic validation**:
+
+- **🚫 No Fabrication Rule**: Never create false employers, titles, dates, or metrics
+- **📝 Evidence-Based Approach**: All optimizations backed by actual experience
+- **⚠️ Conservative Phrasing**: Uses cautious language when uncertain
+- **✅ Validation Layer**: Agent 4 performs comprehensive fact-checking and scoring
+- **🔍 Red Flag Detection**: Identifies potentially unsupported claims
+- **🎯 Final Review**: Agent 5 removes any unsupported claims before output
+
+### Validation Scoring System
+
+Agent 4 provides multi-dimensional analysis:
+- **📊 Match Score**: Overall alignment with job requirements (1-100)
+- **⚠️ Risk Assessment**: Red flags for potentially exaggerated claims
+- **📈 Improvement Metrics**: Quantified enhancement areas
+- **🎯 Recommendation Engine**: Specific suggestions for improvement
+
+**Our Philosophy**: Present your TRUE qualifications optimally, not create fictional credentials.
+
 ## License
 
 Proprietary - All rights reserved
-

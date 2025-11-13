@@ -10,6 +10,11 @@ This document provides a comprehensive index of all documentation available for 
 docs/
 ├── README.md                    # Main project documentation
 ├── DOCUMENTATION_INDEX.md      # This file - documentation guide
+├── SETUP.md                     # Comprehensive installation guide
+├── USER_GUIDE.md                # Usage workflow & features
+├── API_REFERENCE.md            # Complete API documentation
+├── DEVELOPMENT.md              # Development workflows
+├── TROUBLESHOOTING.md          # Common issues & solutions
 ├── architecture/               # Architecture and design documents
 ├── integrations/               # Integration guides and summaries
 ├── setup/                      # Setup and configuration guides
@@ -264,5 +269,5 @@ When reporting documentation issues:
 ---
 
 **Last Updated**: 2025-01-31  
-**Maintainer**: Development Team  
+**Maintainer**: Ramdhan Hidayat
 **Version**: 1.0

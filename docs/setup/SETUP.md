@@ -11,26 +11,31 @@ Quick start guide for the Resume Optimizer application.
    cd backend
    ```
 
-2. **Create virtual environment**
+2. **Create virtual environment using uv**
    ```bash
-   python -m venv venv
+   uv venv
    ```
 
 3. **Activate virtual environment**
    
-   Windows:
+   Windows (CMD):
    ```bash
-   venv\Scripts\activate
+   .\.venv\Scripts\activate
    ```
-   
+
+   Windows (PowerShell):
+   ```bash
+   .\.venv\Scripts\Activate.ps1
+   ```
+
    macOS/Linux:
    ```bash
-   source venv/bin/activate
+   source .venv/bin/activate
    ```
 
 4. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   uv pip install -r requirements.txt
    ```
 
 5. **Configure environment variables**
@@ -121,8 +126,8 @@ npm run dev
 - Solution: Activate venv and reinstall dependencies
   ```bash
   cd backend
-  venv\Scripts\activate
-  pip install -r requirements.txt
+  source .venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+  uv pip install -r requirements.txt
   ```
 
 **Port 8000 already in use**
@@ -216,8 +221,8 @@ To pull latest changes and update:
 ```bash
 # Update backend
 cd backend
-venv\Scripts\activate  # or source venv/bin/activate
-pip install -r requirements.txt --upgrade
+source .venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+uv pip install -r requirements.txt --upgrade
 
 # Update frontend
 cd frontend
