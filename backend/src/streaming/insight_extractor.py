@@ -9,9 +9,12 @@ from src.utils.prompt_loader import load_prompt
 class BaseInsightExtractor:
     """Base class for insight extraction."""
     
-    def __init__(self, model: str = "gemini::gemini-2.5-flash"):
+    def __init__(self, model: str = None):
+        import os
+        from src.server import INSIGHT_MODEL
+        
         self.client = create_client()
-        self.model = model
+        self.model = model or INSIGHT_MODEL
     
     def get_prompt(self, agent_type: str) -> str:
         """Override in subclasses to provide specific prompts."""

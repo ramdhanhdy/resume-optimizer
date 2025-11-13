@@ -174,6 +174,7 @@ ENV_VARS+=",IMPLEMENTER_MODEL=openrouter::anthropic/claude-sonnet-4.5"
 ENV_VARS+=",VALIDATOR_MODEL=openrouter::gemini::gemini-2.5-pro"
 ENV_VARS+=",PROFILE_MODEL=openrouter::anthropic/claude-sonnet-4.5"
 ENV_VARS+=",POLISH_MODEL=openrouter::anthropic/claude-sonnet-4.5"
+ENV_VARS+=",INSIGHT_MODEL=gemini::gemini-2.5-flash"
 ENV_VARS+=",ANALYZER_TEMPERATURE=0.6"
 ENV_VARS+=",OPTIMIZER_TEMPERATURE=1"
 ENV_VARS+=",IMPLEMENTER_TEMPERATURE=0.6"
@@ -196,7 +197,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
-  --max-instances 1 \
+  --max-instances 5 \
   --min-instances 1
 
 # Get the service URL

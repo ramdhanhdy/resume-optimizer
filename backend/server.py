@@ -53,7 +53,8 @@ OPTIMIZER_MODEL = os.getenv("OPTIMIZER_MODEL") or DEFAULT_MODEL
 IMPLEMENTER_MODEL = os.getenv("IMPLEMENTER_MODEL") or DEFAULT_MODEL
 VALIDATOR_MODEL = os.getenv("VALIDATOR_MODEL") or DEFAULT_MODEL
 PROFILE_MODEL = os.getenv("PROFILE_MODEL") or DEFAULT_MODEL
-POLISH_MODEL = os.getenv("POLISH_MODEL") or "zenmux::anthropic/claude-sonnet-4.5"
+INSIGHT_MODEL = os.getenv("INSIGHT_MODEL") or DEFAULT_MODEL
+POLISH_MODEL = os.getenv("POLISH_MODEL") or "openrouter::anthropic/claude-sonnet-4.5"
 
 # Per-agent temperature settings
 ANALYZER_TEMPERATURE = float(os.getenv("ANALYZER_TEMPERATURE", "0.3"))
