@@ -135,6 +135,7 @@ def run_agent_with_chunk_emission(
     result = ""
     seq = 0
     last_emit_time = 0
+    last_progress_emit_time = 0
     current_time = time.time()
     
     try:
@@ -174,11 +175,11 @@ def run_agent_with_chunk_emission(
             seq += 1
             current_time = time.time()
             
-            # Emit chunk events with throttling
-            # Throttle: emit every 500 chars or 1.2 seconds
+            # Emit chunk events with MORE AGGRESSIVE throttling for better streaming
+            # Throttle: emit every 100 chars or 0.3 seconds (increased from 500 chars / 1.2s)
             should_emit = (
-                len(result) % 500 < len(chunk) or  # Crossed 500-char boundary
-                (current_time - last_emit_time) >= 1.2  # Time interval passed
+                len(result) % 100 < len(chunk) or  # Crossed 100-char boundary
+                (current_time - last_emit_time) >= 0.3  # Time interval passed
             )
             
             if should_emit:
@@ -190,6 +191,19 @@ def run_agent_with_chunk_emission(
                     total_len=len(result)
                 ))
                 last_emit_time = current_time
+            
+            # Emit periodic progress updates to keep frontend informed
+            # Estimate progress based on token count (rough heuristic: 5000 chars = ~80% done)
+            if (current_time - last_progress_emit_time) >= 3.0:  # Every 3 seconds
+                # Estimate progress: assume 5000 chars = 80% complete, cap at 95%
+                estimated_progress = min(95, int((len(result) / 5000) * 80))
+                if estimated_progress > 5:  # Only emit if we have meaningful progress
+                    stream_manager.emit_from_thread(StepProgressEvent.create(
+                        job_id=job_id,
+                        step=step_name,
+                        pct=estimated_progress
+                    ))
+                    last_progress_emit_time = current_time
         
         # Emit step completed
         stream_manager.emit_from_thread(AgentStepCompletedEvent.create(
@@ -1453,15 +1467,24 @@ async def get_job_snapshot(job_id: str):
 
 @app.get("/api/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    """Stream job events via SSE."""
+    """Stream job events via SSE.
+    
+    IMPORTANT: Includes padding to force flush Cloud Run buffers.
+    Cloud Run buffers SSE responses until 4KB is accumulated, causing events
+    to arrive in bursts. We add 2KB padding comments to force immediate flush.
+    """
     
     async def event_generator():
         """Generate SSE events."""
         queue = await stream_manager.subscribe(job_id)
         
+        # Padding to force flush Cloud Run buffers (must exceed 4KB threshold)
+        # SSE comment lines (starting with :) are ignored by EventSource
+        padding = ":" + (" " * 2048) + "\n"
+        
         try:
-            # Send initial heartbeat
-            yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n"
+            # Send initial heartbeat WITH PADDING
+            yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n{padding}\n"
             
             # Stream events
             while True:
@@ -1471,15 +1494,15 @@ async def stream_job_events(job_id: str):
                     
                     # Serialize event
                     event_data = event.model_dump() if hasattr(event, 'model_dump') else event
-                    yield f"data: {json.dumps(event_data)}\n\n"
+                    yield f"data: {json.dumps(event_data)}\n\n{padding}\n"
                     
                     # Check if done
                     if event.type == "done":
                         break
                         
                 except asyncio.TimeoutError:
-                    # Send heartbeat
-                    yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n"
+                    # Send heartbeat WITH PADDING
+                    yield f"data: {json.dumps({'type': 'heartbeat', 'ts': int(asyncio.get_event_loop().time() * 1000), 'job_id': job_id})}\n\n{padding}\n"
                     
         except asyncio.CancelledError:
             pass
