@@ -82,13 +82,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "qwen/qwen3-max",
     },
-    "openrouter::openrouter/polaris-alpha": {
+    "openai/gpt-5.1": {
         "provider": "openrouter",
-        "capabilities": {
-            "supports_files": False,
-            "supports_images": False,
-        },
-        "api_model": "openrouter/polaris-alpha",
+        "capabilities": {"supports_files": True, "supports_images": True},
+        "api_model": "openai/gpt-5.1",
+    },
+    "openrouter::openai/gpt-5.1": {
+        "provider": "openrouter",
+        "capabilities": {"supports_files": True, "supports_images": True},
+        "api_model": "openai/gpt-5.1",
     },
     "openrouter::moonshotai/kimi-k2-thinking": {
         "provider": "openrouter",
