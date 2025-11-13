@@ -1,7 +1,6 @@
 """Persistence helpers wrapping ApplicationDatabase with consistent patterns."""
 
 from typing import Any, Dict, Optional
-import streamlit as st
 import json
 from src.utils.prompt_loader import load_prompt
 
@@ -70,43 +69,6 @@ def extract_job_metadata_with_llm(
         # Fallback to defaults if extraction fails
         print(f"Metadata extraction failed: {e}")
         return {"company_name": "Unknown Company", "job_title": "Unknown Position"}
-
-
-def create_application_if_needed(
-    db,
-    *,
-    job_posting_text: str,
-    company_name: str = "Unknown Company",
-    job_title: str = "Unknown Position",
-    client=None,
-    model: str = "",
-    job_analysis: str = "",
-) -> int:
-    """Create an application if none exists in session_state; return application_id.
-
-    If client and job_posting_text are provided, uses LLM to extract metadata.
-    """
-    if not st.session_state.get("application_id"):
-        # Try to extract metadata with LLM if client provided
-        if client and job_posting_text:
-            try:
-                resolved_client = get_client(model, default_client=client)
-                metadata = extract_job_metadata_with_llm(
-                    resolved_client, model, job_posting_text, job_analysis
-                )
-                company_name = metadata.get("company_name", company_name)
-                job_title = metadata.get("job_title", job_title)
-            except Exception as e:
-                print(f"LLM metadata extraction failed, using defaults: {e}")
-
-        app_id = db.create_application(
-            company_name=company_name,
-            job_title=job_title,
-            job_posting_text=job_posting_text,
-            original_resume_text="",
-        )
-        st.session_state.application_id = app_id
-    return st.session_state.application_id
 
 
 def persist_agent_result(
