@@ -38,7 +38,7 @@ This guide covers deploying the Resume Optimizer backend to Google Cloud Run usi
 
 **Configuration → Environment Variables:**
 - `DATABASE_PATH`
-- `PORT`, `HOST`, `CORS_ORIGINS`
+- `HOST`, `CORS_ORIGINS` (Note: `PORT` is auto-set by Cloud Run)
 - Model names (`DEFAULT_MODEL`, `ANALYZER_MODEL`, etc.)
 - Temperature settings
 
@@ -100,7 +100,7 @@ gcloud run deploy resume-optimizer-backend \
   --region us-central1 \
   --allow-unauthenticated \
   --set-secrets="OPENROUTER_API_KEY=openrouter-api-key:latest,EXA_API_KEY=exa-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,CEREBRAS_API_KEY=cerebras-api-key:latest,LONGCAT_API_KEY=longcat-api-key:latest,ZENMUX_API_KEY=zenmux-api-key:latest" \
-  --set-env-vars="DATABASE_PATH=/tmp/applications.db,PORT=8080,HOST=0.0.0.0,CORS_ORIGINS=*,DEFAULT_MODEL=qwen/qwen3-max,ANALYZER_MODEL=qwen/qwen3-max,OPTIMIZER_MODEL=qwen/qwen3-max,IMPLEMENTER_MODEL=qwen/qwen3-max,VALIDATOR_MODEL=qwen/qwen3-max,PROFILE_MODEL=qwen/qwen3-max,POLISH_MODEL=zenmux::anthropic/claude-sonnet-4.5,ANALYZER_TEMPERATURE=0.3,OPTIMIZER_TEMPERATURE=0.7,IMPLEMENTER_TEMPERATURE=0.1,VALIDATOR_TEMPERATURE=0.2,PROFILE_TEMPERATURE=0.1,POLISH_TEMPERATURE=0.8" \
+  --set-env-vars="DATABASE_PATH=/tmp/applications.db,HOST=0.0.0.0,CORS_ORIGINS=*,DEFAULT_MODEL=qwen/qwen3-max,ANALYZER_MODEL=qwen/qwen3-max,OPTIMIZER_MODEL=qwen/qwen3-max,IMPLEMENTER_MODEL=qwen/qwen3-max,VALIDATOR_MODEL=qwen/qwen3-max,PROFILE_MODEL=qwen/qwen3-max,POLISH_MODEL=zenmux::anthropic/claude-sonnet-4.5,ANALYZER_TEMPERATURE=0.3,OPTIMIZER_TEMPERATURE=0.7,IMPLEMENTER_TEMPERATURE=0.1,VALIDATOR_TEMPERATURE=0.2,PROFILE_TEMPERATURE=0.1,POLISH_TEMPERATURE=0.8" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
@@ -232,7 +232,7 @@ gcloud run logs read resume-optimizer-backend --region us-central1 --limit 100
 ```
 
 **Common issues:**
-- Port mismatch (must be 8080 or use `$PORT` env var)
+- Port configuration → Cloud Run auto-sets PORT=8080, don't override it
 - Secret not found → Verify secret names in Secret Manager
 - Database path error → Use `/tmp/` not Windows paths
 

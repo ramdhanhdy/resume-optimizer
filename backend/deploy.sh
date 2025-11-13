@@ -145,8 +145,8 @@ SECRET_MAPPING+=",LONGCAT_API_KEY=longcat-api-key:latest"
 SECRET_MAPPING+=",ZENMUX_API_KEY=zenmux-api-key:latest"
 
 # Non-sensitive environment variables
+# Note: PORT is automatically set by Cloud Run (always 8080)
 ENV_VARS="DATABASE_PATH=/tmp/applications.db"
-ENV_VARS+=",PORT=8080"
 ENV_VARS+=",HOST=0.0.0.0"
 ENV_VARS+=",CORS_ORIGINS=*"
 ENV_VARS+=",DEFAULT_MODEL=qwen/qwen3-max"
@@ -176,8 +176,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --cpu 1 \
   --timeout 300 \
   --max-instances 20 \
-  --min-instances 0 \
-  --port 8080
+  --min-instances 0
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
