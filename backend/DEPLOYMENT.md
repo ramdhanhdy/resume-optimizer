@@ -100,7 +100,7 @@ gcloud run deploy resume-optimizer-backend \
   --region us-central1 \
   --allow-unauthenticated \
   --set-secrets="OPENROUTER_API_KEY=openrouter-api-key:latest,EXA_API_KEY=exa-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,CEREBRAS_API_KEY=cerebras-api-key:latest,LONGCAT_API_KEY=longcat-api-key:latest,ZENMUX_API_KEY=zenmux-api-key:latest" \
-  --set-env-vars="DATABASE_PATH=/tmp/applications.db,HOST=0.0.0.0,CORS_ORIGINS=*,DEFAULT_MODEL=qwen/qwen3-max,ANALYZER_MODEL=qwen/qwen3-max,OPTIMIZER_MODEL=qwen/qwen3-max,IMPLEMENTER_MODEL=qwen/qwen3-max,VALIDATOR_MODEL=qwen/qwen3-max,PROFILE_MODEL=qwen/qwen3-max,POLISH_MODEL=zenmux::anthropic/claude-sonnet-4.5,ANALYZER_TEMPERATURE=0.3,OPTIMIZER_TEMPERATURE=0.7,IMPLEMENTER_TEMPERATURE=0.1,VALIDATOR_TEMPERATURE=0.2,PROFILE_TEMPERATURE=0.1,POLISH_TEMPERATURE=0.8" \
+  --set-env-vars="DATABASE_PATH=/tmp/applications.db,HOST=0.0.0.0,CORS_ORIGINS=*,DEFAULT_MODEL=gemini::gemini-2.5-pro,ANALYZER_MODEL=gemini::gemini-2.5-pro,OPTIMIZER_MODEL=openrouter::moonshotai/kimi-k2-thinking,IMPLEMENTER_MODEL=openrouter::anthropic/claude-sonnet-4.5,VALIDATOR_MODEL=openrouter::gemini::gemini-2.5-pro,PROFILE_MODEL=openrouter::anthropic/claude-sonnet-4.5,POLISH_MODEL=openrouter::anthropic/claude-sonnet-4.5,ANALYZER_TEMPERATURE=0.6,OPTIMIZER_TEMPERATURE=1,IMPLEMENTER_TEMPERATURE=0.6,VALIDATOR_TEMPERATURE=0.2,PROFILE_TEMPERATURE=0.6,POLISH_TEMPERATURE=0.7" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
