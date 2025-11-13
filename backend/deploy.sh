@@ -143,15 +143,28 @@ if [ "$SETUP_SECRETS" = true ]; then
   PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
   SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
   
-  # Grant access to all secrets
+  # Grant access to all secrets (with retry logic for concurrent updates)
   for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key"; do
     echo -e "${BLUE}  Granting access to: $secret${NC}"
-    gcloud secrets add-iam-policy-binding "$secret" \
-      --member="serviceAccount:$SERVICE_ACCOUNT" \
-      --role="roles/secretmanager.secretAccessor" \
-      --project="$PROJECT_ID" \
-      --condition=None \
-      --quiet
+    
+    # Retry up to 3 times with exponential backoff for concurrent policy changes
+    for attempt in 1 2 3; do
+      if gcloud secrets add-iam-policy-binding "$secret" \
+        --member="serviceAccount:$SERVICE_ACCOUNT" \
+        --role="roles/secretmanager.secretAccessor" \
+        --project="$PROJECT_ID" \
+        --condition=None 2>&1 | grep -q "concurrent policy changes"; then
+        
+        if [ $attempt -lt 3 ]; then
+          sleep $((attempt * 2))  # Exponential backoff: 2s, 4s
+          echo -e "${YELLOW}    Retrying due to concurrent update (attempt $((attempt + 1)))...${NC}"
+        else
+          echo -e "${YELLOW}    Warning: Failed after 3 attempts, continuing...${NC}"
+        fi
+      else
+        break  # Success, exit retry loop
+      fi
+    done
   done
   
   echo ""
