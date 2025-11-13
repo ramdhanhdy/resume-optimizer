@@ -49,9 +49,16 @@ class MultiProviderClient:
             "prompt": prompt,
             "model": api_model,
             "text_content": text_content,
-            "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        
+        # Only add temperature if the model supports it
+        supports_temp = caps.get("supports_temperature", True)
+        print(f"🔍 DEBUG: Model {model} supports_temperature={supports_temp}, caps={caps}")
+        if supports_temp:  # Default to True for backward compatibility
+            kwargs["temperature"] = temperature
+        else:
+            print(f"⚠️  Skipping temperature parameter for {model}")
 
         if caps.get("supports_files"):
             if file_path:

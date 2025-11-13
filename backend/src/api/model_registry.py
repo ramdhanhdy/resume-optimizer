@@ -15,6 +15,7 @@ class Capabilities(TypedDict, total=False):
     supports_files: bool
     supports_images: bool
     supports_thinking_budget: bool
+    supports_temperature: bool  # Some models (e.g., GPT-5.1) don't support temperature
 
 
 class ModelInfo(TypedDict, total=False):
@@ -84,12 +85,20 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
     },
     "openai/gpt-5.1": {
         "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": False,  # GPT-5.1 doesn't support temperature parameter
+        },
         "api_model": "openai/gpt-5.1",
     },
     "openrouter::openai/gpt-5.1": {
         "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": False,  # GPT-5.1 doesn't support temperature parameter
+        },
         "api_model": "openai/gpt-5.1",
     },
     "openrouter::moonshotai/kimi-k2-thinking": {
@@ -335,30 +344,35 @@ def get_capabilities(model: str) -> Capabilities:
             "supports_files": False,
             "supports_images": False,
             "supports_thinking_budget": (m == "longcat-flash-thinking"),
+            "supports_temperature": True,
         }
     if provider == "zenmux":
         return {
             "supports_files": False,
             "supports_images": False,
             "supports_thinking_budget": False,
+            "supports_temperature": True,
         }
     if provider == "gemini":
         return {
             "supports_files": True,
             "supports_images": True,
             "supports_thinking_budget": ("2.5" in m),  # Only 2.5 models support thinking
+            "supports_temperature": True,
         }
     if provider == "cerebras":
         return {
             "supports_files": False,
             "supports_images": False,
             "supports_thinking_budget": False,
+            "supports_temperature": True,
         }
     # openrouter default
     return {
         "supports_files": True,
         "supports_images": True,
         "supports_thinking_budget": False,
+        "supports_temperature": True,  # Most models support temperature
     }
 
 

@@ -10,12 +10,17 @@ class BaseInsightExtractor:
     """Base class for insight extraction."""
     
     def __init__(self, model: str = None):
-        import os
-        
         self.client = create_client()
-        # Use environment variable directly to avoid circular import with server.py
-        default_model = os.getenv("INSIGHT_MODEL") or os.getenv("DEFAULT_MODEL") or "gemini::gemini-2.5-flash"
-        self.model = model or default_model
+        self._model = model  # Store the passed model, resolve lazily
+    
+    @property
+    def model(self):
+        """Lazily resolve model from environment at runtime."""
+        if self._model:
+            return self._model
+        import os
+        # Read env var at runtime, not at init time
+        return os.getenv("INSIGHT_MODEL") or os.getenv("DEFAULT_MODEL") or "gemini::gemini-2.5-flash"
     
     def get_prompt(self, agent_type: str) -> str:
         """Override in subclasses to provide specific prompts."""
