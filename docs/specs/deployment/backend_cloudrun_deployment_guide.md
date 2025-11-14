@@ -1,4 +1,6 @@
-# Backend Deployment Guide
+# Backend Deployment Guide (Cloud Run)
+
+> **Canonical location**: This file supersedes `backend/DEPLOYMENT.md`.
 
 This guide covers deploying the Resume Optimizer backend to Google Cloud Run using a hybrid secrets approach.
 

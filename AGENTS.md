@@ -8,10 +8,40 @@ and renders outputs. Deployed with Cloud Run (backend) and Vercel (frontend).
 - **backend/** – FastAPI server, agent pipeline, streaming, persistence, deployment Procfile.
 - **frontend/** – React + Vite app, TailwindCSS, design system, Vercel rewrites.
 - **docs/** – Architecture, specs, setup guides, troubleshooting, deployment notes.
+  - `docs/DOCUMENTATION_INDEX.md` – main entry point and index for all documentation.
+  - `docs/PROJECT_STRUCTURE.md` – detailed repository tree and file-level notes.
 - **README.md** – Product overview, architecture, live links.
 - **DEPLOYMENT.md** – Backend/Frontend deployment to Cloud Run/Vercel.
 - **start.sh / start.bat** – Convenience scripts to start backend and frontend locally.
 - **.gitignore** – Git excludes for both projects.
+
+## Documentation System (for AI agents)
+
+- **Start from the docs index**
+  - Use `docs/DOCUMENTATION_INDEX.md` to discover setup guides, specs, and troubleshooting.
+  - Follow links from there rather than guessing file locations.
+- **Understand the project layout**
+  - Use `docs/PROJECT_STRUCTURE.md` when you need to know where to add new agents, routes,
+    services, or frontend components.
+- **APIs and endpoints**
+  - Use `docs/API_REFERENCE.md` for HTTP endpoint behavior, request/response shapes, and
+    authentication headers.
+- **Agents, streaming, and pipeline behavior**
+  - `docs/architecture/AGENTS_DESIGN_PATTERN.md` – multi-agent pipeline design.
+  - `docs/specs/streaming_specification.md` – SSE streaming and event models.
+- **Safeguards and safety layers**
+  - `docs/specs/docx-safeguard/docx_safeguard_spec.md` – DOCX export safeguard and sandbox.
+  - `docs/specs/text_safeguard_spec.md` – text safeguard, job posting policy, `/api/job-preview`.
+- **Auth, metering, and platform specifics**
+  - `docs/specs/supabase_auth_and_metering_spec.md` – planned Supabase Auth + metering.
+- **Feature specs and planning**
+  - For any non-trivial new feature, create a dedicated directory under `docs/specs/<feature_name>/`.
+  - Put the feature spec, implementation plan, TODO list, and design notes inside that directory.
+  - Once stable, add the spec directory to `docs/DOCUMENTATION_INDEX.md` so it is discoverable.
+
+When making non-trivial changes (agents, streaming, export, safeguards, auth/metering), read the
+relevant spec first and keep implementation aligned with the written contracts. If code and docs
+appear to disagree, do not silently pick one—surface the discrepancy to the maintainer.
 
 ## Build & Development Commands
 ```bash

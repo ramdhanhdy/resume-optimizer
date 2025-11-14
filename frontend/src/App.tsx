@@ -35,11 +35,14 @@ const App: React.FC = () => {
     linkedinUrl?: string;
     githubUsername?: string;
     githubToken?: string;
+    jobTextFromPreview?: string;
   }) => {
     setAppState(prev => ({
       ...prev,
       resumeText: data.resumeText,
-      jobText: data.isUrl ? undefined : data.jobInput,
+      // If the job input is a URL and we have a preview text, prefer the
+      // fetched/sanitized text while still keeping the original URL.
+      jobText: data.isUrl ? data.jobTextFromPreview : data.jobInput,
       jobUrl: data.isUrl ? data.jobInput : undefined,
       linkedinUrl: data.linkedinUrl,
       githubUsername: data.githubUsername,

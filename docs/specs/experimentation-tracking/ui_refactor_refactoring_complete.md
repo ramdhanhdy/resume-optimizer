@@ -1,4 +1,10 @@
-# 🎉 UI Refactoring Project Complete!
+# UI Refactoring Project Complete
+
+> **Canonical location**: This file supersedes `frontend/REFACTORING_COMPLETE.md`.
+
+(Original content copied from `frontend/REFACTORING_COMPLETE.md`.)
+
+## 🎉 UI Refactoring Project Complete!
 
 **Date**: November 3, 2025  
 **Status**: ✅ 100% Complete (8/8 components)  
