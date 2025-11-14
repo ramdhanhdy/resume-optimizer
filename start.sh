@@ -26,8 +26,7 @@ fi
 # Start backend in background
 echo "Starting backend server..."
 cd backend
-source venv/bin/activate
-python server.py &
+uv run server.py &
 BACKEND_PID=$!
 cd ..
 

@@ -17,6 +17,87 @@ from .events import (
 from .insight_extractor import insight_extractor
 
 
+# Global in-memory cache for run insights
+run_insights_cache: Dict[str, List[Dict]] = {}
+
+
+def get_run_insights(run_id: str) -> List[Dict]:
+    """Get all insights for a run."""
+    return run_insights_cache.get(run_id, [])
+
+
+def cache_insight(run_id: str, insight_text: str, agent_step: str) -> None:
+    """Cache an insight for a run."""
+    if run_id not in run_insights_cache:
+        run_insights_cache[run_id] = []
+    
+    run_insights_cache[run_id].append({
+        "text": insight_text,
+        "agent_step": agent_step,
+        "timestamp": time.time()
+    })
+
+
+def clear_run_insights(run_id: str) -> None:
+    """Clear insights for a run to prevent memory leaks."""
+    if run_id in run_insights_cache:
+        del run_insights_cache[run_id]
+
+
+def is_novel_insight(insight_text: str, previous_insights: List[Dict], threshold: float = 0.8) -> bool:
+    """
+    Check if an insight is novel compared to previous insights using Jaccard similarity.
+    Returns True if the insight is sufficiently different (novel), False if it's a duplicate.
+    """
+    if not previous_insights:
+        return True
+    
+    def jaccard_similarity(text1: str, text2: str) -> float:
+        """Calculate Jaccard similarity between two texts."""
+        # Tokenize and convert to sets of words
+        set1 = set(text1.lower().split())
+        set2 = set(text2.lower().split())
+        
+        # Handle empty sets
+        if not set1 and not set2:
+            return 1.0
+        if not set1 or not set2:
+            return 0.0
+        
+        # Calculate Jaccard similarity
+        intersection = len(set1.intersection(set2))
+        union = len(set1.union(set2))
+        return intersection / union if union > 0 else 0.0
+    
+    # Check similarity against all previous insights
+    for prev_insight in previous_insights:
+        similarity = jaccard_similarity(insight_text, prev_insight["text"])
+        if similarity >= threshold:
+            return False
+    
+    return True
+
+
+def get_previous_insights_text(run_id: str, limit: int = 5) -> str:
+    """Get previous insights as formatted text for context."""
+    insights = get_run_insights(run_id)
+    
+    if not insights:
+        return ""
+    
+    # Get last N insights
+    recent_insights = insights[-limit:]
+    
+    # Format as numbered list
+    formatted_insights = []
+    for i, insight in enumerate(recent_insights, 1):
+        step = insight.get("agent_step", "unknown")
+        text = insight["text"][:120]  # Truncate to avoid overly long prompts
+        formatted_insights.append(f"{i}. [{step}] {text}")
+    
+    return "\n".join(formatted_insights)
+
+
 class LRUCache:
     """Simple LRU cache for deduplication."""
     
@@ -153,31 +234,46 @@ class InsightListener:
             # This gives more recent context which is more relevant
             extraction_text = text[-3000:] if len(text) > 3000 else text
             
-            # Extract insights asynchronously
+            # Get previous insights for context
+            previous_insights = get_run_insights(self.job_id)
+            previous_insights_text = get_previous_insights_text(self.job_id, limit=5)
+            
+            # Extract insights asynchronously with context
             insights = await insight_extractor.extract_insights_async(
                 extraction_text, 
                 agent_type, 
-                max_insights=2  # Limit to 2 insights per extraction (reduced from 3)
+                max_insights=2,  # Limit to 2 insights per extraction
+                previous_insights=previous_insights_text
             )
             
-            # Emit non-system insights
+            # Emit non-system insights after deduplication
             for insight in insights:
+                insight_text = insight["message"]
+                
+                # Check if this insight is novel (not a duplicate)
+                if not is_novel_insight(insight_text, previous_insights):
+                    print(f"🔍 Skipped duplicate insight: {insight_text[:50]}...")
+                    continue
+                
                 insight_id = f"ins-{step}-{self.insight_counter}"
                 self.insight_counter += 1
                 
-                # Create deduplication key
+                # Create deduplication key for additional filtering
                 dedupe_key = self._create_dedupe_key(
-                    insight["message"], 
+                    insight_text, 
                     insight["category"], 
                     step
                 )
                 
-                # Skip if we've already seen this insight
+                # Skip if we've already seen this insight in this step (within-step dedup)
                 if self.seen_insights.get(dedupe_key):
                     continue
                 
                 # Mark as seen
                 self.seen_insights.put(dedupe_key)
+                
+                # Cache the insight for future deduplication checks
+                cache_insight(self.job_id, insight_text, step)
                 
                 # Emit the insight event
                 await stream_manager.emit(InsightEvent.create(
@@ -185,11 +281,11 @@ class InsightListener:
                     insight_id=insight_id,
                     category=insight["category"],
                     importance="high",  # All real-time insights are high importance
-                    message=insight["message"][:80],  # Truncate to 80 chars
+                    message=insight_text[:80],  # Truncate to 80 chars
                     step=step
                 ))
                 
-                print(f"🔍 Emitted insight: {insight['category']} - {insight['message'][:50]}")
+                print(f"🔍 Emitted insight: {insight['category']} - {insight_text[:50]}")
             
         except Exception as e:
             print(f"❌ Insight extraction failed for step {step}: {e}")

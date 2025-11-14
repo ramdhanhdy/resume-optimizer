@@ -22,15 +22,30 @@ class BaseInsightExtractor:
         # Read env var at runtime, not at init time
         return os.getenv("INSIGHT_MODEL") or os.getenv("DEFAULT_MODEL") or "gemini::gemini-2.5-flash"
     
-    def get_prompt(self, agent_type: str) -> str:
+    def get_prompt(self, agent_type: str, previous_insights: str = "") -> str:
         """Override in subclasses to provide specific prompts."""
         raise NotImplementedError
+    
+    def build_prompt_with_context(self, base_prompt: str, previous_insights: str, content: str) -> str:
+        """Build prompt with previous insights as context."""
+        if not previous_insights.strip():
+            return f"{base_prompt}\n\nContent to analyze:\n{content}"
+        
+        return f"""{base_prompt}
+
+IMPORTANT: Here are insights already generated earlier in this pipeline:
+{previous_insights}
+
+Your task: Generate NEW, DISTINCT insights about the current step that add value beyond what's already mentioned above. Focus on novel observations or different angles.
+
+Content to analyze:
+{content}"""
 
 
 class ContentInsightExtractor(BaseInsightExtractor):
     """Extract insights from content-generating agents (analyzer, optimizer, implementer)."""
     
-    def get_prompt(self, agent_type: str) -> str:
+    def get_prompt(self, agent_type: str, previous_insights: str = "") -> str:
         """Get prompt for content-generating agents."""
         file_map = {
             "analyzer": "content_analyzer.md",
@@ -38,20 +53,22 @@ class ContentInsightExtractor(BaseInsightExtractor):
             "implementer": "content_implementer.md",
         }
         filename = file_map.get(agent_type, file_map["analyzer"])
-        return load_prompt("insights", filename)
+        base_prompt = load_prompt("insights", filename)
+        return self.build_prompt_with_context(base_prompt, previous_insights, "")
 
 
 class QualityInsightExtractor(BaseInsightExtractor):
     """Extract insights from quality-checking agents (validator, polish)."""
     
-    def get_prompt(self, agent_type: str) -> str:
+    def get_prompt(self, agent_type: str, previous_insights: str = "") -> str:
         """Get prompt for quality-checking agents."""
         file_map = {
             "validator": "quality_validator.md",
             "polish": "quality_polish.md",
         }
         filename = file_map.get(agent_type, file_map["validator"])
-        return load_prompt("insights", filename)
+        base_prompt = load_prompt("insights", filename)
+        return self.build_prompt_with_context(base_prompt, previous_insights, "")
 
 
 class InsightExtractor:
@@ -61,7 +78,7 @@ class InsightExtractor:
         self.content_extractor = ContentInsightExtractor()
         self.quality_extractor = QualityInsightExtractor()
     
-    async def extract_insights_async(self, agent_output: str, agent_type: str, max_insights: int = 4) -> List[Dict[str, str]]:
+    async def extract_insights_async(self, agent_output: str, agent_type: str, max_insights: int = 4, previous_insights: List[str] = None) -> List[Dict[str, str]]:
         """Extract key insights from agent output asynchronously."""
         
         # Route to appropriate extractor
@@ -72,8 +89,11 @@ class InsightExtractor:
         else:
             extractor = self.content_extractor  # Default
         
+        # Build previous insights context
+        prev_insights_text = "\n".join(previous_insights) if previous_insights else ""
+        
         # Separate instruction (system prompt) from data (text_content)
-        instruction = extractor.get_prompt(agent_type)
+        instruction = extractor.get_prompt(agent_type, previous_insights=prev_insights_text)
         content = agent_output[:3000]  # Limit to 3000 chars to keep it fast
         
         try:
