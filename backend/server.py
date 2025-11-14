@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import logging
 import os
 import json
 import asyncio
@@ -48,6 +49,8 @@ from src.services.docx_safety_service import classify_docx_code_safety, is_label
 from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL") or "qwen/qwen3-max"
 ANALYZER_MODEL = os.getenv("ANALYZER_MODEL") or DEFAULT_MODEL
@@ -313,16 +316,30 @@ async def job_preview(request: JobPreviewRequest):
     """Fetch job posting text from URL and optionally run text safeguard."""
     try:
         job_text = fetch_job_posting_text(request.job_url)
-
+    except ExaContentError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    except RuntimeError as err:
+        raise HTTPException(status_code=500, detail=str(err)) from err
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail="Unexpected error while fetching job posting content.",
+        ) from err
+    else:
         decision = "ALLOW"
         reasons: List[str] = []
+        result = None
 
         try:
             result = await check_job_posting(job_text)
-        except Exception as exc:
+        except RuntimeError as err:
             # Fail open on safeguard errors; rely on downstream validation
-            print(f"⚠️ Text safeguard failed for job preview: {exc}")
-            result = None
+            logger.warning(
+                "Text safeguard failed for job preview; continuing without safeguard",
+                exc_info=err,
+            )
 
         if result is not None:
             decision = result.decision
@@ -334,38 +351,53 @@ async def job_preview(request: JobPreviewRequest):
             "decision": decision,
             "reasons": reasons,
         }
-    except ExaContentError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/analyze-job")
 async def analyze_job(request: JobAnalysisRequest):
     """Analyze job posting (Agent 1)."""
-    try:
-        # Get job text
-        if request.job_text:
-            job_text = request.job_text
-        elif request.job_url:
+    # Get job text
+    if request.job_text:
+        job_text = request.job_text
+    elif request.job_url:
+        try:
             job_text = fetch_job_posting_text(request.job_url)
-        else:
-            raise HTTPException(status_code=400, detail="Either job_text or job_url is required")
-        
+        except ExaContentError as err:
+            raise HTTPException(status_code=400, detail=str(err)) from err
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err)) from err
+        except RuntimeError as err:
+            raise HTTPException(status_code=500, detail=str(err)) from err
+        except Exception as err:
+            raise HTTPException(
+                status_code=500,
+                detail="Unexpected error while fetching job posting content.",
+            ) from err
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Either job_text or job_url is required",
+        )
+
+    try:
         # Initialize API client
         client = create_client()
-        
+
         # Run Job Analyzer Agent
         agent = JobAnalyzerAgent(client=client)
         analysis_result = ""
 
-        for chunk in agent.analyze_job(job_posting=job_text, model=ANALYZER_MODEL, temperature=ANALYZER_TEMPERATURE):
+        for chunk in agent.analyze_job(
+            job_posting=job_text,
+            model=ANALYZER_MODEL,
+            temperature=ANALYZER_TEMPERATURE,
+        ):
             analysis_result += chunk
-        
+
         # Extract metadata (company, job title)
         company_name = "Company"  # TODO: Extract from analysis
         job_title = "Position"  # TODO: Extract from analysis
-        
+
         # Save to database (store analysis in agent outputs)
         app_id = db.create_application(
             company_name=company_name,
@@ -380,17 +412,20 @@ async def analyze_job(request: JobAnalysisRequest):
             input_data={"job_posting": job_text},
             output_data={"text": analysis_result},
         )
-        
+
         return {
             "success": True,
             "application_id": app_id,
             "company_name": company_name,
             "job_title": job_title,
             "analysis": analysis_result,
-            "job_text": job_text
+            "job_text": job_text,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        # Already mapped to an HTTP error above
+        raise
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err)) from err
 
 
 @app.post("/api/optimize-resume")
