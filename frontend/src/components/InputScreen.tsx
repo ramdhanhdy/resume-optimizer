@@ -32,6 +32,7 @@ interface InputScreenProps {
     linkedinUrl?: string;
     githubUsername?: string;
     githubToken?: string;
+    jobTextFromPreview?: string;
   }) => void;
 }
 
@@ -49,6 +50,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [recoverySession, setRecoverySession] = useState<RecoverySession | null>(null);
   const [isRetrying, setIsRetrying] = useState<boolean>(false);
+
+  // Job preview / safety state for job URLs
+  const [jobPreviewStatus, setJobPreviewStatus] = useState<'idle' | 'loading' | 'ok' | 'blocked' | 'error'>('idle');
+  const [jobPreviewMessage, setJobPreviewMessage] = useState<string>('');
+  const [jobPreviewText, setJobPreviewText] = useState<string | null>(null);
+  const jobPreviewAbortRef = useRef<AbortController | null>(null);
 
   // React Hook Form setup
   const {
@@ -70,6 +77,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   });
 
   const githubUsername = watch('githubUsername');
+  const jobInputValue = watch('jobInput');
 
   // Check for recovery session on mount
   useEffect(() => {
@@ -152,6 +160,64 @@ export default function InputScreen({ onStart }: InputScreenProps) {
     fileInputRef.current?.click();
   };
 
+  // Job URL preview + safeguard
+  useEffect(() => {
+    const normalized = normalizeJobInput(jobInputValue || '');
+
+    // Reset when not a URL
+    if (!normalized || !isJobUrl(normalized)) {
+      setJobPreviewStatus('idle');
+      setJobPreviewMessage('');
+      setJobPreviewText(null);
+      if (jobPreviewAbortRef.current) {
+        jobPreviewAbortRef.current.abort();
+        jobPreviewAbortRef.current = null;
+      }
+      return;
+    }
+
+    const controller = new AbortController();
+    jobPreviewAbortRef.current = controller;
+
+    let cancelled = false;
+    setJobPreviewStatus('loading');
+    setJobPreviewMessage('Fetching job posting from link...');
+    setJobPreviewText(null);
+
+    const fetchPreview = async () => {
+      try {
+        const { apiClient } = await import('../services/api');
+        const response = await apiClient.jobPreview(normalized);
+        if (cancelled) return;
+
+        setJobPreviewText(response.job_text);
+
+        if (response.decision === 'BLOCK') {
+          setJobPreviewStatus('blocked');
+          setJobPreviewMessage(response.reasons[0] || 'Job posting was flagged by safety checks.');
+        } else if (response.decision === 'REVIEW') {
+          setJobPreviewStatus('error');
+          setJobPreviewMessage(response.reasons[0] || 'Job posting may require manual review.');
+        } else {
+          setJobPreviewStatus('ok');
+          setJobPreviewMessage('Job link looks good.');
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Job preview failed:', error);
+        setJobPreviewStatus('error');
+        setJobPreviewMessage('Could not fetch job posting. You can paste the text instead.');
+      }
+    };
+
+    fetchPreview();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [jobInputValue]);
+
   // Form submission
   const onSubmit = (data: InputScreenFormData) => {
     // Defensive check: don't proceed without valid resume text
@@ -161,14 +227,16 @@ export default function InputScreen({ onStart }: InputScreenProps) {
     }
 
     const normalizedJobInput = normalizeJobInput(data.jobInput);
+    const inputIsUrl = isJobUrl(normalizedJobInput);
 
     onStart({
       resumeText,
       jobInput: normalizedJobInput,
-      isUrl: isJobUrl(normalizedJobInput),
+      isUrl: inputIsUrl,
       linkedinUrl: data.linkedinUrl?.trim() || undefined,
       githubUsername: data.githubUsername?.trim() || undefined,
       githubToken: data.githubToken?.trim() || undefined,
+      jobTextFromPreview: inputIsUrl && jobPreviewText ? jobPreviewText : undefined,
     });
   };
 
@@ -387,6 +455,22 @@ export default function InputScreen({ onStart }: InputScreenProps) {
               />
             </div>
           </div>
+
+          {/* Job URL preview status */}
+          {jobPreviewStatus !== 'idle' && (
+            <div
+              className={cn(
+                'mt-2 text-xs text-center',
+                jobPreviewStatus === 'loading' && 'text-muted-foreground',
+                jobPreviewStatus === 'ok' && 'text-emerald-600',
+                jobPreviewStatus === 'blocked' && 'text-destructive',
+                jobPreviewStatus === 'error' && 'text-amber-600',
+              )}
+              aria-live="polite"
+            >
+              {jobPreviewMessage}
+            </div>
+          )}
 
           {/* File Error */}
           {fileError && (

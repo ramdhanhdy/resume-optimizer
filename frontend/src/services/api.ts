@@ -51,6 +51,13 @@ export interface UploadResumeResponse {
   length: number;
 }
 
+export interface JobPreviewResponse {
+  success: boolean;
+  job_text: string;
+  decision: string;
+  reasons: string[];
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -117,6 +124,13 @@ class ApiClient {
     return this.request<JobAnalysisResponse>('/api/analyze-job', {
       method: 'POST',
       body: JSON.stringify(params),
+    });
+  }
+
+  async jobPreview(job_url: string): Promise<JobPreviewResponse> {
+    return this.request<JobPreviewResponse>('/api/job-preview', {
+      method: 'POST',
+      body: JSON.stringify({ job_url }),
     });
   }
 

@@ -1,6 +1,10 @@
 # Component Refactoring Summary
 
-## 🎉 **PROJECT COMPLETE!** All 8/8 Components Refactored (100%)
+> **Canonical location**: This file supersedes `frontend/REFACTORING_SUMMARY.md`.
+
+(Original content copied from `frontend/REFACTORING_SUMMARY.md`.)
+
+## 🎉 Project Complete! All 8/8 Components Refactored (100%)
 
 **Status**: ✅ Complete | **Score**: 4.88/5 ⭐⭐⭐⭐⭐ | **ARIA**: 72+ attributes | **Lines**: 2,161
 
@@ -105,8 +109,6 @@ All components have been successfully modernized with:
 
 **Accessibility Score**: ⭐⭐⭐⭐⭐ WCAG 2.1 AA++
 
----
-
 ### 6. InputScreen Component ✅
 **File**: `src/components/InputScreen.tsx`
 - ✅ React Hook Form integration with full type safety
@@ -163,7 +165,7 @@ All components have been successfully modernized with:
 
 **Accessibility Score**: ⭐⭐⭐⭐⭐ WCAG 2.1 AA++ (Exceptional)
 
-**Before**: 379 lines, custom inputs, no form validation, minimal accessibility
+**Before**: 379 lines, custom inputs, no form validation, minimal accessibility  
 **After**: 556 lines, React Hook Form, Zod validation, shadcn components, comprehensive ARIA
 
 **Key Improvements**:
@@ -176,28 +178,6 @@ All components have been successfully modernized with:
 - Mobile responsiveness improved
 
 ---
-
-## 📊 Overall Progress Statistics
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| **Components Refactored** | 0/8 | 8/8 | **100%** ✨ |
-| **ARIA Attributes** | 0 | 72+ | **∞** |
-| **Design Token Usage** | 0% | 100% | **+100%** |
-| **Reduced Motion Support** | 0/8 | 8/8 | **100%** |
-| **Keyboard Navigation** | 1/8 | 8/8 | **+700%** |
-| **Focus Management** | 0/8 | 8/8 | **+800%** |
-| **Responsive Design** | 2/8 | 8/8 | **+300%** |
-| **Form Validation** | 0/1 | 1/1 | **100%** |
-| **shadcn Component Usage** | 0/8 | 8/8 | **100%** |
-
-**Total ARIA Attributes Added**: 72+
-**Average Accessibility Score**: 4.88/5 ⭐⭐⭐⭐⭐ (Exceptional)
-**Total Lines Refactored**: 2,161 lines across 9 files
-
----
-
-## ✅ Completed Refactorings (8/8 - 100%) 🎉
 
 ### 7. ProcessingScreen Component ✅
 **File**: `src/components/ProcessingScreen.tsx`
@@ -227,7 +207,7 @@ All components have been successfully modernized with:
 
 **Accessibility Score**: ⭐⭐⭐⭐⭐ WCAG 2.1 AA+
 
-**Before**: 379 lines, custom animations, no ARIA, no reduced motion
+**Before**: 379 lines, custom animations, no ARIA, no reduced motion  
 **After**: 603 lines, centralized animations, 13+ ARIA attributes, full accessibility
 
 ---
@@ -262,7 +242,7 @@ All components have been successfully modernized with:
 
 **Accessibility Score**: ⭐⭐⭐⭐⭐ WCAG 2.1 AA+
 
-**Before**: 262 lines, custom tabs, limited accessibility
+**Before**: 262 lines, custom tabs, limited accessibility  
 **After**: 273 lines, Radix Tabs, shadcn components, full keyboard support
 
 ---
@@ -281,7 +261,27 @@ All components have been successfully modernized with:
 
 ---
 
-## 🎉 Project Complete!
+## 📊 Overall Progress Statistics
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| **Components Refactored** | 0/8 | 8/8 | **100%** ✨ |
+| **ARIA Attributes** | 0 | 72+ | **∞** |
+| **Design Token Usage** | 0% | 100% | **+100%** |
+| **Reduced Motion Support** | 0/8 | 8/8 | **100%** |
+| **Keyboard Navigation** | 1/8 | 8/8 | **+700%** |
+| **Focus Management** | 0/8 | 8/8 | **+800%** |
+| **Responsive Design** | 2/8 | 8/8 | **+300%** |
+| **Form Validation** | 0/1 | 1/1 | **100%** |
+| **shadcn Component Usage** | 0/8 | 8/8 | **100%** |
+
+**Total ARIA Attributes Added**: 72+  
+**Average Accessibility Score**: 4.88/5 ⭐⭐⭐⭐⭐ (Exceptional)  
+**Total Lines Refactored**: 2,161 lines across 9 files
+
+---
+
+## ✅ Completed Refactorings (Summary)
 
 All 8 components have been successfully refactored with comprehensive accessibility, design tokens, and modern best practices.
 
@@ -360,24 +360,6 @@ All 8 components have been successfully refactored with comprehensive accessibil
 
 ---
 
-**Last Updated**: 2025-11-03
-**Progress**: 100% Complete (8/8 components) 🎉
+**Last Updated**: 2025-11-03  
+**Progress**: 100% Complete (8/8 components) 🎉  
 **Status**: Project Complete - Ready for Testing
-
----
-
-## 🎉 Major Milestone: InputScreen Completed!
-
-The InputScreen refactoring represents the most complex component in the application. Key achievements:
-
-- **React Hook Form Integration**: Full type-safe form management with real-time validation
-- **Zod Validation Schema**: Comprehensive validation for all inputs (file, URL, text, LinkedIn, GitHub)
-- **FormField Component**: New reusable component combining Label + Input + Error messages
-- **47+ ARIA Attributes**: Across all 6 refactored components
-- **100% Form Validation**: All inputs validated client-side before submission
-- **Keyboard Shortcuts**: Ctrl/Cmd+V to paste job posting with visual helper
-- **File Upload Accessibility**: Fully accessible file input with proper ARIA and validation
-- **Recovery Session**: Maintained full compatibility with existing recovery system
-- **Mobile Responsive**: Complete mobile-first redesign with touch-friendly targets
-
-**Impact**: The application now has enterprise-grade form validation and accessibility throughout the critical input flow.

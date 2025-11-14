@@ -33,9 +33,6 @@ ALLOWED_MODULES = (
     "itertools",
     "re",
     "textwrap",
-    "os",
-    "os.path",
-    "pathlib",
 )
 
 BANNED_NAMES = {

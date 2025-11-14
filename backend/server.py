@@ -21,7 +21,7 @@ from src.agents import (
     PolishAgent,
     GitHubProjectsAgent,
 )
-from src.api import fetch_job_posting_text
+from src.api import fetch_job_posting_text, ExaContentError
 from src.database import ApplicationDatabase
 from src.utils import save_uploaded_file, cleanup_temp_file, extract_optimized_resume
 from src.api.client_factory import create_client
@@ -44,6 +44,8 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
+from src.services.docx_safety_service import classify_docx_code_safety, is_label_safe
+from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
 
@@ -239,6 +241,10 @@ class JobAnalysisRequest(BaseModel):
     job_url: Optional[str] = None
 
 
+class JobPreviewRequest(BaseModel):
+    job_url: str
+
+
 class ResumeOptimizationRequest(BaseModel):
     application_id: int
     resume_text: str
@@ -302,15 +308,47 @@ async def upload_resume(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/job-preview")
+async def job_preview(request: JobPreviewRequest):
+    """Fetch job posting text from URL and optionally run text safeguard."""
+    try:
+        job_text = fetch_job_posting_text(request.job_url)
+
+        decision = "ALLOW"
+        reasons: List[str] = []
+
+        try:
+            result = await check_job_posting(job_text)
+        except Exception as exc:
+            # Fail open on safeguard errors; rely on downstream validation
+            print(f"⚠️ Text safeguard failed for job preview: {exc}")
+            result = None
+
+        if result is not None:
+            decision = result.decision
+            reasons = result.reasons
+
+        return {
+            "success": True,
+            "job_text": job_text,
+            "decision": decision,
+            "reasons": reasons,
+        }
+    except ExaContentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/analyze-job")
 async def analyze_job(request: JobAnalysisRequest):
     """Analyze job posting (Agent 1)."""
     try:
         # Get job text
-        if request.job_url:
-            job_text = fetch_job_posting_text(request.job_url)
-        elif request.job_text:
+        if request.job_text:
             job_text = request.job_text
+        elif request.job_url:
+            job_text = fetch_job_posting_text(request.job_url)
         else:
             raise HTTPException(status_code=400, detail="Either job_text or job_url is required")
         
@@ -626,7 +664,6 @@ async def export_resume(application_id: int, format: str = "docx"):
             
             print(f"📝 Generating DOCX for application {application_id}")
             print(f"Content type: {'HTML' if is_html else 'Python code'}")
-            print(f"Content preview (first 200 chars): {final_resume[:200]}")
             
             # Generate DOCX based on content type
             if is_html:
@@ -634,6 +671,18 @@ async def export_resume(application_id: int, format: str = "docx"):
                 docx_bytes = html_to_docx(final_resume)
             else:
                 print("  → Executing Python code to generate DOCX")
+                safeguard_result = None
+                try:
+                    safeguard_result = await classify_docx_code_safety(final_resume)
+                except Exception as exc:
+                    print(f"⚠️ DOCX safeguard failed, continuing with sandbox only: {exc}")
+
+                if safeguard_result is not None and not is_label_safe(safeguard_result):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Generated DOCX template was flagged as unsafe and cannot be executed.",
+                    )
+
                 docx_bytes = execute_docx_code(final_resume)
             
             # Create safe filename
@@ -945,14 +994,14 @@ async def run_pipeline_with_streaming(
         insight_listener_task = asyncio.create_task(run_insight_listener(job_id))
         print(f"🔍 Started insight listener task")
         
-        # Get job text (run in thread pool since it's blocking)
-        if job_url:
+        # Get job text (prefer provided text, fall back to Exa fetch for URLs)
+        if job_text:
+            job_text_final = job_text
+        elif job_url:
             print(f"📥 Fetching job posting from URL: {job_url}")
             loop = asyncio.get_event_loop()
             job_text_final = await loop.run_in_executor(None, fetch_job_posting_text, job_url)
             print(f"✅ Job text fetched: {len(job_text_final)} chars")
-        elif job_text:
-            job_text_final = job_text
         else:
             await stream_manager.emit(JobStatusEvent.create(job_id, "failed"))
             run_store.update_status(job_id, status="failed")

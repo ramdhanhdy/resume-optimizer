@@ -1,174 +1,95 @@
-# Deployment Guide: Resume Optimizer
+# Deployment 
 
-## Backend (Cloud Run) ✅ DEPLOYED
-- **Service URL**: https://resume-optimizer-backend-784455190453.us-central1.run.app
-- **Region**: us-central1
-- **Project**: cvit-477003
+This document describes the **current deployment architecture** for Resume Optimizer and
+points to the detailed deployment specifications under `docs/specs/deployment/`.
 
-### Make backend publicly accessible
-Run this command to allow unauthenticated access:
-```bash
-gcloud beta run services add-iam-policy-binding resume-optimizer-backend \
-  --region=us-central1 \
-  --member=allUsers \
-  --role=roles/run.invoker
-```
+---
 
-## Frontend (Vercel)
+## 1. Current Production Architecture
 
-### 1. Prerequisites
-- GitHub account
-- Vercel account (sign up at vercel.com with GitHub)
-- Domain: xanalabs.com (managed via Google/Squarespace)
-- Product subdomain: resume-agents.xanalabs.com
+### Backend
 
-### 2. Deploy to Vercel
+- **Platform**: Google Cloud Run
+- **Region**: `us-central1`
+- **Runtime**: Python 3.11, FastAPI (`backend/server.py`)
+- **Storage**: SQLite file in ephemeral container storage (`/tmp`), with a planned
+  migration path to PostgreSQL (Cloud SQL or another managed database).
 
-#### Option A: Via Vercel Dashboard (Recommended)
-1. Go to https://vercel.com/new
-2. Import your GitHub repository: `ramdhanhdy/resume-optimizer`
-3. Configure project:
-   - **Framework Preset**: Vite
-   - **Root Directory**: `frontend`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-   - **Install Command**: `npm install`
-4. Add environment variable:
-   - Name: `VITE_API_URL`
-   - Value: `/api` (uses the Vercel rewrite)
-5. Click **Deploy**
+The Cloud Run service is deployed from the `backend/` directory and exposes a FastAPI
+application that powers the multi-agent pipeline, streaming endpoints, and export flows.
 
-#### Option B: Via Vercel CLI
-```bash
-cd frontend
-npm install -g vercel
-vercel login
-vercel --prod
-```
-When prompted:
-- Set up and deploy: `Y`
-- Scope: (select your account)
-- Link to existing project: `N`
-- Project name: `resume-optimizer`
-- Directory: `./`
-- Override settings: `N`
+### Frontend
 
-### 3. Configure Custom Domain (resume-agents.xanalabs.com)
+- **Platform**: Vercel
+- **App**: React + Vite frontend under `frontend/`
+- **Build**: `npm run build` (Vite)
+- **Integration**: Vercel rewrites `/api/*` to the backend service.
 
-#### In Vercel:
-1. Go to your project → Settings → Domains
-2. Add domain: `resume-agents.xanalabs.com`
-3. Vercel will show DNS instructions (usually a CNAME record)
+The frontend is responsible for the user-facing experience (input, processing, reveal) and
+communicates with the backend via JSON + Server-Sent Events.
 
-#### In your DNS provider (Google Domains or Squarespace):
-Add a CNAME record:
-- **Type**: CNAME
-- **Name**: `resume-agents` (or `resume-agents.xanalabs.com`)
-- **Value**: `cname.vercel-dns.com` (Vercel will provide the exact value)
-- **TTL**: Auto or 3600
+### Request Flow (High Level)
 
-Wait 5-10 minutes for DNS propagation. Vercel will auto-provision SSL.
+1. **User Browser** → loads frontend from Vercel.
+2. **Frontend** → issues requests to `/api/*`.
+3. **Vercel** → rewrites `/api/*` requests to the Cloud Run backend.
+4. **Cloud Run** → handles REST + SSE endpoints and returns responses.
 
-### 4. How the integration works
-- Frontend is served from: `https://resume-agents.xanalabs.com`
-- API calls to `/api/*` are proxied to Cloud Run via `vercel.json` rewrite
-- No CORS configuration needed (same-origin requests)
-- Backend receives requests as if they came directly from Cloud Run URL
+This provides a clean separation: Vercel handles static assets and global edge caching,
+while Cloud Run hosts the Python API.
 
-### 5. Files created for deployment
-- `frontend/vercel.json` - Configures API proxy to Cloud Run
-- `frontend/.env.production` - Sets VITE_API_URL to `/api` for production
+---
 
-### 6. Test the deployment
-After Vercel deployment completes:
-1. Open https://resume-agents.xanalabs.com (or your Vercel preview URL)
-2. Try uploading a resume
-3. Try analyzing a job posting
-4. Check browser DevTools → Network to verify `/api/*` calls work
+## 2. Access Model & Authentication
 
-### 7. Optional: Pretty API domain (api.xanalabs.com)
-If you want to expose the API on a custom domain:
-```bash
-gcloud run domain-mappings create \
-  --service resume-optimizer-backend \
-  --region us-central1 \
-  --domain api.xanalabs.com
-```
-Then add the DNS records Google provides (CNAME to ghs.googlehosted.com).
+- The Cloud Run service is **not publicly anonymous**. It is intended to be invoked by a
+  trusted caller (the Vercel frontend) via **OIDC**.
+- Vercel is configured with a **Google Cloud service account** using the OIDC integration
+  described in the Vercel docs.
+- That service account has the `roles/run.invoker` permission on the Cloud Run service,
+  allowing it to call the backend with identity tokens.
 
-Update `vercel.json` to use the new domain:
-```json
-{
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://api.xanalabs.com/api/:path*"
-    }
-  ]
-}
-```
+At the HTTP level this means:
 
-## Security Improvements (Post-deployment)
+- Browser → Vercel: normal HTTPS requests.
+- Vercel → Cloud Run: authenticated requests using OIDC/identity tokens as the service account.
 
-### 1. Tighten CORS (if using direct calls instead of proxy)
-```bash
-gcloud run services update resume-optimizer-backend \
-  --region us-central1 \
-  --update-env-vars=CORS_ORIGINS=https://resume-agents.xanalabs.com
-```
+---
 
-### 2. Move API keys to Secret Manager
-```bash
-# Create secrets
-echo -n "your-openrouter-key" | gcloud secrets create openrouter-api-key --data-file=-
-echo -n "your-exa-key" | gcloud secrets create exa-api-key --data-file=-
-# ... repeat for other keys
+## 3. Configuration & Environment
 
-# Grant Cloud Run access
-gcloud secrets add-iam-policy-binding openrouter-api-key \
-  --member=serviceAccount:784455190453-compute@developer.gserviceaccount.com \
-  --role=roles/secretmanager.secretAccessor
+High-level configuration used in production today:
 
-# Redeploy with secrets
-gcloud run deploy resume-optimizer-backend \
-  --source . \
-  --region us-central1 \
-  --set-secrets=OPENROUTER_API_KEY=openrouter-api-key:latest,EXA_API_KEY=exa-api-key:latest
-```
+- **Backend**
+  - Deployed as a single Cloud Run service.
+  - Uses environment variables for model selection, CORS, and database path.
+  - Secrets (API keys) are stored in GCP Secret Manager and exposed at runtime via
+    environment variables or `--set-secrets` bindings.
 
-### 3. Database persistence (Cloud SQL)
-Current setup uses SQLite at `/tmp/applications.db` (ephemeral - data lost on restart).
+- **Frontend**
+  - Uses `VITE_API_URL`/`VITE_API_BASE_URL` to point to the backend via rewrites.
+  - Environment variables are configured in the Vercel project settings.
 
-For production persistence, migrate to Cloud SQL PostgreSQL:
-1. Create Cloud SQL instance
-2. Update `backend/src/database/db.py` to use PostgreSQL
-3. Set env vars: `CLOUD_SQL_CONNECTION_NAME`, `DB_USER`, `DB_PASS`, `DB_NAME`
+For a full list of recommended environment variables and platform options, see the
+deployment specs referenced below.
 
-## Troubleshooting
+---
 
-### Frontend can't reach backend
-- Check browser console for CORS errors
-- Verify `vercel.json` rewrite is correct
-- Ensure backend is publicly invokable (run the IAM binding command above)
+## 4. Detailed Deployment Specifications
 
-### Backend returns 403
-- Run the IAM binding command to make it public
-- Or set up authentication if you want private access
+All step-by-step commands, alternative hosting options, and cost comparisons live under
+`docs/specs/deployment/`:
 
-### DNS not resolving
-- Wait 10-30 minutes for DNS propagation
-- Check DNS with: `nslookup resume-agents.xanalabs.com`
-- Verify CNAME points to Vercel's value
+- `docs/specs/deployment/README.md` – overview of deployment options and recommendations.
+- `docs/specs/deployment/quick_deployment_guide.md` – fast path to production
+  (e.g. Vercel + Railway).
+- `docs/specs/deployment/backend_cloudrun_deployment_guide.md` – Cloud Run backend
+  deployment details.
+- `docs/specs/deployment/vercel_deployment_specification.md` – Vercel-specific
+  considerations.
 
-### Build fails on Vercel
-- Check build logs in Vercel dashboard
-- Ensure `frontend` directory is set as root
-- Verify all dependencies are in `package.json`
+Consult those documents when you need concrete commands or when changing the deployment
+topology.
 
-## Summary
-1. ✅ Backend deployed to Cloud Run
-2. ⏳ Make backend public (run IAM command above)
-3. ⏳ Deploy frontend to Vercel
-4. ⏳ Add resume-agents.xanalabs.com domain to Vercel
-5. ⏳ Add CNAME record in DNS
-6. ⏳ Test end-to-end
+---
+

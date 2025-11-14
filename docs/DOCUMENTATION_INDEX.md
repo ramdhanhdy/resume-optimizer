@@ -49,6 +49,11 @@ docs/
 - Quick start guide
 - Development workflow
 
+#### [Project Structure](PROJECT_STRUCTURE.md)
+- High-level and detailed repository layout
+- Backend, frontend, and docs directories
+- Pointers to where to add new agents, routes, and UI components
+
 #### [Documentation Index](DOCUMENTATION_INDEX.md) (This File)
 - Complete documentation navigation
 - File organization and purpose
@@ -109,6 +114,11 @@ docs/
 - API client implementation details
 - Model capabilities and limitations
 - Cost tracking and optimization
+
+#### [Text Safeguard Specification](specs/text_safeguard_spec.md)
+- gpt-oss-safeguard-20b integration for text inputs
+- Job posting domain policy and `/api/job-preview`
+- Frontend safeguard UX on the input screen
 
 #### [Parallel Insight Extractor](specs/parallel_insight_extractor.md)
 - Parallel processing architecture

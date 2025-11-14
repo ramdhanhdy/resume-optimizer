@@ -1,5 +1,9 @@
 # Design System Implementation Progress
 
+> **Canonical location**: This file supersedes `frontend/IMPLEMENTATION_PROGRESS.md`.
+
+(Original content copied from `frontend/IMPLEMENTATION_PROGRESS.md`.)
+
 ## 📊 Overall Status: Phase 2 - Component Refactoring (In Progress)
 
 **Foundation Complete**: ✅ 100%
@@ -84,7 +88,6 @@
   - `tabIndex={0}` for keyboard access
   - `aria-label` with descriptive text
   - `role="progressbar"` with aria-valuenow/min/max
-  - Screen reader announcements for scores
 - Touch-friendly tap animations
 
 **Before**: Hardcoded colors, manual animations
