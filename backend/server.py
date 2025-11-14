@@ -87,6 +87,7 @@ stream_manager.attach_store(run_store)
 recovery_service = RecoveryService(db)
 
 MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
+DEV_MODE_ENABLED = os.getenv("DEV_MODE", "false").lower() == "true"
 
 # Store in app state for access in routes
 app.state.db = db
@@ -858,11 +859,16 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         client_id = f"ip:{client_host}"
 
     run_count = run_store.count_runs_for_client(client_id)
-    if run_count >= MAX_FREE_RUNS:
-        raise HTTPException(
-            status_code=429,
-            detail="Free demo limit reached. Please contact the maintainer for additional runs.",
+    if DEV_MODE_ENABLED:
+        print(
+            f"⚠️ DEV_MODE enabled - rate limits disabled for client_id={client_id}, run_count={run_count}"
         )
+    else:
+        if run_count >= MAX_FREE_RUNS:
+            raise HTTPException(
+                status_code=429,
+                detail="Free demo limit reached. Please contact the maintainer for additional runs.",
+            )
 
     job_id = str(uuid.uuid4())
     run_store.create_run(job_id=job_id, client_id=client_id, status="queued")
