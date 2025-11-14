@@ -295,10 +295,15 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             animate={prefersReducedMotion ? undefined : "animate"}
             className="text-4xl sm:text-5xl font-semibold text-foreground tracking-tight"
           >
-            Transform Your Resume
+            <span className="block">
+              Present Your <span className="text-primary">Best Self</span>
+            </span>
+            <span className="block text-2xl sm:text-3xl text-muted-foreground mt-1">
+              For <span className="text-primary">Any Opportunity</span>
+            </span>
           </motion.h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            Upload your resume and paste the job posting to get started
+          <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto">
+            Upload your resume, paste the job posting, and let the agents tailor your story in minutes.
           </p>
         </div>
 

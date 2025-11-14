@@ -106,7 +106,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 
 ### Advanced LLM Support
 - 🧠 **Multi-Provider LLM Support**: OpenRouter, Google Gemini, Cerebras, Zenmux, LongCat, and more
-- 🎚️ **Per-Agent Model Configuration**: Individual model and temperature settings for each agent
+- 🎚️ **Per-Agent Model Configuration**: Individual model and temperature settings for each agent, configured via environment variables in `backend/.env` (for example `DEFAULT_MODEL`, `ANALYZER_MODEL`, `OPTIMIZER_MODEL`, `IMPLEMENTER_MODEL`, `VALIDATOR_MODEL`, `PROFILE_MODEL`, `INSIGHT_MODEL`, `POLISH_MODEL`).
 - ⚙️ **Advanced Parameters**: Support for top_p, top_k, frequency_penalty, presence_penalty, seed, and stop sequences
 - 💰 **Cost Tracking**: Real-time cost calculation with input, output, and thinking token breakdowns
 - 📝 **Model Registry**: Capability-based model selection with provider-specific optimizations
@@ -121,7 +121,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - 💾 **Application Tracking**: Save and compare multiple applications with version history
 - 🎯 **Profile Persistence**: Profile data stored in database for reuse across applications
 - 🎨 **Modern UI**: Beautiful React interface with real-time streaming updates and smooth animations
-- 👥 **Rate Limiting**: Built-in free tier management (5 runs per client) with abuse prevention
+- 👥 **Rate Limiting**: Built-in free tier management (default 5 runs per client) with abuse prevention; see **Rate Limiting & DEV Mode** below for configuration details.
 
 ### Production-Ready Features
 - ☁️ **Cloud-Native**: Deployed on Cloud Run (backend) and Vercel (frontend)
@@ -370,13 +370,22 @@ cd frontend
 npm run dev
 ```
 
-**Access:**
+### Access
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
+### Rate Limiting & DEV Mode
+
+- The backend enforces a free tier of **5 full-pipeline runs per client** by default.
+- Limits are tracked per `client_id` (from the `x-client-id` header, falling back to IP) and persisted in the SQLite run metadata store.
+- An internal `MAX_FREE_RUNS` configuration exists (default `5`) but the product free tier is 5 runs per client; keep this value for public deployments.
+- For local development you can set `DEV_MODE=true` in `backend/.env` to temporarily bypass rate limiting:
+  - When enabled, the backend logs a warning such as: `⚠️ DEV_MODE enabled - rate limits disabled for client_id=..., run_count=...`.
+  - **Never enable `DEV_MODE` in production** — leave it unset or `false` so the free tier remains enforced.
+
 For detailed instructions, see:
-- [Setup Guide](./docs/SETUP.md) - Complete installation guide
+- [Setup Guide](./docs/SETUP.md) - Installation and configuration
 - [User Guide](./docs/USER_GUIDE.md) - Usage workflow
 - [Development Guide](./docs/DEVELOPMENT.md) - Development workflows
 - [Troubleshooting Guide](./docs/TROUBLESHOOTING.md) - Common issues
@@ -403,6 +412,7 @@ The application is production-ready and deployed using modern cloud platforms:
 ✅ **Rate Limiting**: Built-in protection with configurable free tier
 ✅ **Event Replay**: Clients can reconnect and resume from last known event
 ✅ **Cost Tracking**: Real-time cost calculation with multi-provider support
+✅ **Pinned Runtime**: Python version pinned via `backend/runtime.txt` (Python 3.11.x) to avoid incompatibilities with Cloud Run default images.
 
 ### Deployment Architecture
 
