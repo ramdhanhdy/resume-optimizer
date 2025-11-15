@@ -70,3 +70,4 @@ docs/specs/authentication-and-metering/authentication_and_metering_spec.md
 backend/.env.cloudrun
 backend/.env.cloudrun
 AGENTS.md
+.env.cloudrun
