@@ -54,6 +54,11 @@ docs/
 - Backend, frontend, and docs directories
 - Pointers to where to add new agents, routes, and UI components
 
+#### [Development Roadmap](development_roadmap.md)
+- High-level upcoming features and improvements
+- Core agents and UX enhancements
+- Planned integrations and security directions
+
 #### [Documentation Index](DOCUMENTATION_INDEX.md) (This File)
 - Complete documentation navigation
 - File organization and purpose

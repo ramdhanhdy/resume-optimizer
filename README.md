@@ -172,6 +172,18 @@ For a detailed tree and file-level description, see **[Project Structure](./docs
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system documentation
 - [Agent Development Guide](./AGENTS.md) - Complete project overview for AI agents
+- [Development Roadmap](./docs/development_roadmap.md) - High-level upcoming features and integrations
+
+### Development Roadmap 
+
+Planned directions for the product include:
+- **Self-improving polish agent** that reads DOCX sandbox errors and retries code generation within safe limits.
+- **Final user feedback loop** so users can request concrete adjustments to the polished resume and rerun a targeted agent.
+- **Multiple resume templates** via a layout abstraction layer, decoupling content from DOCX/HTML presentation.
+- **Canva MCP integration (planned)** to open optimized resumes in Canva for visual editing once the MCP stabilizes.
+- **Security & access hardening** around Cloud Run + Vercel OIDC, CORS, and API surface.
+
+See [Development Roadmap](./docs/development_roadmap.md) for more detailed information.
 
 ## Quick Start
 
@@ -236,11 +248,14 @@ npm run dev
   - When enabled, the backend logs a warning such as: `⚠️ DEV_MODE enabled - rate limits disabled for client_id=..., run_count=...`.
   - **Never enable `DEV_MODE` in production** — leave it unset or `false` so the free tier remains enforced.
 
-For detailed instructions, see:
-- [Setup Guide](./docs/SETUP.md) - Installation and configuration
-- [User Guide](./docs/USER_GUIDE.md) - Usage workflow
-- [Development Guide](./docs/DEVELOPMENT.md) - Development workflows
-- [Troubleshooting Guide](./docs/TROUBLESHOOTING.md) - Common issues
+#### Provider Free Tiers & External Quotas
+
+The hosted demo depends on the free tiers or sponsored credits of upstream providers:
+
+- **Gemini (Google)**: Free access is subject to Google\'s own rate limits and quotas. In practice this can cause occasional slowdowns or failures even if you are still within the app\'s 5-run limit.
+- **LongCat API**: The demo key is supported by the LongCat API platform with a daily token allowance of 5 million tokens daily. On very busy days this allowance can be exhausted, in which case some runs may fail until the provider\'s quota resets (typically the next day).
+
+These provider limits are outside the app\'s direct control. If you encounter unexplained failures while still under the 5-run cap, it may be due to upstream provider quotas temporarily being exhausted.
 
 ## 🚀 Deployment
 
