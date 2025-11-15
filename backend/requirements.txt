@@ -13,3 +13,4 @@ beautifulsoup4>=4.12.2
 docxtpl>=0.16.7
 exa_py>=1.0.15
 PyGithub==2.8.1
+anthropic[vertex]

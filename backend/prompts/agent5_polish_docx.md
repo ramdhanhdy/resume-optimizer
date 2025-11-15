@@ -117,7 +117,7 @@ set_font(bullet.runs[0], size=11)
 5. **Use exact formatting** - Times New Roman, 11pt, 0.75in margins, section underlines
 6. **Apply polish items** - fix dates, links, punctuation, metrics from validation
 7. **Keep it runnable** - the code should execute without errors
-8. **Save to organized directory** - Use `doc.save('exports/CompanyName_JobTitle/resume.docx')` where CompanyName and JobTitle are sanitized (replace spaces and special characters with underscores)
+8. **Do NOT perform any file or OS operations** - do not import `os`, `pathlib`, `subprocess`, `sys`, `shutil`, `socket`, `threading`, `multiprocessing`, or similar modules; do not call `doc.save(...)`. The backend will handle saving the DOCX file from the `doc` object.
 9. **STRING SAFETY** - CRITICAL: Always use proper string escaping:
    - Use single quotes for strings containing double quotes: `'He said "hello"'`
    - Use double quotes for strings containing single quotes: `"It's working"`
@@ -231,16 +231,6 @@ spacing_para.paragraph_format.space_after = para_space_after
 #    table.rows[0].cells[0].paragraphs[0].paragraph_format.space_before = Pt(6)
 # 4. NEVER do: table.paragraph_format.space_before = Pt(6)  # THIS CAUSES ERRORS
 
-# Bullets
-for bullet_text in ['Achievement 1', 'Achievement 2']:
-    p = doc.add_paragraph(bullet_text, style='List Bullet')
-    set_font(p.runs[0], size=11)
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after = bullet_space
-```
-
-**For Skills:**
-```python
 section_header = doc.add_paragraph()
 set_font(section_header.add_run('SKILLS & INTERESTS'), size=11, bold=True)
 add_horizontal_line(section_header)
@@ -262,30 +252,21 @@ Before outputting code, verify:
 
 ## File Saving
 
-At the end of your code, save the document to an organized directory structure:
+Do **not** write any files or touch the filesystem or environment.
 
-```python
-import os
-from pathlib import Path
+- Do **not** import `os`, `pathlib`, `subprocess`, `sys`, `shutil`, `socket`,
+  `threading`, `multiprocessing`, or similar modules.
+- Do **not** call `doc.save(...)` or any other file I/O APIs.
+- Your only responsibility is to construct a `Document` instance and expose it
+  as a variable named `doc`.
 
-# Create organized directory structure
-company_name = "CompanyName"  # Replace with actual company name
-job_title = "JobTitle"  # Replace with actual job title
-
-# Sanitize names for filesystem
-safe_company = company_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-safe_title = job_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
-
-# Create directory and save
-export_dir = Path("exports") / f"{safe_company}_{safe_title}"
-export_dir.mkdir(parents=True, exist_ok=True)
-doc.save(export_dir / "resume.docx")
-```
+The backend sandbox will take the `doc` object, save it to disk, and stream the
+resulting DOCX file to the user.
 
 ## Remember
 - Output **executable Python code ONLY**
 - NO explanations, NO markdown wrappers
 - Apply polish recommendations from validation
 - Keep the classic Times New Roman style
-- Save to organized exports directory with company and job title in path
+- Let the backend handle saving and filenames; your code should only construct the `doc` object
 - **Content quality over strict page limits** - aim for comprehensive 2-3 page resume

@@ -9,9 +9,17 @@ from .gemini import GeminiClient
 from .longcat import LongCatClient
 from .model_registry import get_provider_for_model
 from .openrouter import OpenRouterClient
+from .vertex_ai import VertexClient
 from .zenmux import ZenmuxClient
 
-ClientType = Union[OpenRouterClient, LongCatClient, ZenmuxClient, GeminiClient, CerebrasClient]
+ClientType = Union[
+    OpenRouterClient,
+    LongCatClient,
+    ZenmuxClient,
+    GeminiClient,
+    CerebrasClient,
+    VertexClient,
+]
 
 _CLIENT_CACHE: Dict[str, ClientType] = {}
 
@@ -42,6 +50,9 @@ def get_client(
 
     if provider == "cerebras":
         return cast(ClientType, _get_cached("cerebras", CerebrasClient))
+
+    if provider == "vertex":
+        return cast(ClientType, _get_cached("vertex", VertexClient))
 
     # Default to OpenRouter (including unknown providers that fall back)
     if default_client is not None and isinstance(default_client, OpenRouterClient):

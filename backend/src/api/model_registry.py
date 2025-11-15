@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, TypedDict
 
-ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini", "cerebras"]
+ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini", "cerebras", "vertex"]
 
 
 class Capabilities(TypedDict, total=False):
@@ -241,6 +241,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "minimax/minimax-m2"
     },
+    "vertex::claude-sonnet-4-5": {
+        "provider": "vertex",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "claude-sonnet-4-5@20250929",
+    },
     # Cerebras models
     "cerebras::qwen-3-235b-a22b-instruct-2507": {
         "provider": "cerebras",
@@ -328,6 +337,8 @@ def get_provider_for_model(model: str) -> ProviderName:
         return "gemini"
     if m.startswith("cerebras::"):
         return "cerebras"
+    if m.startswith("vertex::"):
+        return "vertex"
     return "openrouter"
 
 
@@ -396,6 +407,8 @@ def get_api_model(model: str) -> str:
     if m.startswith("gemini::"):
         return model.split("::", 1)[1]
     if m.startswith("cerebras::"):
+        return model.split("::", 1)[1]
+    if m.startswith("vertex::"):
         return model.split("::", 1)[1]
     return model
 

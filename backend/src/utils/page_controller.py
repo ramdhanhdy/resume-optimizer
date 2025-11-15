@@ -199,3 +199,96 @@ def add_bullet_point(doc, text, spacing_config: Dict[str, Any]):
         'space_after': spacing_config.get('bullet_spacing', Pt(3))
     })
     return bullet
+
+
+def get_default_spacing_config() -> Dict[str, Any]:
+    """Return a default spacing configuration for 2-3 page resumes.
+
+    This is a convenience for agents so they can use a single dict
+    instead of hard-coding Pt() values everywhere.
+    """
+    return {
+        'space_before': Pt(6),
+        'space_after': Pt(6),
+        'bullet_spacing': Pt(3),
+        'section_spacing_before': Pt(8),
+        'section_spacing_after': Pt(4),
+    }
+
+
+def get_compact_spacing_config() -> Dict[str, Any]:
+    """Return a spacing configuration for slightly more compact layouts."""
+    return {
+        'space_before': Pt(4),
+        'space_after': Pt(4),
+        'bullet_spacing': Pt(2),
+        'section_spacing_before': Pt(6),
+        'section_spacing_after': Pt(3),
+    }
+
+
+def get_spacious_spacing_config() -> Dict[str, Any]:
+    """Return a spacing configuration for slightly more spacious layouts."""
+    return {
+        'space_before': Pt(8),
+        'space_after': Pt(8),
+        'bullet_spacing': Pt(4),
+        'section_spacing_before': Pt(10),
+        'section_spacing_after': Pt(6),
+    }
+
+
+def add_experience_block(
+    doc: Document,
+    *,
+    company: str,
+    location: str,
+    role: str,
+    dates: str,
+    bullets: list[str],
+    spacing_config: Dict[str, Any],
+) -> None:
+    """Add a standard experience block (header + bullets).
+
+    This helper keeps layout consistent while allowing the agent to focus
+    on content. It uses tables for aligned headers and the shared spacing
+    configuration for vertical rhythm.
+    """
+    table = doc.add_table(rows=0, cols=2)
+    add_header_row(table, company, location, bold=True)
+    add_header_row(table, role, dates, bold=False, italic=True)
+
+    # Spacing paragraph after the header rows
+    spacing_para = doc.add_paragraph()
+    apply_spacing_adjustments(spacing_para, {
+        'space_before': spacing_config.get('space_before', Pt(6)),
+        'space_after': spacing_config.get('space_after', Pt(6)),
+    })
+
+    for bullet_text in bullets:
+        add_bullet_point(doc, bullet_text, spacing_config)
+
+
+def add_education_block(
+    doc: Document,
+    *,
+    institution: str,
+    location: str,
+    degree: str,
+    dates: str,
+    bullets: list[str],
+    spacing_config: Dict[str, Any],
+) -> None:
+    """Add a standard education block (institution + degree + bullets)."""
+    table = doc.add_table(rows=0, cols=2)
+    add_header_row(table, institution, location, bold=True)
+    add_header_row(table, degree, dates, bold=False, italic=True)
+
+    spacing_para = doc.add_paragraph()
+    apply_spacing_adjustments(spacing_para, {
+        'space_before': spacing_config.get('space_before', Pt(6)),
+        'space_after': spacing_config.get('space_after', Pt(6)),
+    })
+
+    for bullet_text in bullets:
+        add_bullet_point(doc, bullet_text, spacing_config)

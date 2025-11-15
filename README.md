@@ -123,7 +123,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - 🎨 **Modern UI**: Beautiful React interface with real-time streaming updates and smooth animations
 - 👥 **Rate Limiting**: Built-in free tier management (default 5 runs per client) with abuse prevention; see **Rate Limiting & DEV Mode** below for configuration details.
 
-### Production-Ready Features
+### Demo Deployment Features
 - ☁️ **Cloud-Native**: Deployed on Cloud Run (backend) and Vercel (frontend)
 - 🔐 **Secret Management**: Secure API key handling via Secret Manager
 - 🛡️ **Error Recovery**: Distributed systems hardening with state persistence
@@ -229,7 +229,7 @@ npm run dev
 
 ### Rate Limiting & DEV Mode
 
-- The backend enforces a free tier of **5 full-pipeline runs per client** by default.
+- For demo deployment, The backend enforces a free tier of **5 full-pipeline runs per client** by default.
 - Limits are tracked per `client_id` (from the `x-client-id` header, falling back to IP) and persisted in the SQLite run metadata store.
 - An internal `MAX_FREE_RUNS` configuration exists (default `5`) but the product free tier is 5 runs per client; keep this value for public deployments.
 - For local development you can set `DEV_MODE=true` in `backend/.env` to temporarily bypass rate limiting:
@@ -302,7 +302,7 @@ Current SQLite setup is ephemeral. For production persistence:
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions and troubleshooting.
 
-## 🛡️ Ethical Guidelines & Validation
+## 🛡️ Safety, Security & Ethics
 
 ### Multi-Layer Safety System
 

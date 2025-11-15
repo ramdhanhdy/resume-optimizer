@@ -149,6 +149,7 @@ def run_agent_with_chunk_emission(
     last_emit_time = 0
     last_progress_emit_time = 0
     current_time = time.time()
+    metadata: Dict[str, Any] = {}
     
     try:
         # Get the generator for the agent method based on kwargs
@@ -182,7 +183,12 @@ def run_agent_with_chunk_emission(
         stream_manager.emit_from_thread(AgentStepStartedEvent.create(job_id, step_name, agent_name))
         
         # Process chunks
-        for chunk in gen:
+        while True:
+            try:
+                chunk = next(gen)
+            except StopIteration as exc:
+                metadata = exc.value or {}
+                break
             result += chunk
             seq += 1
             current_time = time.time()
@@ -226,7 +232,7 @@ def run_agent_with_chunk_emission(
         ))
         
     except Exception as e:
-        print(f"❌ Agent {agent_name} failed: {e}")
+        print(f" Agent {agent_name} failed: {e}")
         # Still emit completion for cleanup
         stream_manager.emit_from_thread(AgentStepCompletedEvent.create(
             job_id=job_id,
@@ -236,7 +242,7 @@ def run_agent_with_chunk_emission(
         ))
         raise
     
-    return result
+    return result, metadata
 
 
 class JobAnalysisRequest(BaseModel):
@@ -386,13 +392,19 @@ async def analyze_job(request: JobAnalysisRequest):
         # Run Job Analyzer Agent
         agent = JobAnalyzerAgent(client=client)
         analysis_result = ""
+        analysis_metadata: Dict[str, Any] = {}
 
-        for chunk in agent.analyze_job(
+        gen = agent.analyze_job(
             job_posting=job_text,
             model=ANALYZER_MODEL,
             temperature=ANALYZER_TEMPERATURE,
-        ):
-            analysis_result += chunk
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                analysis_result += chunk
+        except StopIteration as exc:
+            analysis_metadata = exc.value or {}
 
         # Extract metadata (company, job title)
         company_name = "Company"  # TODO: Extract from analysis
@@ -411,6 +423,9 @@ async def analyze_job(request: JobAnalysisRequest):
             agent_name="Job Analyzer",
             input_data={"job_posting": job_text},
             output_data={"text": analysis_result},
+            cost=analysis_metadata.get("cost", 0.0),
+            input_tokens=analysis_metadata.get("input_tokens", 0),
+            output_tokens=analysis_metadata.get("output_tokens", 0),
         )
 
         return {
@@ -448,14 +463,20 @@ async def optimize_resume(request: ResumeOptimizationRequest):
         # Run Resume Optimizer Agent
         agent = ResumeOptimizerAgent(client=client)
         optimization_result = ""
+        optimization_metadata: Dict[str, Any] = {}
 
-        for chunk in agent.optimize_resume(
+        gen = agent.optimize_resume(
             resume_text=request.resume_text,
             job_analysis=job_analysis_text,
             model=OPTIMIZER_MODEL,
             temperature=OPTIMIZER_TEMPERATURE,
-        ):
-            optimization_result += chunk
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                optimization_result += chunk
+        except StopIteration as exc:
+            optimization_metadata = exc.value or {}
 
         # Update database and persist agent output
         db.update_application(
@@ -472,6 +493,9 @@ async def optimize_resume(request: ResumeOptimizationRequest):
                 "job_analysis": job_analysis_text,
             },
             output_data={"text": optimization_result},
+            cost=optimization_metadata.get("cost", 0.0),
+            input_tokens=optimization_metadata.get("input_tokens", 0),
+            output_tokens=optimization_metadata.get("output_tokens", 0),
         )
         
         return {
@@ -507,14 +531,20 @@ async def implement_optimization(request: ImplementationRequest):
         # Run Implementer Agent
         agent = OptimizerImplementerAgent(client=client)
         implementation_result = ""
+        implementation_metadata: Dict[str, Any] = {}
 
-        for chunk in agent.implement_optimizations(
+        gen = agent.implement_optimizations(
             resume_text=original_resume,
             optimization_report=optimization_strategy,
             model=IMPLEMENTER_MODEL,
             temperature=IMPLEMENTER_TEMPERATURE,
-        ):
-            implementation_result += chunk
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                implementation_result += chunk
+        except StopIteration as exc:
+            implementation_metadata = exc.value or {}
         
         # Extract optimized resume
         optimized_resume = extract_optimized_resume(implementation_result)
@@ -535,6 +565,9 @@ async def implement_optimization(request: ImplementationRequest):
                 "job_analysis": job_analysis_text,
             },
             output_data={"text": implementation_result},
+            cost=implementation_metadata.get("cost", 0.0),
+            input_tokens=implementation_metadata.get("input_tokens", 0),
+            output_tokens=implementation_metadata.get("output_tokens", 0),
         )
         
         return {
@@ -569,15 +602,21 @@ async def validate_resume(request: ValidationRequest):
         # Run Validator Agent
         agent = ValidatorAgent(client=client)
         validation_result = ""
+        validation_metadata: Dict[str, Any] = {}
 
-        for chunk in agent.validate_resume(
+        gen = agent.validate_resume(
             optimized_resume=optimized_resume,
             job_posting=job_posting_text,
             job_analysis=job_analysis_text,
             model=VALIDATOR_MODEL,
             temperature=VALIDATOR_TEMPERATURE,
-        ):
-            validation_result += chunk
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                validation_result += chunk
+        except StopIteration as exc:
+            validation_metadata = exc.value or {}
 
         # Persist agent output (scores are derived later)
         db.save_agent_output(
@@ -590,6 +629,9 @@ async def validate_resume(request: ValidationRequest):
                 "job_analysis": job_analysis_text,
             },
             output_data={"text": validation_result},
+            cost=validation_metadata.get("cost", 0.0),
+            input_tokens=validation_metadata.get("input_tokens", 0),
+            output_tokens=validation_metadata.get("output_tokens", 0),
         )
         
         # Parse validation result for scores
@@ -631,14 +673,20 @@ async def polish_resume(request: PolishRequest):
         # Run Polish Agent
         agent = PolishAgent(client=client, output_format="docx")
         polish_result = ""
+        polish_metadata: Dict[str, Any] = {}
 
-        for chunk in agent.polish_resume(
+        gen = agent.polish_resume(
             optimized_resume=optimized_resume,
             validation_report=validation_report,
             model=POLISH_MODEL,
             temperature=POLISH_TEMPERATURE,
-        ):
-            polish_result += chunk
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                polish_result += chunk
+        except StopIteration as exc:
+            polish_metadata = exc.value or {}
 
         # Extract final resume
         final_resume = extract_optimized_resume(polish_result)
@@ -658,6 +706,9 @@ async def polish_resume(request: PolishRequest):
                 "validation_report": validation_report,
             },
             output_data={"text": polish_result},
+            cost=polish_metadata.get("cost", 0.0),
+            input_tokens=polish_metadata.get("input_tokens", 0),
+            output_tokens=polish_metadata.get("output_tokens", 0),
         )
         
         return {
@@ -1162,7 +1213,7 @@ async def run_pipeline_with_streaming(
         
         # Run agent with chunk emission in executor
         loop = asyncio.get_event_loop()
-        analysis_result = await loop.run_in_executor(
+        analysis_result, analysis_metadata = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
@@ -1211,6 +1262,9 @@ async def run_pipeline_with_streaming(
             agent_name="Job Analyzer",
             input_data={"job_posting": job_text_final},
             output_data={"text": analysis_result},
+            cost=analysis_metadata.get("cost", 0.0),
+            input_tokens=analysis_metadata.get("input_tokens", 0),
+            output_tokens=analysis_metadata.get("output_tokens", 0),
         )
 
         # Save checkpoint for recovery
@@ -1235,7 +1289,7 @@ async def run_pipeline_with_streaming(
         agent2 = ResumeOptimizerAgent(client=client)
         
         # Run agent with chunk emission (with optional profile index)
-        optimization_result = await loop.run_in_executor(
+        optimization_result, optimization_metadata = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
@@ -1270,6 +1324,9 @@ async def run_pipeline_with_streaming(
             agent_name="Resume Optimizer",
             input_data={"resume_text": resume_text, "job_analysis": analysis_result},
             output_data={"text": optimization_result},
+            cost=optimization_metadata.get("cost", 0.0),
+            input_tokens=optimization_metadata.get("input_tokens", 0),
+            output_tokens=optimization_metadata.get("output_tokens", 0),
         )
 
         # Save checkpoint for recovery
@@ -1294,7 +1351,7 @@ async def run_pipeline_with_streaming(
         agent3 = OptimizerImplementerAgent(client=client)
         
         # Run agent with chunk emission
-        implementation_result = await loop.run_in_executor(
+        implementation_result, implementation_metadata = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
@@ -1333,6 +1390,9 @@ async def run_pipeline_with_streaming(
             agent_name="Optimizer Implementer",
             input_data={"resume_text": resume_text, "optimization_report": optimization_result},
             output_data={"text": implementation_result},
+            cost=implementation_metadata.get("cost", 0.0),
+            input_tokens=implementation_metadata.get("input_tokens", 0),
+            output_tokens=implementation_metadata.get("output_tokens", 0),
         )
 
         # Save checkpoint for recovery
@@ -1357,7 +1417,7 @@ async def run_pipeline_with_streaming(
         agent4 = ValidatorAgent(client=client)
         
         # Run agent with chunk emission
-        validation_result = await loop.run_in_executor(
+        validation_result, validation_metadata = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
@@ -1428,6 +1488,9 @@ async def run_pipeline_with_streaming(
             agent_name="Validator",
             input_data={"optimized_resume": optimized_resume, "job_posting": job_text_final},
             output_data={"text": validation_result},
+            cost=validation_metadata.get("cost", 0.0),
+            input_tokens=validation_metadata.get("input_tokens", 0),
+            output_tokens=validation_metadata.get("output_tokens", 0),
         )
 
         # Save checkpoint for recovery
@@ -1452,7 +1515,7 @@ async def run_pipeline_with_streaming(
         agent5 = PolishAgent(client=client, output_format="docx")
         
         # Run agent with chunk emission
-        polish_result = await loop.run_in_executor(
+        polish_result, polish_metadata = await loop.run_in_executor(
             None,
             functools.partial(
                 run_agent_with_chunk_emission,
@@ -1488,6 +1551,9 @@ async def run_pipeline_with_streaming(
             agent_name="Polish Agent",
             input_data={"optimized_resume": optimized_resume, "validation_report": validation_result},
             output_data={"text": polish_result},
+            cost=polish_metadata.get("cost", 0.0),
+            input_tokens=polish_metadata.get("input_tokens", 0),
+            output_tokens=polish_metadata.get("output_tokens", 0),
         )
 
         # Save checkpoint for recovery

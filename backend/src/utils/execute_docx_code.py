@@ -13,7 +13,16 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from .docx_generator import add_header_row, add_horizontal_line, set_font
-from .page_controller import apply_spacing_adjustments, create_section_header, add_bullet_point
+from .page_controller import (
+    apply_spacing_adjustments,
+    create_section_header,
+    add_bullet_point,
+    get_default_spacing_config,
+    get_compact_spacing_config,
+    get_spacious_spacing_config,
+    add_experience_block,
+    add_education_block,
+)
 
 
 class UnsafeCodeError(ValueError):
@@ -117,6 +126,12 @@ SAFE_GLOBALS: Dict[str, Any] = {
     "apply_spacing_adjustments": apply_spacing_adjustments,
     "create_section_header": create_section_header,
     "add_bullet_point": add_bullet_point,
+    # Spacing presets and semantic block helpers
+    "get_default_spacing_config": get_default_spacing_config,
+    "get_compact_spacing_config": get_compact_spacing_config,
+    "get_spacious_spacing_config": get_spacious_spacing_config,
+    "add_experience_block": add_experience_block,
+    "add_education_block": add_education_block,
 }
 
 

@@ -663,3 +663,30 @@ X-RateLimit-Reset: 1234567890
 - Implement exponential backoff for retries
 - Cache results locally to avoid re-running
 - Consider paid tier for higher limits
+
+## LLM Providers & Vertex AI Support
+
+The backend can route different agents to different LLM providers based on
+model strings configured via environment variables.
+
+- **OpenRouter**
+  - Prefix: `openrouter::`
+  - Example: `openrouter::anthropic/claude-sonnet-4.5`
+  - Uses `OPENROUTER_API_KEY`.
+
+- **Gemini API** (Google models only)
+  - Prefix: `gemini::`
+  - Examples: `gemini::gemini-2.5-pro`, `gemini::gemini-2.5-flash`.
+  - Uses `GEMINI_API_KEY` and the Gemini API, not Vertex.
+
+- **Vertex AI** (e.g., Claude Sonnet 4.5)
+  - Prefix: `vertex::`
+  - Example logical model: `vertex::claude-sonnet-4-5` → maps internally to
+    the Vertex model ID `claude-sonnet-4-5@20250929`.
+  - Uses Application Default Credentials with:
+    - `VERTEX_PROJECT_ID` – GCP project ID
+    - `VERTEX_LOCATION` – region (for Sonnet 4.5, typically `us-east5`)
+
+From an API consumer perspective, no headers or payloads change when switching
+providers; provider selection is entirely controlled by backend configuration
+and environment variables.
