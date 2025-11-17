@@ -1,6 +1,7 @@
 """API module exposing external service clients."""
 
 from .openrouter import OpenRouterClient
+from .openai_client import OpenAIClient
 from .longcat import LongCatClient
 from .zenmux import ZenmuxClient
 from .gemini import GeminiClient
@@ -15,6 +16,7 @@ from .pricing import get_pricing_manager, TokenUsage, CostBreakdown, PricingMana
 
 __all__ = [
     "OpenRouterClient",
+    "OpenAIClient",
     "LongCatClient",
     "ZenmuxClient",
     "GeminiClient",

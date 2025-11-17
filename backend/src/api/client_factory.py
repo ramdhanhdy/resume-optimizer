@@ -8,12 +8,14 @@ from .cerebras import CerebrasClient
 from .gemini import GeminiClient
 from .longcat import LongCatClient
 from .model_registry import get_provider_for_model
+from .openai_client import OpenAIClient
 from .openrouter import OpenRouterClient
 from .vertex_ai import VertexClient
 from .zenmux import ZenmuxClient
 
 ClientType = Union[
     OpenRouterClient,
+    OpenAIClient,
     LongCatClient,
     ZenmuxClient,
     GeminiClient,
@@ -38,6 +40,9 @@ def get_client(
     """Return the appropriate API client for the requested model."""
 
     provider = get_provider_for_model(model)
+
+    if provider == "openai":
+        return cast(ClientType, _get_cached("openai", OpenAIClient))
 
     if provider == "longcat":
         return cast(ClientType, _get_cached("longcat", LongCatClient))

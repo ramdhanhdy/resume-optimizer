@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, TypedDict
 
-ProviderName = Literal["openrouter", "longcat", "zenmux", "gemini", "cerebras", "vertex"]
+ProviderName = Literal["openrouter", "openai", "longcat", "zenmux", "gemini", "cerebras", "vertex"]
 
 
 class Capabilities(TypedDict, total=False):
@@ -67,14 +67,6 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         "api_model": "LongCat-Flash-Thinking",
     },
     # OpenRouter
-    "qwen/qwen3-max": {
-        "provider": "openrouter",
-        "capabilities": {
-            "supports_files": True,
-            "supports_images": True,
-        },
-        "api_model": "qwen/qwen3-max",
-    },
     "openrouter::qwen/qwen3-max": {
         "provider": "openrouter",
         "capabilities": {
@@ -82,15 +74,6 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_images": True,
         },
         "api_model": "qwen/qwen3-max",
-    },
-    "openai/gpt-5.1": {
-        "provider": "openrouter",
-        "capabilities": {
-            "supports_files": True,
-            "supports_images": True,
-            "supports_temperature": False,  # GPT-5.1 doesn't support temperature parameter
-        },
-        "api_model": "openai/gpt-5.1",
     },
     "openrouter::openai/gpt-5.1": {
         "provider": "openrouter",
@@ -101,6 +84,17 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "openai/gpt-5.1",
     },
+    # Direct OpenAI models
+    "openai::gpt-5.1": {
+        "provider": "openai",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            # GPT-5.1 does not currently expose a temperature parameter in this app
+            "supports_temperature": False,
+        },
+        "api_model": "gpt-5.1",
+    },
     "openrouter::moonshotai/kimi-k2-thinking": {
         "provider": "openrouter",
         "capabilities": {
@@ -110,45 +104,29 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "moonshotai/kimi-k2-thinking",
     },
-    "google/gemini-2.0-flash-exp:free": {
-        "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
-        "api_model": "google/gemini-2.0-flash-exp:free",
-    },
-    "openrouter::google/gemini-2.0-flash-exp:free": {
-        "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
-        "api_model": "google/gemini-2.0-flash-exp:free",
-    },
-    "anthropic/claude-sonnet-4.5": {
-        "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
-        "api_model": "anthropic/claude-sonnet-4.5",
-    },
     "openrouter::anthropic/claude-sonnet-4.5": {
         "provider": "openrouter",
         "capabilities": {"supports_files": True, "supports_images": True},
         "api_model": "anthropic/claude-sonnet-4.5",
-    },
-    "openai/gpt-5": {
-        "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
-        "api_model": "openai/gpt-5",
     },
     "openrouter::openai/gpt-5": {
         "provider": "openrouter",
         "capabilities": {"supports_files": True, "supports_images": True},
         "api_model": "openai/gpt-5",
     },
-    "x-ai/grok-4-fast": {
-        "provider": "openrouter",
-        "capabilities": {"supports_files": True, "supports_images": True},
-        "api_model": "x-ai/grok-4-fast",
-    },
     "openrouter::x-ai/grok-4-fast": {
         "provider": "openrouter",
         "capabilities": {"supports_files": True, "supports_images": True},
         "api_model": "x-ai/grok-4-fast",
+    },
+    "openrouter::openrouter/sherlock-think-alpha": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "openrouter/sherlock-think-alpha",
     },
     # Zenmux aliases (already prefixed)
     "zenmux::openai/gpt-5": {
@@ -331,6 +309,8 @@ def get_provider_for_model(model: str) -> ProviderName:
         return "longcat"
     if m.startswith("openrouter::"):
         return "openrouter"
+    if m.startswith("openai::"):
+        return "openai"
     if m.startswith("zenmux::"):
         return "zenmux"
     if m.startswith("gemini::"):
@@ -401,6 +381,8 @@ def get_api_model(model: str) -> str:
     if m.startswith("zenmux::"):
         return model.split("::", 1)[1]
     if m.startswith("openrouter::"):
+        return model.split("::", 1)[1]
+    if m.startswith("openai::"):
         return model.split("::", 1)[1]
     if m.startswith("meituan::"):
         return model.split("::", 1)[1]

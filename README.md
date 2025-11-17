@@ -105,7 +105,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - 📈 **Stream History**: Configurable event history for debugging and monitoring
 
 ### Advanced LLM Support
-- 🧠 **Multi-Provider LLM Support**: OpenRouter, Google Gemini, Cerebras, Zenmux, LongCat, and more
+- 🧠 **Multi-Provider LLM Support**: OpenRouter, Google Gemini, OpenAI (direct), Cerebras, Zenmux, LongCat, and more
 - 🎚️ **Per-Agent Model Configuration**: Individual model and temperature settings for each agent, configured via environment variables in `backend/.env` (for example `DEFAULT_MODEL`, `ANALYZER_MODEL`, `OPTIMIZER_MODEL`, `IMPLEMENTER_MODEL`, `VALIDATOR_MODEL`, `PROFILE_MODEL`, `INSIGHT_MODEL`, `POLISH_MODEL`).
 - ⚙️ **Advanced Parameters**: Support for top_p, top_k, frequency_penalty, presence_penalty, seed, and stop sequences
 - 💰 **Cost Tracking**: Real-time cost calculation with input, output, and thinking token breakdowns
@@ -135,7 +135,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - **Python 3.11+** with FastAPI
 - **Database**: SQLite with automatic schema migrations (ephemeral in Cloud Run)
 - **LLM Orchestration**: Multi-provider model registry with capability-based routing
-- **Providers**: OpenRouter, Google Gemini, Cerebras, Zenmux, LongCat, Exa API
+- **Providers**: OpenRouter, Google Gemini, OpenAI (direct), Cerebras, Zenmux, LongCat, Exa API
 - **File Processing**: PDF extraction, DOCX generation, HTML parsing
 - **Streaming**: Server-Sent Events with event persistence and replay
 - **Cost Tracking**: Real-time pricing calculation with token-based billing
@@ -254,8 +254,11 @@ The hosted demo depends on the free tiers or sponsored credits of upstream provi
 
 - **Gemini (Google)**: Free access is subject to Google\'s own rate limits and quotas. In practice this can cause occasional slowdowns or failures even if you are still within the app\'s 5-run limit.
 - **LongCat API**: The demo key is supported by the LongCat API platform with a daily token allowance of 5 million tokens daily. On very busy days this allowance can be exhausted, in which case some runs may fail until the provider\'s quota resets (typically the next day).
+- **OpenRouter Stealth Models**: The app may periodically use "stealth" models from OpenRouter when available (e.g., `openrouter/sherlock-think-alpha`) which are cloaked, free-to-use models. These models are provided free by their creators in exchange for training data collection—the model providers explicitly state that usage data will be used to improve their models. Stealth models are only integrated after testing confirms they offer good performance for the app's use case. While beneficial for cost reduction, stealth models have two important caveats:
+  - **Temporary Availability**: Stealth model providers may end their free period at any time without notice. When this happens, the app will fail if it's still configured to use the discontinued model.
+  - **Rate Limiting**: Since stealth models are free and popular, they can experience high usage and hit rate limits during peak times. While not a frequent issue, you may occasionally encounter slowdowns or temporary failures due to many users accessing the same model simultaneously.
 
-These provider limits are outside the app\'s direct control. If you encounter unexplained failures while still under the 5-run cap, it may be due to upstream provider quotas temporarily being exhausted.
+These provider limits are outside the app\'s direct control. If you encounter unexplained failures while still under the 5-run cap, it may be due to upstream provider quotas temporarily being exhausted or stealth models being discontinued.
 
 ## 🚀 Deployment
 
