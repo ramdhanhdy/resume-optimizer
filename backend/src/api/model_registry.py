@@ -128,6 +128,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "openrouter/sherlock-think-alpha",
     },
+    "openrouter::google/gemini-3-pro-preview": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "google/gemini-3-pro-preview",
+    },
     # Zenmux aliases (already prefixed)
     "zenmux::openai/gpt-5": {
         "provider": "zenmux",
@@ -292,6 +301,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_thinking_budget": False,
         },
         "api_model": "gemini-2.0-flash",
+    },
+    "gemini::gemini-3-pro-preview": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "gemini-3-pro-preview",
     },
 }
 

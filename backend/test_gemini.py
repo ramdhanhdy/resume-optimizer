@@ -55,12 +55,12 @@ def test_gemini_direct():
 
 def test_model_registry():
     """Test model registry configuration."""
-    print("\nTesting model registry...")
-    
+    print("\n# Test model registry integration")
     test_models = [
         "gemini::gemini-2.5-flash",
         "gemini::gemini-2.5-pro",
         "gemini::gemini-2.5-flash-lite",
+        "gemini::gemini-3-pro-preview",
     ]
     
     for model in test_models:
