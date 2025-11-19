@@ -10,6 +10,8 @@ import remarkGfm from 'remark-gfm';
 import { fadeVariants, slideUpVariants } from '@/design-system/animations/variants';
 import { useReducedMotion } from '@/design-system/animations/use-reduced-motion';
 import { useEscapeKey } from '@/hooks';
+import { ProcessingAnimation } from './ProcessingAnimation';
+import { Sparkles } from 'lucide-react';
 
 interface ProcessingScreenProps {
   onComplete: (appState: any) => void;
@@ -471,22 +473,46 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       {/* Insights - Upper portion */}
       <div className="absolute top-32 sm:top-40 left-0 right-0 px-4 sm:px-12">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-wrap gap-2 sm:gap-3 justify-center" role="feed" aria-label="Processing insights" aria-busy="true">
+          <div className="flex flex-wrap gap-3 justify-center" role="feed" aria-label="Processing insights" aria-busy="true">
             <AnimatePresence mode="popLayout">
-              {insights.slice(0, 6).map((insight, index) => (
+              {insights.slice(0, 6).map((insight) => (
                 <motion.div
                   key={insight.id}
-                  variants={prefersReducedMotion ? undefined : slideUpVariants}
-                  initial={prefersReducedMotion ? undefined : "initial"}
-                  animate={prefersReducedMotion ? undefined : "animate"}
-                  exit={prefersReducedMotion ? undefined : "exit"}
-                  className="bg-surface-light rounded-lg shadow-sm px-3 sm:px-4 py-2 sm:py-2.5 border border-border-subtle/50 backdrop-blur-sm inline-flex items-center gap-2 max-w-xs sm:max-w-md"
+                  layout
+                  variants={prefersReducedMotion ? undefined : {
+                    initial: { scale: 0.9, opacity: 0, y: 10 },
+                    animate: { scale: 1, opacity: 1, y: 0 },
+                    exit: { scale: 0.9, opacity: 0, transition: { duration: 0.2 } }
+                  }}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="
+                    relative overflow-hidden
+                    bg-surface-light/80 hover:bg-surface-light/100
+                    border border-accent/15 hover:border-accent/30
+                    shadow-sm hover:shadow-md shadow-accent/5
+                    backdrop-blur-md
+                    rounded-xl
+                    px-4 py-3
+                    flex items-start gap-3
+                    max-w-[calc(100vw-2rem)] sm:max-w-md
+                    transition-colors duration-300
+                  "
                   role="article"
                   aria-label={`Insight: ${insight.text}`}
                 >
-                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" aria-hidden="true" />
-                  <div className="text-xs sm:text-sm text-text-main font-medium text-wrap prose prose-sm max-w-none prose-p:m-0">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.text}</ReactMarkdown>
+                  <div className="mt-0.5 flex-shrink-0 text-accent">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-xs sm:text-sm text-text-main/90 font-medium leading-relaxed">
+                    <ReactMarkdown 
+                      components={{ 
+                        p: ({node, ...props}) => <span {...props} /> 
+                      }}
+                    >
+                      {insight.text}
+                    </ReactMarkdown>
                   </div>
                 </motion.div>
               ))}
@@ -495,53 +521,12 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
         </div>
       </div>
 
-      {/* Main Status Text - Centered, 65% down */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="max-w-2xl mx-auto text-center relative px-4" style={{ marginTop: '10vh' }}>
-          {/* Breathing Ring Animation */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
-            {/* Multiple expanding rings */}
-            {!prefersReducedMotion && [0, 1, 2].map((index) => (
-              <motion.div
-                key={index}
-                className="absolute rounded-full border-2 border-accent/40"
-                style={{
-                  width: '220px',
-                  height: '220px',
-                  filter: 'blur(1px)',
-                }}
-                animate={{
-                  scale: [1, 2.2, 2.2],
-                  opacity: [0.4, 0.15, 0],
-                }}
-                transition={{
-                  duration: 4.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                  delay: index * 1.5,
-                }}
-              />
-            ))}
-            {/* Central pulsing circle */}
-            {!prefersReducedMotion && (
-              <motion.div
-                className="absolute rounded-full bg-accent/8"
-                style={{
-                  width: '200px',
-                  height: '200px',
-                  filter: 'blur(4px)',
-                }}
-                animate={{
-                  scale: [1, 1.08, 1],
-                  opacity: [0.25, 0.4, 0.25],
-                }}
-                transition={{
-                  duration: 3.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              />
-            )}
+      {/* Main Status Text - Centered */}
+      <div className="flex-1 flex items-center justify-center w-full mt-32 sm:mt-48">
+        <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 max-w-2xl mx-auto px-4 relative">
+          {/* Neural Halo Animation */}
+          <div className="flex items-center justify-center" aria-hidden="true">
+            {!prefersReducedMotion && <ProcessingAnimation />}
           </div>
           
           {/* Text with shimmer effect */}
@@ -557,12 +542,12 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
               aria-live="polite"
               aria-atomic="true"
             >
-              <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-text-main relative inline-block">
+              <p className="text-xl sm:text-2xl font-medium tracking-tight text-text-main/90 relative inline-block">
                 {currentActivity}
                 {/* Shimmer overlay */}
                 {!prefersReducedMotion && (
                   <motion.span
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
                     style={{
                       backgroundSize: '200% 100%',
                     }}
