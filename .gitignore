@@ -71,3 +71,5 @@ backend/.env.cloudrun
 backend/.env.cloudrun
 AGENTS.md
 .env.cloudrun
+# Ignore local prompt files
+backend/prompts/
