@@ -69,22 +69,33 @@ export function useProcessingJob(jobId: string | null) {
         case 'step_progress': {
           const { step, pct, eta_sec } = event.payload;
           newState.currentStep = step;
+          const now = Date.now();
           
-          // Update steps array
+          // Update steps array with timing information
           newState.steps = prev.steps.map(s => {
             if (s.name === step) {
+              const isStarting = s.status === 'pending' && pct > 0;
+              const isCompleting = pct === 100 && s.status !== 'completed';
+              
               return {
                 ...s,
                 progress: pct,
                 eta_sec,
                 status: pct === 100 ? 'completed' : 'in_progress',
+                startedAt: isStarting ? now : s.startedAt,
+                completedAt: isCompleting ? now : s.completedAt,
               };
             }
             // Mark previous steps as completed
             const stepIndex = STEP_ORDER.indexOf(s.name);
             const currentIndex = STEP_ORDER.indexOf(step);
-            if (stepIndex < currentIndex) {
-              return { ...s, progress: 100, status: 'completed' };
+            if (stepIndex < currentIndex && s.status !== 'completed') {
+              return { 
+                ...s, 
+                progress: 100, 
+                status: 'completed',
+                completedAt: s.completedAt || now,
+              };
             }
             return s;
           });

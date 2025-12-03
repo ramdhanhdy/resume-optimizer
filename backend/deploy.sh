@@ -135,6 +135,7 @@ if [ "$SETUP_SECRETS" = true ]; then
   create_or_update_secret "cerebras-api-key" "CEREBRAS_API_KEY"
   create_or_update_secret "longcat-api-key" "LONGCAT_API_KEY"
   create_or_update_secret "zenmux-api-key" "ZENMUX_API_KEY"
+  create_or_update_secret "openai-api-key" "OPENAI_API_KEY"
   
   echo ""
   echo -e "${BLUE}🔑 Granting Cloud Run service account access to secrets...${NC}"

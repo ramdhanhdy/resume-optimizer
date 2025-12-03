@@ -102,6 +102,8 @@ export interface StepState {
   progress: number;
   eta_sec?: number;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  startedAt?: number;  // Timestamp when step started (ms)
+  completedAt?: number; // Timestamp when step completed (ms)
 }
 
 export interface InsightState {

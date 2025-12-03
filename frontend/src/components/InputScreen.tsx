@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, Target, X } from 'lucide-react';
+import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import RecoveryBanner from './shared/RecoveryBanner';
@@ -23,45 +23,6 @@ import {
 } from '@/design-system/forms/schemas/input-screen-schema';
 import { slideUpVariants, fadeVariants, useReducedMotion } from '@/design-system/animations';
 import { cn } from '@/lib/utils';
-
-// 3D Tilt hook for holographic effect
-const use3DTilt = (ref: React.RefObject<HTMLElement>) => {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [isHovering, setIsHovering] = useState(false);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = element.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      setTilt({
-        x: (y - 0.5) * 20,
-        y: (x - 0.5) * -20,
-      });
-    };
-
-    const handleMouseEnter = () => setIsHovering(true);
-    const handleMouseLeave = () => {
-      setIsHovering(false);
-      setTilt({ x: 0, y: 0 });
-    };
-
-    element.addEventListener('mousemove', handleMouseMove);
-    element.addEventListener('mouseenter', handleMouseEnter);
-    element.addEventListener('mouseleave', handleMouseLeave);
-
-    return () => {
-      element.removeEventListener('mousemove', handleMouseMove);
-      element.removeEventListener('mouseenter', handleMouseEnter);
-      element.removeEventListener('mouseleave', handleMouseLeave);
-    };
-  }, [ref]);
-
-  return { tilt, isHovering };
-};
 
 interface InputScreenProps {
   onStart: (data: {
@@ -86,8 +47,6 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const [isDragActive, setIsDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
-  const tiltRef = useRef<HTMLButtonElement>(null);
-  const { tilt, isHovering: isTiltHovering } = use3DTilt(tiltRef as React.RefObject<HTMLElement>);
 
   // UI state
   const [recoverySession, setRecoverySession] = useState<RecoverySession | null>(null);
@@ -456,12 +415,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
     >
       {/* Subtle background pattern */}
       <div className="absolute inset-0 opacity-[0.02]" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, #0d9488 1px, transparent 0)`,
+        backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--accent)) 1px, transparent 0)`,
         backgroundSize: '40px 40px',
       }} />
 
       {/* Ambient gradient orbs */}
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-teal-200/20 via-teal-100/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-accent/10 via-accent/5 to-transparent rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-amber-100/15 via-orange-50/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-3xl relative z-10">
@@ -484,7 +443,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-50 border border-teal-200/60 text-teal-700 text-xs font-semibold uppercase tracking-wider mb-5 shadow-sm">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold uppercase tracking-wider mb-5 shadow-sm">
               <Zap className="w-3.5 h-3.5" />
               <span>AI-Powered Optimizer</span>
             </div>
@@ -492,11 +451,11 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-text-main tracking-tight mb-5">
               Present Your{' '}
               <span className="relative inline-block">
-                <span className="relative z-10 bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+                <span className="relative z-10 bg-gradient-to-r from-accent via-accent to-accent/80 bg-clip-text text-transparent">
                   Best Self
                 </span>
                 <motion.span
-                  className="absolute -bottom-1 left-0 right-0 h-3 bg-gradient-to-r from-teal-200/60 via-teal-300/40 to-emerald-200/60 rounded-full -z-0"
+                  className="absolute -bottom-1 left-0 right-0 h-3 bg-gradient-to-r from-accent/30 via-accent/20 to-accent/30 rounded-full -z-0"
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
                   transition={{ delay: 0.5, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -521,7 +480,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             {/* 1. Holographic 3D Resume Dropzone */}
             <div className="space-y-3">
               <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4 text-teal-600" />
+                <FileText className="w-4 h-4 text-accent" />
                 Resume Source
               </label>
                
@@ -543,96 +502,36 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                 />
                 
                 <button
-                  ref={tiltRef}
                   type="button"
                   onClick={handleUploadClick}
                   disabled={isLoading}
-                  style={{
-                    transform: !fileName && !isLoading && !prefersReducedMotion
-                      ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`
-                      : 'none',
-                    transition: isTiltHovering ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out',
-                  }}
                   className={cn(
-                    'relative w-full min-h-[200px] rounded-2xl overflow-hidden',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2',
+                    'relative w-full min-h-[180px] rounded-2xl overflow-hidden',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2',
+                    'transition-all duration-200',
                     isLoading && 'cursor-wait',
                     !fileName && 'group'
                   )}
                 >
-                  {/* Holographic gradient background */}
+                  {/* Clean background */}
                   <div className={cn(
-                    'absolute inset-0 transition-all duration-700',
+                    'absolute inset-0 transition-all duration-300',
                     fileName 
-                      ? 'bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50'
+                      ? 'bg-accent/5'
                       : isDragActive
-                        ? 'bg-gradient-to-br from-teal-400/20 via-cyan-300/20 to-emerald-400/20'
-                        : 'bg-gradient-to-br from-slate-100 via-slate-50 to-white'
+                        ? 'bg-accent/5'
+                        : 'bg-slate-50 group-hover:bg-slate-100/80'
                   )} />
-
-                  {/* Animated holographic shimmer - only when empty */}
-                  {!fileName && !isLoading && (
-                    <div 
-                      className={cn(
-                        'absolute inset-0 opacity-0 transition-opacity duration-300',
-                        (isTiltHovering || isDragActive) && 'opacity-100'
-                      )}
-                      style={{
-                        background: `linear-gradient(
-                          ${105 + tilt.y * 2}deg,
-                          transparent 20%,
-                          rgba(20, 184, 166, 0.08) 35%,
-                          rgba(6, 182, 212, 0.12) 50%,
-                          rgba(16, 185, 129, 0.08) 65%,
-                          transparent 80%
-                        )`,
-                      }}
-                    />
-                  )}
-
-                  {/* Rainbow edge glow on hover */}
-                  {!fileName && !isLoading && (
-                    <div 
-                      className={cn(
-                        'absolute inset-0 rounded-2xl transition-opacity duration-300',
-                        (isTiltHovering || isDragActive) ? 'opacity-100' : 'opacity-0'
-                      )}
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(20,184,166,0.3), rgba(6,182,212,0.3), rgba(16,185,129,0.3))',
-                        padding: '2px',
-                        WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                        WebkitMaskComposite: 'xor',
-                        maskComposite: 'exclude',
-                      }}
-                    />
-                  )}
                   
                   {/* Border */}
                   <div className={cn(
                     'absolute inset-0 rounded-2xl transition-all duration-300 pointer-events-none',
                     fileName
-                      ? 'border-2 border-teal-400/50'
+                      ? 'border-2 border-accent/40'
                       : isDragActive
-                        ? 'border-2 border-teal-500'
-                        : 'border-2 border-slate-200 group-hover:border-teal-300/60'
+                        ? 'border-2 border-accent border-dashed'
+                        : 'border-2 border-slate-200 border-dashed group-hover:border-slate-300'
                   )} />
-
-                  {/* Scanning line effect on drag */}
-                  {isDragActive && !fileName && (
-                    <motion.div
-                      className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-teal-400 to-transparent"
-                      initial={{ top: 0, opacity: 0 }}
-                      animate={{ 
-                        top: ['0%', '100%', '0%'],
-                        opacity: [0, 1, 0]
-                      }}
-                      transition={{ 
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: 'easeInOut'
-                      }}
-                    />
-                  )}
 
                   {/* Content */}
                   <div className="relative z-10 flex flex-col items-center justify-center min-h-[200px] p-8">
@@ -649,10 +548,10 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                             <motion.div 
                               animate={{ rotate: 360 }} 
                               transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }} 
-                              className="w-16 h-16 rounded-full border-[3px] border-teal-100 border-t-teal-500" 
+                              className="w-16 h-16 rounded-full border-[3px] border-accent/20 border-t-accent" 
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <FileText className="w-6 h-6 text-teal-600" />
+                              <FileText className="w-6 h-6 text-accent" />
                             </div>
                           </div>
                           <div className="text-center">
@@ -674,18 +573,18 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                             transition={{ type: "spring", stiffness: 200, damping: 15 }} 
                             className="relative"
                           >
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center shadow-xl shadow-teal-500/30">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center shadow-xl shadow-accent/30">
                               <Check className="w-8 h-8 text-white" strokeWidth={2.5} />
                             </div>
                             <motion.div
-                              className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-teal-400/40 to-emerald-400/40 -z-10"
+                              className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-accent/40 to-accent/30 -z-10"
                               animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
                               transition={{ duration: 2, repeat: Infinity }}
                             />
                           </motion.div>
                           <div className="text-center">
                             <p className="font-bold text-lg text-text-main">{fileName}</p>
-                            <p className="text-sm text-teal-600 font-medium mt-1.5 flex items-center gap-1.5 justify-center">
+                            <p className="text-sm text-accent font-medium mt-1.5 flex items-center gap-1.5 justify-center">
                               <Sparkles className="w-4 h-4" />
                               Ready for optimization
                             </p>
@@ -708,28 +607,25 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                           className="flex flex-col items-center gap-5"
                         >
                           <motion.div 
-                            animate={isDragActive ? { scale: 1.15, y: -8 } : { scale: 1, y: 0 }} 
+                            animate={isDragActive ? { scale: 1.05, y: -4 } : { scale: 1, y: 0 }} 
                             transition={{ type: "spring", stiffness: 400, damping: 25 }} 
                             className={cn(
-                              'w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500',
+                              'w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300',
                               isDragActive 
-                                ? 'bg-gradient-to-br from-teal-500 to-emerald-500 shadow-xl shadow-teal-500/40' 
-                                : 'bg-gradient-to-br from-slate-200/80 to-slate-300/80 group-hover:from-teal-100 group-hover:to-cyan-100'
+                                ? 'bg-accent text-white' 
+                                : 'bg-slate-200/60 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-500'
                             )}
                           >
-                            <UploadCloud className={cn(
-                              'w-8 h-8 transition-all duration-300',
-                              isDragActive ? 'text-white' : 'text-slate-400 group-hover:text-teal-600'
-                            )} />
+                            <UploadCloud className="w-7 h-7" />
                           </motion.div>
                           <div className="text-center">
                             <p className={cn(
-                              'font-semibold text-base transition-colors duration-300',
-                              isDragActive ? 'text-teal-600' : 'text-text-main group-hover:text-teal-700'
+                              'font-medium text-base transition-colors duration-200',
+                              isDragActive ? 'text-accent' : 'text-text-main/70 group-hover:text-text-main'
                             )}>
-                              {isDragActive ? 'Release to upload' : 'Drop your PDF or DOCX here'}
+                              {isDragActive ? 'Release to upload' : 'Drop your resume here'}
                             </p>
-                            <p className="text-sm text-text-main/50 mt-1.5">or click to browse files</p>
+                            <p className="text-sm text-text-main/40 mt-1">or click to browse</p>
                           </div>
                           {/* Supported formats hint */}
                           <div className="flex items-center gap-2 text-[11px] text-text-main/30 mt-1">
@@ -759,8 +655,8 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             {/* 2. Job Input Field */}
             <div className="space-y-3">
               <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
-                <Target className="w-4 h-4 text-teal-600" />
-                Target Opportunity
+                <LinkIcon className="w-4 h-4 text-accent" />
+                Job Posting URL
               </label>
               <div className="relative">
                 <input
@@ -771,7 +667,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                   className={cn(
                     'w-full h-14 px-5 bg-white border border-slate-200 rounded-xl text-base',
                     'placeholder:text-slate-400',
-                    'focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500',
+                    'focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent',
                     'transition-all duration-200 shadow-sm hover:border-slate-300',
                     errors.jobInput && 'border-destructive focus:ring-destructive/20'
                   )}
@@ -807,7 +703,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             {/* 3. Integrations Grid */}
             <div className="space-y-4">
               <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-teal-600" />
+                <Sparkles className="w-4 h-4 text-accent" />
                 Profile Integrations
               </label>
                
@@ -964,7 +860,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                   className={cn(
                     "w-full h-14 text-base font-semibold rounded-xl transition-all duration-300 group",
                     isReady 
-                      ? "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 hover:-translate-y-0.5 hover:from-teal-500 hover:to-emerald-500" 
+                      ? "bg-accent text-white shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:-translate-y-0.5 hover:bg-accent/90" 
                       : "bg-slate-100 text-slate-400 border border-slate-200 shadow-none cursor-not-allowed"
                   )}
                 >

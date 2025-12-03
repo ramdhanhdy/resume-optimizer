@@ -23,7 +23,8 @@ interface ProcessingScreenProps {
   githubToken?: string;
 }
 
-const TOTAL_DURATION = 12000; // 12 seconds estimate
+// Average time per step in seconds (used as fallback when no ETA from backend)
+const FALLBACK_STEP_DURATION_SEC = 45; // ~45 seconds per step = ~3-4 min total
 
 // Feature flag for streaming (set to true to use new streaming infrastructure)
 const USE_STREAMING = true;
@@ -38,6 +39,13 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
   // Simplified insight display - just track by ID
   const [insights, setInsights] = useState<Insight[]>([]);
   const seenInsightIds = React.useRef<Set<string>>(new Set());
+  
+  // Force re-render every second to update ETA display
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Reduced motion support
   const prefersReducedMotion = useReducedMotion();
@@ -262,14 +270,14 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       activityInterval = setInterval(() => {
         activityIndex = (activityIndex + 1) % PROCESSING_ACTIVITIES.length;
         setCurrentActivity(PROCESSING_ACTIVITIES[activityIndex]);
-      }, TOTAL_DURATION / PROCESSING_ACTIVITIES.length);
+      }, (FALLBACK_STEP_DURATION_SEC * 5 * 1000) / PROCESSING_ACTIVITIES.length);
 
       // Phase text cycling
       let phaseIndex = 0;
       phaseInterval = setInterval(() => {
           phaseIndex = (phaseIndex + 1) % PROCESSING_PHASES.length;
           setCurrentPhase(PROCESSING_PHASES[phaseIndex]);
-      }, TOTAL_DURATION / PROCESSING_PHASES.length);
+      }, (FALLBACK_STEP_DURATION_SEC * 5 * 1000) / PROCESSING_PHASES.length);
 
 
       // Insight card stacking
@@ -281,7 +289,7 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
         } else {
           clearInterval(insightInterval);
         }
-      }, TOTAL_DURATION / (MOCK_INSIGHTS.length + 1));
+      }, (FALLBACK_STEP_DURATION_SEC * 5 * 1000) / (MOCK_INSIGHTS.length + 1));
     }
 
     return () => {
@@ -564,7 +572,68 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
                   </h2>
                 </motion.div>
               </AnimatePresence>
-              <p className="text-text-main/60 text-sm">Estimated time remaining: {Math.max(0, Math.round((TOTAL_DURATION * (100 - progress)) / 100 / 1000))}s</p>
+              <p className="text-text-main/60 text-sm">
+                {(() => {
+                  // Calculate remaining time using actual timing data when available
+                  let remainingSec = 0;
+                  const now = Date.now();
+                  
+                  if (streamState?.steps) {
+                    // Calculate average step duration from completed steps
+                    const completedSteps = streamState.steps.filter(
+                      s => s.status === 'completed' && s.startedAt && s.completedAt
+                    );
+                    
+                    let avgStepDuration = FALLBACK_STEP_DURATION_SEC;
+                    if (completedSteps.length > 0) {
+                      const totalDuration = completedSteps.reduce((sum, s) => {
+                        return sum + ((s.completedAt! - s.startedAt!) / 1000);
+                      }, 0);
+                      avgStepDuration = totalDuration / completedSteps.length;
+                    }
+                    
+                    streamState.steps.forEach((step) => {
+                      if (step.status === 'in_progress') {
+                        const elapsedSec = step.startedAt ? (now - step.startedAt) / 1000 : 0;
+                        
+                        // Current step: use backend ETA if available
+                        if (step.eta_sec !== undefined) {
+                          // Backend ETA is already "remaining", just use it
+                          remainingSec += Math.max(0, step.eta_sec);
+                        } else if (step.progress > 5) {
+                          // Enough progress to extrapolate
+                          const progressFraction = step.progress / 100;
+                          const estimatedTotal = elapsedSec / progressFraction;
+                          remainingSec += Math.max(0, estimatedTotal - elapsedSec);
+                        } else {
+                          // Early in step: estimate total duration, subtract elapsed
+                          const estimatedStepTotal = avgStepDuration;
+                          remainingSec += Math.max(0, estimatedStepTotal - elapsedSec);
+                        }
+                      } else if (step.status === 'pending') {
+                        // Future steps: use learned average or fallback
+                        remainingSec += avgStepDuration;
+                      }
+                    });
+                  } else {
+                    // No stream state yet, estimate based on progress
+                    const remainingSteps = 5 - Math.floor(progress / 20);
+                    remainingSec = remainingSteps * FALLBACK_STEP_DURATION_SEC;
+                  }
+                  
+                  // Format as minutes:seconds or just seconds
+                  const totalSec = Math.max(0, Math.round(remainingSec));
+                  if (totalSec >= 60) {
+                    const mins = Math.floor(totalSec / 60);
+                    const secs = totalSec % 60;
+                    return `Estimated time remaining: ${mins}m ${secs}s`;
+                  } else if (totalSec > 0) {
+                    return `Estimated time remaining: ${totalSec}s`;
+                  } else {
+                    return 'Almost done...';
+                  }
+                })()}
+              </p>
             </div>
           </div>
 
