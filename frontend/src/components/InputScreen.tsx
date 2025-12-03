@@ -5,11 +5,11 @@
  * Uses React Hook Form, Zod validation, shadcn components, and full accessibility.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadIcon, CheckIcon, LinkedInIcon, GitHubIcon } from './icons';
+import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, Target, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import RecoveryBanner from './shared/RecoveryBanner';
@@ -23,6 +23,45 @@ import {
 } from '@/design-system/forms/schemas/input-screen-schema';
 import { slideUpVariants, fadeVariants, useReducedMotion } from '@/design-system/animations';
 import { cn } from '@/lib/utils';
+
+// 3D Tilt hook for holographic effect
+const use3DTilt = (ref: React.RefObject<HTMLElement>) => {
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isHovering, setIsHovering] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = element.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      setTilt({
+        x: (y - 0.5) * 20,
+        y: (x - 0.5) * -20,
+      });
+    };
+
+    const handleMouseEnter = () => setIsHovering(true);
+    const handleMouseLeave = () => {
+      setIsHovering(false);
+      setTilt({ x: 0, y: 0 });
+    };
+
+    element.addEventListener('mousemove', handleMouseMove);
+    element.addEventListener('mouseenter', handleMouseEnter);
+    element.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      element.removeEventListener('mousemove', handleMouseMove);
+      element.removeEventListener('mouseenter', handleMouseEnter);
+      element.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [ref]);
+
+  return { tilt, isHovering };
+};
 
 interface InputScreenProps {
   onStart: (data: {
@@ -44,12 +83,19 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const [resumeText, setResumeText] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDragActive, setIsDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropzoneRef = useRef<HTMLDivElement>(null);
+  const tiltRef = useRef<HTMLButtonElement>(null);
+  const { tilt, isHovering: isTiltHovering } = use3DTilt(tiltRef as React.RefObject<HTMLElement>);
 
   // UI state
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [recoverySession, setRecoverySession] = useState<RecoverySession | null>(null);
   const [isRetrying, setIsRetrying] = useState<boolean>(false);
+  const [activeIntegrations, setActiveIntegrations] = useState<{ linkedin: boolean; github: boolean }>({
+    linkedin: false,
+    github: false,
+  });
 
   // Job preview / safety state for job URLs
   const [jobPreviewStatus, setJobPreviewStatus] = useState<'idle' | 'loading' | 'ok' | 'blocked' | 'error'>('idle');
@@ -91,6 +137,17 @@ export default function InputScreen({ onStart }: InputScreenProps) {
           // Restore form data
           if (session.formData.jobPosting) {
             setValue('jobInput', session.formData.jobPosting);
+          }
+          
+          // Restore active integrations if data exists
+          const savedData = session.formData as any;
+          if (savedData.linkedinUrl) {
+             setValue('linkedinUrl', savedData.linkedinUrl);
+             setActiveIntegrations(prev => ({ ...prev, linkedin: true }));
+          }
+          if (savedData.githubUsername) {
+             setValue('githubUsername', savedData.githubUsername);
+             setActiveIntegrations(prev => ({ ...prev, github: true }));
           }
 
           // Restore file
@@ -159,6 +216,64 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set inactive if leaving the dropzone entirely
+    if (dropzoneRef.current && !dropzoneRef.current.contains(e.relatedTarget as Node)) {
+      setIsDragActive(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setFileError('');
+
+    const validation = validateResumeFile(file);
+    if (!validation.isValid) {
+      setFileError(validation.error || 'Invalid file');
+      setFileName('');
+      setResumeText('');
+      return;
+    }
+
+    setFileName(file.name);
+    setIsLoading(true);
+
+    try {
+      const { apiClient } = await import('../services/api');
+      const response = await apiClient.uploadResume(file);
+      setResumeText(response.text);
+      setFileError('');
+    } catch (error) {
+      console.error('Failed to upload resume:', error);
+      setFileError('Failed to upload resume. Please try again.');
+      setFileName('');
+      setResumeText('');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Job URL preview + safeguard
   useEffect(() => {
@@ -297,6 +412,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       setValue('linkedinUrl', '');
       setValue('githubUsername', '');
       setValue('githubToken', '');
+      setActiveIntegrations({ linkedin: false, github: false });
 
       console.log('Recovery session cleared');
     } catch (error) {
@@ -304,8 +420,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
     }
   };
 
-  // Keyboard shortcut: Ctrl/Cmd + V to focus job input (for pasting)
-  // Do NOT intercept when user is already typing in an input/textarea/contentEditable.
+  // Keyboard shortcut: Ctrl/Cmd + V to focus job input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
@@ -315,12 +430,10 @@ export default function InputScreen({ onStart }: InputScreenProps) {
           active.tagName === 'TEXTAREA' ||
           active.isContentEditable === true
         );
-        if (isTypingTarget) return; // allow normal paste into focused field
+        if (isTypingTarget) return; 
 
         const jobInput = document.getElementById('job-input') as HTMLElement | null;
         if (jobInput && active !== jobInput) {
-          // Focus job input and let default paste occur into it
-          // (do not preventDefault so paste proceeds to the newly focused element)
           jobInput.focus();
         }
       }
@@ -338,11 +451,20 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       initial={prefersReducedMotion ? undefined : "initial"}
       animate={prefersReducedMotion ? undefined : "animate"}
       exit={prefersReducedMotion ? undefined : "exit"}
-      className="min-h-screen flex items-center justify-center p-4 sm:p-8"
+      className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden bg-gradient-to-br from-[#FAF9F6] via-[#F5F3EE] to-[#EEF2F1]"
       role="main"
-      aria-label="Resume optimization form"
     >
-      <div className="w-full max-w-2xl">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 opacity-[0.02]" style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, #0d9488 1px, transparent 0)`,
+        backgroundSize: '40px 40px',
+      }} />
+
+      {/* Ambient gradient orbs */}
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-teal-200/20 via-teal-100/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-amber-100/15 via-orange-50/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-3xl relative z-10">
         {/* Recovery Banner */}
         <AnimatePresence>
           {recoverySession && (
@@ -356,290 +478,510 @@ export default function InputScreen({ onStart }: InputScreenProps) {
         </AnimatePresence>
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <motion.h1
-            variants={prefersReducedMotion ? undefined : fadeVariants}
-            initial={prefersReducedMotion ? undefined : "initial"}
-            animate={prefersReducedMotion ? undefined : "animate"}
-            className="text-4xl sm:text-5xl font-semibold text-foreground tracking-tight"
+        <div className="text-center mb-8 sm:mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           >
-            <span className="block">
-              Present Your <span className="text-primary">Best Self</span>
-            </span>
-            <span className="block text-2xl sm:text-3xl text-muted-foreground mt-1">
-              For <span className="text-primary">Any Opportunity</span>
-            </span>
-          </motion.h1>
-          <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto">
-            Upload your resume, paste the job posting, and let the agents tailor your story in minutes.
-          </p>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-50 border border-teal-200/60 text-teal-700 text-xs font-semibold uppercase tracking-wider mb-5 shadow-sm">
+              <Zap className="w-3.5 h-3.5" />
+              <span>AI-Powered Optimizer</span>
+            </div>
+             
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-text-main tracking-tight mb-5">
+              Present Your{' '}
+              <span className="relative inline-block">
+                <span className="relative z-10 bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+                  Best Self
+                </span>
+                <motion.span
+                  className="absolute -bottom-1 left-0 right-0 h-3 bg-gradient-to-r from-teal-200/60 via-teal-300/40 to-emerald-200/60 rounded-full -z-0"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.5, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </span>
+            </h1>
+            <p className="text-text-main/60 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
+              Upload your resume, connect your profiles, and let our agents tailor your story for any opportunity.
+            </p>
+          </motion.div>
         </div>
 
-        {/* Main Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* File Upload + Job Input Row */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-0">
-            {/* File Upload Button */}
-            <div className="sm:w-48 flex-shrink-0">
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileChange}
-                accept=".pdf,.docx,.doc,image/png,image/jpeg,image/jpg"
-                className="sr-only"
-                id="resume-file-input"
-                aria-describedby={fileError ? 'file-error' : 'file-helper'}
-                aria-invalid={!!fileError}
-              />
-              <Button
-                type="button"
-                onClick={handleUploadClick}
-                disabled={isLoading}
-                className={cn(
-                  'w-full h-12 sm:h-[48px] sm:rounded-r-none text-sm font-medium transition-colors duration-200 text-white',
-                  isLoading && 'cursor-wait',
-                  fileName && !fileError && 'bg-primary/90'
-                )}
-                aria-label={
-                  fileName
-                    ? `Resume uploaded: ${fileName}. Click to upload a different file.`
-                    : 'Upload resume file'
-                }
+        {/* Main Form Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] rounded-3xl p-6 sm:p-8 lg:p-10"
+        >
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            
+            {/* 1. Holographic 3D Resume Dropzone */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4 text-teal-600" />
+                Resume Source
+              </label>
+               
+              <div 
+                ref={dropzoneRef}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className="relative [perspective:1000px]"
               >
-                {isLoading ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: prefersReducedMotion ? 0 : 360 }}
-                      transition={{
-                        duration: prefersReducedMotion ? 0 : 1,
-                        repeat: prefersReducedMotion ? 0 : Infinity,
-                        ease: 'linear',
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.docx,.doc,image/png,image/jpeg,image/jpg"
+                  className="sr-only"
+                  id="resume-file-input"
+                />
+                
+                <button
+                  ref={tiltRef}
+                  type="button"
+                  onClick={handleUploadClick}
+                  disabled={isLoading}
+                  style={{
+                    transform: !fileName && !isLoading && !prefersReducedMotion
+                      ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`
+                      : 'none',
+                    transition: isTiltHovering ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out',
+                  }}
+                  className={cn(
+                    'relative w-full min-h-[200px] rounded-2xl overflow-hidden',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2',
+                    isLoading && 'cursor-wait',
+                    !fileName && 'group'
+                  )}
+                >
+                  {/* Holographic gradient background */}
+                  <div className={cn(
+                    'absolute inset-0 transition-all duration-700',
+                    fileName 
+                      ? 'bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50'
+                      : isDragActive
+                        ? 'bg-gradient-to-br from-teal-400/20 via-cyan-300/20 to-emerald-400/20'
+                        : 'bg-gradient-to-br from-slate-100 via-slate-50 to-white'
+                  )} />
+
+                  {/* Animated holographic shimmer - only when empty */}
+                  {!fileName && !isLoading && (
+                    <div 
+                      className={cn(
+                        'absolute inset-0 opacity-0 transition-opacity duration-300',
+                        (isTiltHovering || isDragActive) && 'opacity-100'
+                      )}
+                      style={{
+                        background: `linear-gradient(
+                          ${105 + tilt.y * 2}deg,
+                          transparent 20%,
+                          rgba(20, 184, 166, 0.08) 35%,
+                          rgba(6, 182, 212, 0.12) 50%,
+                          rgba(16, 185, 129, 0.08) 65%,
+                          transparent 80%
+                        )`,
                       }}
-                      className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full"
-                      aria-hidden="true"
                     />
-                    <span>Processing...</span>
-                  </>
-                ) : fileName ? (
-                  <>
-                    <CheckIcon className="w-4 h-4 mr-2" aria-hidden="true" />
-                    <span className="truncate">{fileName}</span>
-                  </>
-                ) : (
-                  <>
-                    <UploadIcon className="w-4 h-4 mr-2" aria-hidden="true" />
-                    <span>Upload Resume</span>
-                  </>
-                )}
-              </Button>
-            </div>
+                  )}
 
-            {/* Job Input Field */}
-            <div className="flex-1">
-              <input
-                {...register('jobInput')}
-                type="text"
-                id="job-input"
-                placeholder="Paste Job Posting URL or Text..."
-                className={cn(
-                  'w-full h-12 sm:h-[48px] px-4 bg-background border-2 border-primary rounded-lg sm:rounded-l-none text-sm',
-                  'placeholder:text-muted-foreground',
-                  'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
-                  'transition-all duration-200 shadow-sm hover:shadow-md',
-                  errors.jobInput &&
-                    'border-destructive focus:ring-destructive'
-                )}
-                aria-label="Job posting URL or text"
-                aria-invalid={!!errors.jobInput}
-                aria-describedby={errors.jobInput ? 'job-input-error' : undefined}
-              />
-            </div>
-          </div>
+                  {/* Rainbow edge glow on hover */}
+                  {!fileName && !isLoading && (
+                    <div 
+                      className={cn(
+                        'absolute inset-0 rounded-2xl transition-opacity duration-300',
+                        (isTiltHovering || isDragActive) ? 'opacity-100' : 'opacity-0'
+                      )}
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(20,184,166,0.3), rgba(6,182,212,0.3), rgba(16,185,129,0.3))',
+                        padding: '2px',
+                        WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                        WebkitMaskComposite: 'xor',
+                        maskComposite: 'exclude',
+                      }}
+                    />
+                  )}
+                  
+                  {/* Border */}
+                  <div className={cn(
+                    'absolute inset-0 rounded-2xl transition-all duration-300 pointer-events-none',
+                    fileName
+                      ? 'border-2 border-teal-400/50'
+                      : isDragActive
+                        ? 'border-2 border-teal-500'
+                        : 'border-2 border-slate-200 group-hover:border-teal-300/60'
+                  )} />
 
-          {/* Job URL preview status */}
-          {jobPreviewStatus !== 'idle' && (
-            <div
-              className={cn(
-                'mt-2 text-xs text-center',
-                jobPreviewStatus === 'loading' && 'text-muted-foreground',
-                jobPreviewStatus === 'ok' && 'text-emerald-600',
-                jobPreviewStatus === 'blocked' && 'text-destructive',
-                jobPreviewStatus === 'error' && 'text-amber-600',
-              )}
-              aria-live="polite"
-            >
-              {jobPreviewMessage}
-            </div>
-          )}
+                  {/* Scanning line effect on drag */}
+                  {isDragActive && !fileName && (
+                    <motion.div
+                      className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-teal-400 to-transparent"
+                      initial={{ top: 0, opacity: 0 }}
+                      animate={{ 
+                        top: ['0%', '100%', '0%'],
+                        opacity: [0, 1, 0]
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: 'easeInOut'
+                      }}
+                    />
+                  )}
 
-          {/* File Error */}
-          {fileError && (
-            <div
-              id="file-error"
-              className="text-sm text-destructive font-medium flex items-center justify-center gap-2"
-              role="alert"
-              aria-live="polite"
-            >
-              <span className="flex-shrink-0">⚠️</span>
-              <span>{fileError}</span>
-            </div>
-          )}
-
-
-
-          {/* Helper Text */}
-          {!fileError && (
-            <p id="file-helper" className="text-xs text-muted-foreground text-center">
-              PDF or DOCX • We'll analyze it against the job description
-            </p>
-          )}
-
-          {/* Optional Enhancements Toggle */}
-          <div className="text-center">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-sm font-medium text-primary hover:bg-primary/10 hover:text-primary/90"
-              aria-expanded={showAdvanced}
-              aria-controls="advanced-options"
-              aria-label={
-                showAdvanced
-                  ? 'Hide optional enhancements'
-                  : 'Show optional enhancements'
-              }
-            >
-              <span className="mr-2">{showAdvanced ? '−' : '+'}</span>
-              <span>Optional Enhancements</span>
-            </Button>
-          </div>
-
-          {/* Expandable Optional Enhancements */}
-          <AnimatePresence>
-            {showAdvanced && (
-              <motion.div
-                id="advanced-options"
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                transition={{
-                  duration: prefersReducedMotion ? 0 : 0.3,
-                  ease: [0.4, 0.0, 0.2, 1],
-                }}
-                className="overflow-hidden"
-                role="region"
-                aria-label="Optional enhancement fields"
-              >
-                <div className="bg-gradient-to-br from-muted/30 to-background rounded-xl border border-border shadow-lg p-6 sm:p-8 space-y-6">
-                  {/* LinkedIn Input */}
-                  <FormField
-                    {...register('linkedinUrl')}
-                    type="url"
-                    label="LinkedIn Profile"
-                    placeholder="https://linkedin.com/in/yourname"
-                    icon={<LinkedInIcon className="w-5 h-5 text-primary" />}
-                    error={errors.linkedinUrl?.message}
-                    helperText="Build a rich profile index for enhanced personalization across applications"
-                    errorAlign="center"
-                    helperAlign="center"
-                    containerClassName="group"
-                  />
-
-                  {/* Divider */}
-                  <div className="border-t border-border" role="separator" />
-
-                  {/* GitHub Username */}
-                  <FormField
-                    {...register('githubUsername')}
-                    type="text"
-                    label="GitHub Username"
-                    placeholder="yourusername"
-                    icon={
-                      <GitHubIcon className="w-5 h-5 text-muted-foreground" />
-                    }
-                    error={errors.githubUsername?.message}
-                    helperText="Showcase your open-source contributions and technical projects"
-                    errorAlign="center"
-                    helperAlign="center"
-                    containerClassName="group"
-                  />
-
-                  {/* GitHub Token - only show if username is entered */}
-                  <AnimatePresence>
-                    {githubUsername && githubUsername.trim() !== '' && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{
-                          duration: prefersReducedMotion ? 0 : 0.2,
-                        }}
-                        className="pt-3 border-t border-border/30"
-                      >
-                        <FormField
-                          {...register('githubToken')}
-                          type="password"
-                          label="GitHub Token"
-                          placeholder="ghp_••••••••••••••••••••"
-                          error={errors.githubToken?.message}
-                          errorAlign="center"
-                          helperText={
-                            <span>
-                              <a
-                                href="https://github.com/settings/tokens"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                              >
-                                Create token
-                              </a>{' '}
-                              • Only stored for this session • Required scopes:{' '}
-                              <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                                public_repo
-                              </code>{' '}
-                              or{' '}
-                              <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                                repo
-                              </code>
-                            </span>
-                          }
-                          helperAlign="center"
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Submit Button */}
-          <div className="flex justify-center pt-4">
-            <AnimatePresence mode="wait">
-              {isReady && !isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  {/* Content */}
+                  <div className="relative z-10 flex flex-col items-center justify-center min-h-[200px] p-8">
+                    <AnimatePresence mode="wait">
+                      {isLoading ? (
+                        <motion.div 
+                          key="loading" 
+                          initial={{ opacity: 0, y: 10 }} 
+                          animate={{ opacity: 1, y: 0 }} 
+                          exit={{ opacity: 0, y: -10 }} 
+                          className="flex flex-col items-center gap-5"
+                        >
+                          <div className="relative">
+                            <motion.div 
+                              animate={{ rotate: 360 }} 
+                              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }} 
+                              className="w-16 h-16 rounded-full border-[3px] border-teal-100 border-t-teal-500" 
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <FileText className="w-6 h-6 text-teal-600" />
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-semibold text-text-main">Processing Document...</p>
+                            <p className="text-sm text-text-main/50 mt-1">Extracting content</p>
+                          </div>
+                        </motion.div>
+                      ) : fileName ? (
+                        <motion.div 
+                          key="success" 
+                          initial={{ opacity: 0, scale: 0.9 }} 
+                          animate={{ opacity: 1, scale: 1 }} 
+                          exit={{ opacity: 0, scale: 0.9 }} 
+                          className="flex flex-col items-center gap-4"
+                        >
+                          <motion.div 
+                            initial={{ scale: 0, rotate: -180 }} 
+                            animate={{ scale: 1, rotate: 0 }} 
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }} 
+                            className="relative"
+                          >
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center shadow-xl shadow-teal-500/30">
+                              <Check className="w-8 h-8 text-white" strokeWidth={2.5} />
+                            </div>
+                            <motion.div
+                              className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-teal-400/40 to-emerald-400/40 -z-10"
+                              animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                            />
+                          </motion.div>
+                          <div className="text-center">
+                            <p className="font-bold text-lg text-text-main">{fileName}</p>
+                            <p className="text-sm text-teal-600 font-medium mt-1.5 flex items-center gap-1.5 justify-center">
+                              <Sparkles className="w-4 h-4" />
+                              Ready for optimization
+                            </p>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={(e) => { e.stopPropagation(); setFileName(''); setResumeText(''); }} 
+                            className="text-xs text-text-main/40 hover:text-destructive transition-colors flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full hover:bg-destructive/5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Remove file
+                          </button>
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          key="empty" 
+                          initial={{ opacity: 0 }} 
+                          animate={{ opacity: 1 }} 
+                          exit={{ opacity: 0 }} 
+                          className="flex flex-col items-center gap-5"
+                        >
+                          <motion.div 
+                            animate={isDragActive ? { scale: 1.15, y: -8 } : { scale: 1, y: 0 }} 
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }} 
+                            className={cn(
+                              'w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500',
+                              isDragActive 
+                                ? 'bg-gradient-to-br from-teal-500 to-emerald-500 shadow-xl shadow-teal-500/40' 
+                                : 'bg-gradient-to-br from-slate-200/80 to-slate-300/80 group-hover:from-teal-100 group-hover:to-cyan-100'
+                            )}
+                          >
+                            <UploadCloud className={cn(
+                              'w-8 h-8 transition-all duration-300',
+                              isDragActive ? 'text-white' : 'text-slate-400 group-hover:text-teal-600'
+                            )} />
+                          </motion.div>
+                          <div className="text-center">
+                            <p className={cn(
+                              'font-semibold text-base transition-colors duration-300',
+                              isDragActive ? 'text-teal-600' : 'text-text-main group-hover:text-teal-700'
+                            )}>
+                              {isDragActive ? 'Release to upload' : 'Drop your PDF or DOCX here'}
+                            </p>
+                            <p className="text-sm text-text-main/50 mt-1.5">or click to browse files</p>
+                          </div>
+                          {/* Supported formats hint */}
+                          <div className="flex items-center gap-2 text-[11px] text-text-main/30 mt-1">
+                            <span className="px-2 py-0.5 rounded bg-slate-100">PDF</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100">DOCX</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100">DOC</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100">Images</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </button>
+              </div>
+              {fileError && (
+                <motion.p 
+                  initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{
-                    duration: prefersReducedMotion ? 0 : 0.2,
+                  className="text-sm text-destructive font-medium flex items-center gap-2"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                  {fileError}
+                </motion.p>
+              )}
+            </div>
+
+            {/* 2. Job Input Field */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
+                <Target className="w-4 h-4 text-teal-600" />
+                Target Opportunity
+              </label>
+              <div className="relative">
+                <input
+                  {...register('jobInput')}
+                  type="text"
+                  id="job-input"
+                  placeholder="Paste LinkedIn Job URL or Job Description..."
+                  className={cn(
+                    'w-full h-14 px-5 bg-white border border-slate-200 rounded-xl text-base',
+                    'placeholder:text-slate-400',
+                    'focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500',
+                    'transition-all duration-200 shadow-sm hover:border-slate-300',
+                    errors.jobInput && 'border-destructive focus:ring-destructive/20'
+                  )}
+                />
+              </div>
+              {/* Validation error */}
+              {errors.jobInput && (
+                <p className="text-xs text-destructive font-medium pl-1">
+                  {errors.jobInput.message}
+                </p>
+              )}
+              {/* Job Preview Status */}
+              <AnimatePresence>
+                {jobPreviewStatus !== 'idle' && !errors.jobInput && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={cn(
+                      'text-xs font-medium pl-1',
+                      jobPreviewStatus === 'ok' && 'text-emerald-600',
+                      jobPreviewStatus === 'error' && 'text-amber-600',
+                      jobPreviewStatus === 'blocked' && 'text-destructive',
+                      jobPreviewStatus === 'loading' && 'text-slate-500'
+                    )}
+                  >
+                    {jobPreviewMessage}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 3. Integrations Grid */}
+            <div className="space-y-4">
+              <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-teal-600" />
+                Profile Integrations
+              </label>
+               
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* LinkedIn Card */}
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className={cn(
+                    'border rounded-xl p-4 transition-all duration-200 cursor-pointer',
+                    activeIntegrations.linkedin 
+                      ? 'bg-sky-50/80 border-sky-200 ring-1 ring-sky-200/50' 
+                      : 'bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/30'
+                  )}
+                  onClick={() => {
+                    if (!activeIntegrations.linkedin) setActiveIntegrations(p => ({...p, linkedin: true}));
                   }}
                 >
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="bg-accent text-white hover:bg-accent/90 px-8"
-                    aria-label="Continue to resume optimization"
-                  >
-                    Continue
-                  </Button>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0077b5] to-[#0066a0] text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+                      <Linkedin className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-text-main">LinkedIn</p>
+                      <p className="text-[10px] text-text-main/50">Professional History</p>
+                    </div>
+                    {activeIntegrations.linkedin && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveIntegrations(p => ({...p, linkedin: false}));
+                          setValue('linkedinUrl', '');
+                        }}
+                        className="w-6 h-6 rounded-full bg-slate-100 hover:bg-destructive/10 text-slate-400 hover:text-destructive flex items-center justify-center transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                   
+                  {activeIntegrations.linkedin ? (
+                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
+                      <input 
+                        {...register('linkedinUrl')}
+                        type="url" 
+                        placeholder="https://linkedin.com/in/yourprofile" 
+                        className={cn(
+                          "w-full bg-white text-sm px-3 py-2.5 rounded-lg border focus:ring-1 focus:outline-none transition-all",
+                          errors.linkedinUrl ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-slate-200 focus:border-sky-400 focus:ring-sky-400/20"
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      {errors.linkedinUrl && (
+                        <p className="text-[10px] text-destructive">{errors.linkedinUrl.message}</p>
+                      )}
+                    </motion.div>
+                  ) : (
+                    <p className="text-xs text-text-main/40 pl-1">Connect to analyze work history & skills</p>
+                  )}
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </form>
 
+                {/* GitHub Card */}
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className={cn(
+                    'border rounded-xl p-4 transition-all duration-200 cursor-pointer',
+                    activeIntegrations.github 
+                      ? 'bg-slate-50/80 border-slate-300 ring-1 ring-slate-300/50' 
+                      : 'bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50/30'
+                  )}
+                  onClick={() => {
+                    if (!activeIntegrations.github) setActiveIntegrations(p => ({...p, github: true}));
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#24292e] to-[#1a1e22] text-white flex items-center justify-center shadow-md shadow-slate-500/20">
+                      <Github className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-text-main">GitHub</p>
+                      <p className="text-[10px] text-text-main/50">Code Quality</p>
+                    </div>
+                    {activeIntegrations.github && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveIntegrations(p => ({...p, github: false}));
+                          setValue('githubUsername', '');
+                          setValue('githubToken', '');
+                        }}
+                        className="w-6 h-6 rounded-full bg-slate-100 hover:bg-destructive/10 text-slate-400 hover:text-destructive flex items-center justify-center transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                   
+                  {activeIntegrations.github ? (
+                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+                      <div>
+                        <input 
+                          {...register('githubUsername')}
+                          type="text" 
+                          placeholder="Username" 
+                          className={cn(
+                            "w-full bg-white text-sm px-3 py-2.5 rounded-lg border focus:ring-1 focus:outline-none transition-all",
+                            errors.githubUsername ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-slate-200 focus:border-slate-400 focus:ring-slate-400/20"
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                        {errors.githubUsername && (
+                          <p className="text-[10px] text-destructive mt-1">{errors.githubUsername.message}</p>
+                        )}
+                      </div>
+                      <div>
+                        <input 
+                          {...register('githubToken')}
+                          type="password" 
+                          placeholder="Token (Optional)" 
+                          className={cn(
+                            "w-full bg-white text-xs px-3 py-2 rounded-lg border focus:ring-1 focus:outline-none transition-all",
+                            errors.githubToken ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-slate-200 focus:border-slate-400 focus:ring-slate-400/20"
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        {errors.githubToken && (
+                          <p className="text-[10px] text-destructive mt-1">{errors.githubToken.message}</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <p className="text-xs text-text-main/40 pl-1">Analyze repos & technical stack</p>
+                  )}
+                </motion.div>
+              </div>
+            </div>
 
+            {/* Submit Action */}
+            <div className="pt-6">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={!isReady || isLoading}
+                  className={cn(
+                    "w-full h-14 text-base font-semibold rounded-xl transition-all duration-300 group",
+                    isReady 
+                      ? "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 hover:-translate-y-0.5 hover:from-teal-500 hover:to-emerald-500" 
+                      : "bg-slate-100 text-slate-400 border border-slate-200 shadow-none cursor-not-allowed"
+                  )}
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    {isLoading ? 'Analyzing...' : 'Initialize Optimization Agent'}
+                    {isReady && !isLoading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+                  </span>
+                </Button>
+              </motion.div>
+              
+              <p className="text-center text-xs text-text-main/40 mt-5">
+                By continuing, you agree to our secure data processing terms.
+              </p>
+            </div>
+
+          </form>
+        </motion.div>
       </div>
     </motion.div>
   );

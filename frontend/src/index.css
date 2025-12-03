@@ -1,98 +1,118 @@
 @import "tailwindcss";
 
 @theme {
-  /* Existing custom colors */
-  --color-primary: #0274BD;
-  --color-soft-neutral: #E9E6DD;
-  --color-dark-neutral: #C4AD9D;
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Keep existing custom colors if needed, but mapped to HSL or hex directly */
   --color-text-main: #1c1c1e;
-  --color-accent: #F57251;
   --color-background-main: #FAFAF9;
   --color-surface-light: #FFFFFF;
-  --color-surface-dark: #F5F5F5;
   --color-border-subtle: #E5E5E5;
-  --color-warning: #FF9500;
-
-  /* shadcn/ui theme variables */
-  --background: 0 0% 100%;
-  --foreground: 0 0% 11%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 11%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 11%;
-
-  --primary: 199 97% 42%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 0 0% 96%;
-  --secondary-foreground: 0 0% 11%;
-
-  --muted: 0 0% 96%;
-  --muted-foreground: 0 0% 45%;
-
-  --accent: 14 100% 64%;
-  --accent-foreground: 0 0% 11%;
-
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-
-  --border: 0 0% 95%;
-  --input: 0 0% 95%;
-  --ring: 199 97% 37%;
-
-  --radius: 0.5rem;
-
-  /* Status colors for badges and indicators */
-  --token-bg-success: #D1FAE5;
-  --token-text-success: #065F46;
-  --token-border-success: #6EE7B7;
-  
-  --token-bg-warning: #FEF3C7;
-  --token-text-warning: #92400E;
-  --token-border-warning: #FCD34D;
-  
-  --token-bg-danger: #FEE2E2;
-  --token-text-danger: #991B1B;
-  --token-border-danger: #FCA5A5;
-  
-  --token-bg-info: #DBEAFE;
-  --token-text-info: #1E40AF;
-  --token-border-info: #93C5FD;
-
-  /* Semantic color variations */
-  --token-semantic-info-bg: #DBEAFE;
-  --token-semantic-info-border: #60A5FA;
-  --token-semantic-info-text: #1E3A8A;
-  --token-semantic-info-icon: #2563EB;
-  
-  --token-semantic-warning-bg: #FEF3C7;
-  --token-semantic-warning-border: #FBBF24;
-  --token-semantic-warning-text: #78350F;
-  --token-semantic-warning-icon: #D97706;
-
-  /* Existing custom tokens */
-  --radius-lg: 8px;
-  --shadow-subtle: 0 1px 3px rgba(0,0,0,0.08);
-  --ease-swift: cubic-bezier(0.4, 0.0, 0.2, 1);
-  --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
 }
 
 @layer base {
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 220 20% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+    --primary: 168 70% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 220 15% 30%;
+    --muted: 40 15% 96%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 168 70% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 15% 88%;
+    --input: 40 20% 96%;
+    --ring: 168 70% 42%;
+    --radius: 0.875rem;
+    
+    --chart-1: 168 60% 50%;
+    --chart-2: 200 65% 55%;
+    --chart-3: 40 60% 60%;
+    --chart-4: 168 40% 40%;
+    --chart-5: 220 30% 40%;
   }
-  
-  html, body, #root {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
+
+  .dark {
+    --background: 219 30% 15%;
+    --foreground: 0 0% 90%;
+    --card: 223 21% 21%;
+    --card-foreground: 0 0% 90%;
+    --popover: 224 19% 18%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 13 75% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 223 19% 20%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 223 19% 20%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 224 34% 25%;
+    --accent-foreground: 217 91% 87%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 16% 28%;
+    --input: 224 16% 28%;
+    --ring: 13 75% 55%;
+    
+    --chart-1: 210 35% 65%;
+    --chart-2: 13 65% 73%;
+    --chart-3: 213 30% 50%;
+    --chart-4: 217 35% 43%;
+    --chart-5: 221 43% 35%;
   }
 }
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+}
+

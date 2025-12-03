@@ -9,6 +9,8 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import ExportModal from './ExportModal';
+import { FileText, Briefcase, Settings, CheckCircle, RotateCcw, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface RevealScreenProps {
   onRestart: () => void;
@@ -86,49 +88,37 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
     {
       id: 'preview' as TabType,
       label: 'Resume Preview',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
+      icon: <FileText className="w-4 h-4" />,
       available: !!reports?.optimized_resume_text,
-      badge: displayScores.overall_score
     },
     {
       id: 'job' as TabType,
       label: 'Job Analysis',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
+      icon: <Briefcase className="w-4 h-4" />,
       available: !!reports?.job_analysis,
-      badge: displayScores.requirements_match
     },
     {
       id: 'optimization' as TabType,
       label: 'Optimization Report',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      ),
+      icon: <Settings className="w-4 h-4" />,
       available: !!reports?.optimization_strategy,
-      badge: displayScores.ats_optimization
     }
   ];
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background-main flex items-center justify-center">
-        <div className="text-center" role="status" aria-live="polite" aria-label="Loading reports">
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+         {/* Ambient Background */}
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
+         
+        <div className="text-center relative z-10" role="status" aria-live="polite" aria-label="Loading reports">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full mx-auto mb-4"
             aria-hidden="true"
           />
-          <p className="text-text-main">Loading reports...</p>
+          <p className="text-text-main font-medium">Finalizing results...</p>
         </div>
       </div>
     );
@@ -136,18 +126,17 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
 
   if (error || !reports) {
     return (
-      <div className="min-h-screen bg-background-main flex items-center justify-center p-4">
-        <div className="bg-surface-light rounded-lg shadow-lg p-8 max-w-md w-full text-center" role="alert" aria-live="assertive">
-          <svg className="w-16 h-16 text-destructive mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-surface-light/50 backdrop-blur-xl border border-border shadow-2xl rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+             <RotateCcw className="w-8 h-8 text-destructive" />
+          </div>
           <h2 className="text-xl font-bold text-text-main mb-2">Failed to Load Reports</h2>
-          <p className="text-text-muted mb-6">{error}</p>
+          <p className="text-text-main/60 mb-6">{error}</p>
           <div className="space-y-2">
             <Button
               onClick={fetchReports}
-              className="w-full"
-              aria-label="Try loading reports again"
+              className="w-full bg-accent hover:bg-accent/90 text-white"
             >
               Try Again
             </Button>
@@ -155,7 +144,6 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
               onClick={onRestart}
               variant="outline"
               className="w-full"
-              aria-label="Start a new resume optimization"
             >
               Start New Application
             </Button>
@@ -166,100 +154,150 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background-main">
-      <Tabs defaultValue="preview" value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)}>
-        {/* Tab navigation - at top like ProcessingScreen phases */}
-        <div className="pt-8 sm:pt-12 px-4 sm:px-12">
-          <div className="max-w-6xl mx-auto">
-            {/* Header with restart button */}
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-text-main tracking-tight">
-                Analysis Complete
-              </h1>
-              <Button
-                onClick={onRestart}
-                variant="link"
-                className="text-sm font-medium text-primary hover:text-primary/80"
-                aria-label="Start a new resume optimization"
-              >
-                Start New →
-              </Button>
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
+       {/* Ambient Background */}
+       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-accent/5 rounded-full blur-[120px] pointer-events-none -z-10" />
+
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 py-8">
+          
+          {/* Top HUD: Score & Actions */}
+          <div className="grid md:grid-cols-[1fr_auto] gap-8 items-start mb-12">
+             {/* Left: Score Hero */}
+             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10">
+                {/* Radial Score */}
+                <div className="relative w-32 h-32 sm:w-40 sm:h-40 flex-shrink-0">
+                   <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="45" className="stroke-border-subtle fill-none" strokeWidth="8" />
+                      <motion.circle
+                         cx="50" cy="50" r="45"
+                         className="stroke-accent fill-none"
+                         strokeWidth="8"
+                         strokeLinecap="round"
+                         initial={{ pathLength: 0 }}
+                         animate={{ pathLength: displayScores.overall_score / 100 }}
+                         transition={{ duration: 1.5, ease: "easeOut" }}
+                         strokeDasharray="1 1"
+                      />
+                   </svg>
+                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-3xl sm:text-4xl font-bold text-text-main tracking-tighter">
+                         {Math.round(displayScores.overall_score)}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-widest text-text-main/50 font-semibold">Score</span>
+                   </div>
+                </div>
+
+                {/* Metrics Grid */}
+                <div className="flex-1 w-full sm:w-auto">
+                   <h1 className="text-3xl font-bold text-text-main tracking-tight mb-2 text-center sm:text-left">
+                      Analysis Complete
+                   </h1>
+                   <p className="text-text-main/60 mb-6 text-center sm:text-left">
+                      Your resume has been optimized and tailored for the target role.
+                   </p>
+                   
+                   <div className="grid grid-cols-3 gap-3 sm:gap-6">
+                      <MetricCard label="Match" score={displayScores.requirements_match} />
+                      <MetricCard label="ATS" score={displayScores.ats_optimization} />
+                      <MetricCard label="Culture" score={displayScores.cultural_fit} />
+                   </div>
+                </div>
+             </div>
+
+             {/* Right: Actions */}
+             <div className="flex flex-col gap-3 w-full sm:w-auto">
+                <Button 
+                   onClick={() => setExportModalOpen(true)}
+                   className="w-full sm:w-48 bg-accent text-white hover:bg-accent/90 shadow-lg shadow-accent/20"
+                >
+                   Export Result
+                </Button>
+                <Button 
+                   onClick={onRestart}
+                   variant="ghost"
+                   className="w-full sm:w-48 text-text-main/60 hover:text-text-main"
+                >
+                   Start New <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+             </div>
+          </div>
+
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="preview" value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)} className="space-y-6">
+            <div className="flex justify-center md:justify-start">
+               <TabsList className="
+                  bg-surface-light/50 backdrop-blur-md border border-white/20 p-1 
+                  rounded-full shadow-sm inline-flex
+               ">
+                 {tabs.map((tab) => (
+                   <TabsTrigger
+                     key={tab.id}
+                     value={tab.id}
+                     disabled={!tab.available}
+                     className="
+                        rounded-full px-6 py-2.5 text-sm font-medium transition-all
+                        data-[state=active]:bg-white data-[state=active]:text-accent data-[state=active]:shadow-sm
+                        data-[state=inactive]:text-text-main/60 hover:text-text-main
+                        flex items-center gap-2
+                     "
+                   >
+                     {tab.icon}
+                     {tab.label}
+                   </TabsTrigger>
+                 ))}
+               </TabsList>
             </div>
 
-            {/* Tabs */}
-            <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-auto sm:h-9 bg-transparent gap-1 sm:gap-2 p-0">
-              {tabs.map((tab) => (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  disabled={!tab.available}
-                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 sm:py-3 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 border data-[state=active]:bg-surface-light data-[state=active]:border-border-subtle data-[state=active]:shadow-subtle data-[state=active]:text-text-main data-[state=inactive]:bg-transparent data-[state=inactive]:border-transparent data-[state=inactive]:text-text-main/60 hover:text-text-main hover:bg-surface-light/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-label={`${tab.label} tab`}
-                >
-                  <span className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true">
-                    {tab.icon}
-                  </span>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  {tab.badge !== undefined && (
-                    <span className={`
-                      px-1.5 sm:px-2 py-0.5 rounded text-xs font-semibold
-                      ${tab.badge >= 80 ? 'bg-accent text-white' :
-                        tab.badge >= 60 ? 'bg-primary text-white' :
-                        'bg-warning text-white'}
-                    `}>
-                      {tab.badge}%
-                    </span>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-        </div>
+            <div className="
+               bg-surface-light/40 backdrop-blur-xl
+               border border-white/20 shadow-2xl shadow-black/5
+               rounded-3xl p-1 min-h-[600px]
+            ">
+               <div className="bg-white/50 rounded-[20px] w-full h-full p-6 sm:p-8 overflow-hidden">
+                  <TabsContent value="preview" className="mt-0 focus-visible:outline-none h-full">
+                    {reports.optimized_resume_text && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="h-full"
+                      >
+                        <ResumePreviewTab
+                          resumeText={reports.optimized_resume_text}
+                          applicationId={applicationId}
+                        />
+                      </motion.div>
+                    )}
+                  </TabsContent>
 
-        {/* Tab content */}
-        <div className="flex-1 px-4 sm:px-12 py-6 sm:py-8">
-          <div className="max-w-6xl mx-auto">
-            <TabsContent value="preview" aria-label="Resume preview content" className="mt-0">
-              {reports.optimized_resume_text && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
-                >
-                  <ResumePreviewTab
-                    resumeText={reports.optimized_resume_text}
-                    applicationId={applicationId}
-                  />
-                </motion.div>
-              )}
-            </TabsContent>
+                  <TabsContent value="job" className="mt-0 focus-visible:outline-none">
+                    {reports.job_analysis && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <JobAnalysisTab jobAnalysis={reports.job_analysis} />
+                      </motion.div>
+                    )}
+                  </TabsContent>
 
-            <TabsContent value="job" aria-label="Job analysis content" className="mt-0">
-              {reports.job_analysis && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
-                >
-                  <JobAnalysisTab jobAnalysis={reports.job_analysis} />
-                </motion.div>
-              )}
-            </TabsContent>
+                  <TabsContent value="optimization" className="mt-0 focus-visible:outline-none">
+                    {reports.optimization_strategy && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <OptimizationReportTab optimizationStrategy={reports.optimization_strategy} />
+                      </motion.div>
+                    )}
+                  </TabsContent>
+               </div>
+            </div>
+          </Tabs>
 
-            <TabsContent value="optimization" aria-label="Optimization report content" className="mt-0">
-              {reports.optimization_strategy && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0.0, 0.2, 1] }}
-                >
-                  <OptimizationReportTab optimizationStrategy={reports.optimization_strategy} />
-                </motion.div>
-              )}
-            </TabsContent>
-          </div>
-        </div>
-      </Tabs>
+      </div>
 
       {/* Export Modal */}
       <ExportModal
@@ -270,6 +308,25 @@ const RevealScreen: React.FC<RevealScreenProps> = ({ onRestart, applicationId, s
       />
     </div>
   );
+};
+
+// Helper Component for Metrics
+const MetricCard = ({ label, score }: { label: string; score: number }) => {
+   // Color coding based on score
+   const getColor = (s: number) => {
+      if (s >= 80) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
+      if (s >= 60) return 'text-amber-600 bg-amber-50 border-amber-100';
+      return 'text-rose-600 bg-rose-50 border-rose-100';
+   };
+
+   const colorClass = getColor(score);
+
+   return (
+      <div className={cn("flex flex-col items-center justify-center p-3 rounded-xl border", colorClass)}>
+         <span className="text-2xl font-bold tracking-tight">{Math.round(score)}%</span>
+         <span className="text-[10px] uppercase tracking-wider font-semibold opacity-80">{label}</span>
+      </div>
+   );
 };
 
 export default RevealScreen;

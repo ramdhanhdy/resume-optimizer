@@ -48,6 +48,60 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
     console.log('⏹️ Processing cancellation requested (not yet implemented)');
   });
 
+  // Boot sequence to prevent empty feed (Cold Start Fix)
+  useEffect(() => {
+    const bootMessages: { text: string; category: string; delay: number }[] = [
+      { text: "Initializing resume analysis engine...", category: "System", delay: 500 },
+    ];
+
+    let currentDelay = 1500;
+
+    // Add LinkedIn specific messages if URL provided
+    if (linkedinUrl) {
+      bootMessages.push({ text: "Accessing LinkedIn profile data...", category: "Profile", delay: currentDelay });
+      currentDelay += 1200;
+      bootMessages.push({ text: "Extracting professional history and skills graph...", category: "Profile", delay: currentDelay });
+      currentDelay += 1200;
+    }
+
+    // Add GitHub specific messages if username provided
+    if (githubUsername) {
+      bootMessages.push({ text: `Scanning GitHub repositories for ${githubUsername}...`, category: "Code", delay: currentDelay });
+      currentDelay += 1200;
+      bootMessages.push({ text: "Analyzing code quality and technical stack...", category: "Code", delay: currentDelay });
+      currentDelay += 1200;
+    }
+
+    // If no external profiles, focus on document parsing
+    if (!linkedinUrl && !githubUsername) {
+      bootMessages.push({ text: "Parsing document structure and metadata...", category: "Parser", delay: currentDelay });
+      currentDelay += 1200;
+      bootMessages.push({ text: "Vectorizing resume content...", category: "Memory", delay: currentDelay });
+    } else {
+        // Add a merging message if we have profiles
+         currentDelay += 800;
+         bootMessages.push({ text: "Synthesizing profile data with resume context...", category: "System", delay: currentDelay });
+    }
+
+    const timeouts: NodeJS.Timeout[] = [];
+
+    bootMessages.forEach((msg, index) => {
+      const timeout = setTimeout(() => {
+        const id = `boot-${index}`;
+        if (seenInsightIds.current.has(id)) return;
+        
+        seenInsightIds.current.add(id);
+        setInsights(prev => [
+          { id, text: msg.text, category: msg.category },
+          ...prev
+        ]);
+      }, msg.delay);
+      timeouts.push(timeout);
+    });
+
+    return () => timeouts.forEach(clearTimeout);
+  }, [linkedinUrl, githubUsername]);
+
   // Reset on new job
   useEffect(() => {
     if (jobId) {
@@ -470,101 +524,130 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
         </div>
       </div>
 
-      {/* Insights - Upper portion */}
-      <div className="absolute top-32 sm:top-40 left-0 right-0 px-4 sm:px-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-wrap gap-3 justify-center" role="feed" aria-label="Processing insights" aria-busy="true">
-            <AnimatePresence mode="popLayout">
-              {insights.slice(0, 6).map((insight) => (
-                <motion.div
-                  key={insight.id}
-                  layout
-                  variants={prefersReducedMotion ? undefined : {
-                    initial: { scale: 0.9, opacity: 0, y: 10 },
-                    animate: { scale: 1, opacity: 1, y: 0 },
-                    exit: { scale: 0.9, opacity: 0, transition: { duration: 0.2 } }
-                  }}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="
-                    relative overflow-hidden
-                    bg-surface-light/80 hover:bg-surface-light/100
-                    border border-accent/15 hover:border-accent/30
-                    shadow-sm hover:shadow-md shadow-accent/5
-                    backdrop-blur-md
-                    rounded-xl
-                    px-4 py-3
-                    flex items-start gap-3
-                    max-w-[calc(100vw-2rem)] sm:max-w-md
-                    transition-colors duration-300
-                  "
-                  role="article"
-                  aria-label={`Insight: ${insight.text}`}
-                >
-                  <div className="mt-0.5 flex-shrink-0 text-accent">
-                    <Sparkles className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="text-xs sm:text-sm text-text-main/90 font-medium leading-relaxed">
-                    <ReactMarkdown 
-                      components={{ 
-                        p: ({node, ...props}) => <span {...props} /> 
-                      }}
-                    >
-                      {insight.text}
-                    </ReactMarkdown>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Status Text - Centered */}
-      <div className="flex-1 flex items-center justify-center w-full mt-32 sm:mt-48">
-        <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 max-w-2xl mx-auto px-4 relative">
-          {/* Neural Halo Animation */}
-          <div className="flex items-center justify-center" aria-hidden="true">
-            {!prefersReducedMotion && <ProcessingAnimation />}
-          </div>
+      {/* Main Content Area - Split View Command Center */}
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-12 mt-24 mb-12 relative z-10">
+        <div className="grid md:grid-cols-2 gap-12 items-center h-full min-h-[500px]">
           
-          {/* Text with shimmer effect */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentActivity}
-              initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
-              animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
-              exit={prefersReducedMotion ? {} : { opacity: 0, y: -10 }}
-              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.3 }}
-              className="relative z-10"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <p className="text-xl sm:text-2xl font-medium tracking-tight text-text-main/90 relative inline-block">
-                {currentActivity}
-                {/* Shimmer overlay */}
-                {!prefersReducedMotion && (
-                  <motion.span
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                    style={{
-                      backgroundSize: '200% 100%',
-                    }}
-                    animate={{
-                      backgroundPosition: ['-200% 0', '200% 0'],
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: 'linear',
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
-              </p>
-            </motion.div>
-          </AnimatePresence>
+          {/* LEFT COL: Visual Core (Animation + Status) */}
+          <div className="flex flex-col items-center justify-center order-1 md:order-1 relative">
+             {/* Halo Container */}
+            <div className="relative flex items-center justify-center w-[400px] h-[400px]">
+               {/* Background Glow */}
+               <div className="absolute inset-0 bg-accent/5 rounded-full blur-3xl" />
+               
+               <div className="relative z-10 scale-125">
+                  {!prefersReducedMotion && <ProcessingAnimation />}
+               </div>
+            </div>
+
+            {/* Status Text */}
+            <div className="-mt-12 flex flex-col items-center justify-center gap-3 relative z-20 text-center">
+               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-light border border-accent/20 text-accent text-xs font-semibold uppercase tracking-wider mb-4">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+                  </span>
+                  {phases[currentPhaseIndex]?.label || currentPhase}
+               </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentActivity}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="relative"
+                >
+                  <h2 className="text-2xl md:text-3xl font-semibold text-text-main tracking-tight">
+                    {currentActivity}
+                  </h2>
+                </motion.div>
+              </AnimatePresence>
+              <p className="text-text-main/60 text-sm">Estimated time remaining: {Math.max(0, Math.round((TOTAL_DURATION * (100 - progress)) / 100 / 1000))}s</p>
+            </div>
+          </div>
+
+          {/* RIGHT COL: Live Analysis Feed */}
+          <div className="flex flex-col h-full max-h-[500px] order-2 md:order-2">
+             {/* Feed Header */}
+             <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-text-main/80 uppercase tracking-wider flex items-center gap-2">
+                   <Sparkles className="w-4 h-4 text-accent" />
+                   Live Analysis Stream
+                </h3>
+                <span className="text-xs text-text-main/40 font-mono">
+                   {insights.length} events
+                </span>
+             </div>
+
+             {/* Feed Container - Glass Panel */}
+             <div className="
+                relative flex-1 overflow-hidden
+                bg-surface-light/50 backdrop-blur-xl
+                border border-accent/10
+                rounded-2xl
+                shadow-2xl shadow-black/5
+             ">
+                {/* Top Fade Overlay */}
+                <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-surface-light/50 to-transparent z-10 pointer-events-none" />
+                
+                {/* Scrollable List */}
+                <div className="absolute inset-0 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+                   <AnimatePresence mode="popLayout">
+                      {insights.map((insight, index) => (
+                         <motion.div
+                            key={insight.id}
+                            layout
+                            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className={`
+                               relative pl-6 py-1
+                               border-l-2 ${index === 0 ? 'border-accent' : 'border-border-subtle'}
+                            `}
+                         >
+                            {/* Timeline Dot */}
+                            <div className={`
+                               absolute left-[-5px] top-3 w-2 h-2 rounded-full
+                               ${index === 0 ? 'bg-accent ring-4 ring-accent/10' : 'bg-border-subtle'}
+                               transition-all duration-500
+                            `} />
+
+                            <div className={`
+                               flex flex-col gap-1
+                               ${index === 0 ? 'opacity-100' : 'opacity-60 grayscale-[0.5]'}
+                               transition-all duration-500
+                            `}>
+                               <span className="text-[10px] font-mono text-text-main/40 uppercase">
+                                  {insight.category || 'System'}
+                               </span>
+                               <p className="text-sm text-text-main font-medium leading-relaxed">
+                                  <ReactMarkdown components={{ p: ({node, ...props}) => <span {...props} /> }}>
+                                     {insight.text}
+                                  </ReactMarkdown>
+                               </p>
+                            </div>
+                         </motion.div>
+                      ))}
+                      
+                      {insights.length === 0 && (
+                         <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="h-full flex items-center justify-center text-text-main/30 text-sm italic"
+                         >
+                            Initializing stream...
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
+                </div>
+                
+                {/* Bottom Fade Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-light to-transparent z-10 pointer-events-none" />
+             </div>
+          </div>
+
         </div>
       </div>
 
