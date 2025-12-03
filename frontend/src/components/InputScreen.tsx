@@ -656,14 +656,14 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             <div className="space-y-3">
               <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
                 <LinkIcon className="w-4 h-4 text-accent" />
-                Job Posting URL
+                Job Posting
               </label>
               <div className="relative">
                 <input
                   {...register('jobInput')}
                   type="text"
                   id="job-input"
-                  placeholder="Paste LinkedIn Job URL or Job Description..."
+                  placeholder="Paste Job URL or Job Description..."
                   className={cn(
                     'w-full h-14 px-5 bg-white border border-slate-200 rounded-xl text-base',
                     'placeholder:text-slate-400',
