@@ -145,7 +145,7 @@ if [ "$SETUP_SECRETS" = true ]; then
   SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
   
   # Grant access to all secrets (with retry logic for concurrent updates)
-  for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key"; do
+  for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key" "openai-api-key"; do
     echo -e "${BLUE}  Granting access to: $secret${NC}"
     
     # Retry up to 3 times with exponential backoff for concurrent policy changes
@@ -187,6 +187,7 @@ SECRET_MAPPING+=",GEMINI_API_KEY=gemini-api-key:latest"
 SECRET_MAPPING+=",CEREBRAS_API_KEY=cerebras-api-key:latest"
 SECRET_MAPPING+=",LONGCAT_API_KEY=longcat-api-key:latest"
 SECRET_MAPPING+=",ZENMUX_API_KEY=zenmux-api-key:latest"
+SECRET_MAPPING+=",OPENAI_API_KEY=openai-api-key:latest"
 
 # Non-sensitive environment variables
 # Note: PORT is automatically set by Cloud Run (always 8080)
@@ -230,7 +231,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
-  --max-instances 5 \
+  --max-instances 1 \
   --min-instances 1
 
 # Get the service URL
