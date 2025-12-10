@@ -1,0 +1,100 @@
+[project]
+name = "resume-optimizer-evals"
+version = "0.1.0"
+description = "Evaluation suite for resume optimizer multi-agent pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    # Core
+    "pydantic",
+    
+    # Statistics
+    "scipy",
+    "numpy",
+    
+    # UI
+    "streamlit",
+    
+    # CLI
+    "click",
+    
+    # Data analysis (for notebooks)
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    
+    # Jupyter
+    "ipykernel",
+    
+    # File extraction
+    "python-docx",
+    "PyPDF2",
+    
+    # Job fetching
+    "exa-py",
+
+    # Gemini client used by backend agents
+    "google-genai",
+    
+    # Backend agent dependencies
+    "anthropic[vertex]",
+    "openai",
+    "httpx",
+    "tiktoken",
+    "python-dotenv",
+    "PyGithub",
+    "bs4"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+# If you need to call the backend agents directly
+backend = [
+    "httpx",
+    "aiohttp",
+]
+
+[project.scripts]
+eval-run = "evals.scripts.run_eval:main"
+eval-analyze = "evals.scripts.analyze_results:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["framework", "db", "ui", "scripts"]
+
+[tool.hatch.build.targets.sdist]
+include = ["framework", "db", "ui", "scripts", "tests", "docs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
