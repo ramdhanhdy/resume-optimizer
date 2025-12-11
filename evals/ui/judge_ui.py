@@ -5,6 +5,7 @@ model outputs and recording preferences.
 """
 
 import streamlit as st
+import uuid
 from typing import List, Optional
 
 from evals.framework.schemas import StageEval, CandidateOutput
@@ -193,12 +194,21 @@ def _render_candidate_card(
         st.metric("Tokens", f"~{candidate.token_count}")
 
     # Output text
+    # Generate unique key to avoid widget collisions when candidate.id is None
+    if candidate.id is not None:
+        widget_key = f"output_{candidate.id}"
+    elif candidate.candidate_label:
+        widget_key = f"output_{candidate.candidate_label}"
+    else:
+        # Fallback: generate UUID if both id and candidate_label are unavailable
+        widget_key = f"output_{uuid.uuid4().hex[:8]}"
+    
     st.text_area(
         "Output",
         value=candidate.output_text,
         height=400,
         disabled=True,
-        key=f"output_{candidate.id}",
+        key=widget_key,
         label_visibility="collapsed",
     )
 

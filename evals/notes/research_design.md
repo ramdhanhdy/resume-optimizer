@@ -27,6 +27,20 @@ For each scenario and stage *s*:
 - generate K candidate outputs from different LLMN configs
 - developer choose the best (or rank them)
 
-pseudo-code:
-for 
----
+### Pseudo-code
+
+```python
+for scenario in scenarios:
+    for stage in stages:
+        # Generate candidates from different models
+        candidates = [
+            model.generate(scenario.context, stage)
+            for model in models
+        ]
+        
+        # Blind evaluation
+        random.shuffle(candidates)
+        judgment = human_evaluator.rank(candidates)
+        
+        # Persist metrics and judgment
+        db.save_run(scenario, stage, candidates, judgment)

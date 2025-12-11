@@ -94,15 +94,23 @@ def load_config_from_file(config_path: str) -> EvalConfig:
     """Load configuration from a YAML or JSON file."""
     import json
     import yaml
-    
+    try:
+        from pydantic import ValidationError  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        class ValidationError(Exception):  # type: ignore
+            ...
+
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     
-    with open(path) as f:
-        if path.suffix in (".yaml", ".yml"):
-            data = yaml.safe_load(f)
-        else:
-            data = json.load(f)
-    
-    return EvalConfig(**data)
+    try:
+        with open(path, encoding="utf-8") as f:
+            if path.suffix in (".yaml", ".yml"):
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+
+        return EvalConfig(**data)
+    except (yaml.YAMLError, json.JSONDecodeError, ValueError, TypeError, ValidationError) as exc:
+        raise ValueError(f"Failed to load config from {config_path}: {exc}") from exc

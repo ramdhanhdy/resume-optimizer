@@ -636,6 +636,78 @@ class EvalDatabase:
         
         return results
 
+    def get_all_head_to_head_counts(
+        self, stage_id: str
+    ) -> Dict[tuple, Dict[str, int]]:
+        """Get head-to-head win counts for all model pairs in a single query.
+
+        Args:
+            stage_id: Stage to analyze
+
+        Returns:
+            Dict mapping (model_a, model_b) tuple (sorted) to {model_a: wins, model_b: wins, total: n}
+        """
+        cursor = self.conn.cursor()
+
+        # Get all stage runs with their winners for this stage
+        cursor.execute(
+            """
+            SELECT 
+                sr.id as stage_run_id,
+                c.model_id as winner
+            FROM eval_stage_runs sr
+            JOIN eval_judgments j ON sr.id = j.stage_run_id
+            JOIN eval_candidates c ON j.chosen_candidate_id = c.id
+            WHERE sr.stage_id = ?
+            """,
+            (stage_id,),
+        )
+        stage_winners = {row["stage_run_id"]: row["winner"] for row in cursor.fetchall()}
+
+        if not stage_winners:
+            return {}
+
+        # Get all candidates grouped by stage_run_id
+        stage_run_ids = list(stage_winners.keys())
+        placeholders = ",".join("?" * len(stage_run_ids))
+        cursor.execute(
+            f"""
+            SELECT stage_run_id, model_id
+            FROM eval_candidates
+            WHERE stage_run_id IN ({placeholders})
+            """,
+            stage_run_ids,
+        )
+
+        # Build stage_run -> models mapping
+        stage_models: Dict[int, List[str]] = {}
+        for row in cursor.fetchall():
+            sr_id = row["stage_run_id"]
+            if sr_id not in stage_models:
+                stage_models[sr_id] = []
+            stage_models[sr_id].append(row["model_id"])
+
+        # Aggregate head-to-head counts
+        from collections import defaultdict
+        pair_counts: Dict[tuple, Dict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
+
+        for sr_id, winner in stage_winners.items():
+            models = stage_models.get(sr_id, [])
+            if len(models) < 2:
+                continue
+            # For each pair in this stage run
+            for i, m1 in enumerate(models):
+                for m2 in models[i + 1:]:
+                    # Use sorted tuple as key for consistent ordering
+                    pair_key = tuple(sorted([m1, m2]))
+                    pair_counts[pair_key]["total"] += 1
+                    pair_counts[pair_key][winner] += 1
+
+        # Convert defaultdict to regular dict
+        return {k: dict(v) for k, v in pair_counts.items()}
+
     def get_model_stats(self, stage_id: str) -> Dict[str, Dict[str, int]]:
         """Get win/appearance counts per model.
 
@@ -679,11 +751,12 @@ class EvalDatabase:
         
         return stats
 
-    def delete_stage_run(self, stage_run_id: int) -> bool:
+    def delete_stage_run(self, stage_run_id: int, commit: bool = True) -> bool:
         """Delete a stage run and its candidates/judgments.
         
         Args:
             stage_run_id: ID of the stage run to delete
+            commit: Whether to commit the transaction (default: True)
             
         Returns:
             True if deleted, False if not found
@@ -704,7 +777,8 @@ class EvalDatabase:
         # Delete stage run
         cursor.execute("DELETE FROM eval_stage_runs WHERE id = ?", (stage_run_id,))
         
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
         return True
 
     def delete_scenario(self, scenario_id: str) -> bool:
@@ -716,24 +790,34 @@ class EvalDatabase:
         Returns:
             True if deleted, False if not found
         """
-        cursor = self.conn.cursor()
-        
-        # Get all stage runs for this scenario
-        cursor.execute(
-            "SELECT id FROM eval_stage_runs WHERE scenario_id = ?",
-            (scenario_id,),
-        )
-        stage_run_ids = [row["id"] for row in cursor.fetchall()]
-        
-        # Delete each stage run
-        for sr_id in stage_run_ids:
-            self.delete_stage_run(sr_id)
-        
-        # Delete scenario
-        cursor.execute("DELETE FROM eval_scenarios WHERE scenario_id = ?", (scenario_id,))
-        self.conn.commit()
-        
-        return cursor.rowcount > 0
+        try:
+            cursor = self.conn.cursor()
+            
+            # Check if scenario exists
+            cursor.execute("SELECT id FROM eval_scenarios WHERE scenario_id = ?", (scenario_id,))
+            if not cursor.fetchone():
+                return False
+
+            # Get all stage runs for this scenario
+            cursor.execute(
+                "SELECT id FROM eval_stage_runs WHERE scenario_id = ?",
+                (scenario_id,),
+            )
+            stage_run_ids = [row["id"] for row in cursor.fetchall()]
+            
+            # Delete each stage run
+            for sr_id in stage_run_ids:
+                self.delete_stage_run(sr_id, commit=False)
+            
+            # Delete scenario
+            cursor.execute("DELETE FROM eval_scenarios WHERE scenario_id = ?", (scenario_id,))
+            self.conn.commit()
+            
+            return True
+            
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def close(self) -> None:
         """Close database connection."""

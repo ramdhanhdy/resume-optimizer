@@ -741,6 +741,77 @@ wheels = [
 ]
 
 [[package]]
+name = "evals"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic", extra = ["vertex"] },
+    { name = "bs4" },
+    { name = "click" },
+    { name = "exa-py" },
+    { name = "google-genai" },
+    { name = "httpx" },
+    { name = "ipykernel" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "pygithub" },
+    { name = "pypdf2" },
+    { name = "python-docx" },
+    { name = "python-dotenv" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "streamlit" },
+    { name = "tiktoken" },
+]
+
+[package.optional-dependencies]
+backend = [
+    { name = "aiohttp" },
+    { name = "httpx" },
+]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", marker = "extra == 'backend'" },
+    { name = "anthropic", extras = ["vertex"] },
+    { name = "bs4" },
+    { name = "click" },
+    { name = "exa-py" },
+    { name = "google-genai" },
+    { name = "httpx" },
+    { name = "httpx", marker = "extra == 'backend'" },
+    { name = "ipykernel" },
+    { name = "matplotlib" },
+    { name = "mypy", marker = "extra == 'dev'" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "pygithub" },
+    { name = "pypdf2" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "python-docx" },
+    { name = "python-dotenv" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "streamlit" },
+    { name = "tiktoken" },
+]
+
+[[package]]
 name = "exa-py"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2859,77 +2930,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738 },
-]
-
-[[package]]
-name = "resume-optimizer-evals"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic", extra = ["vertex"] },
-    { name = "bs4" },
-    { name = "click" },
-    { name = "exa-py" },
-    { name = "google-genai" },
-    { name = "httpx" },
-    { name = "ipykernel" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "pygithub" },
-    { name = "pypdf2" },
-    { name = "python-docx" },
-    { name = "python-dotenv" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "streamlit" },
-    { name = "tiktoken" },
-]
-
-[package.optional-dependencies]
-backend = [
-    { name = "aiohttp" },
-    { name = "httpx" },
-]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", marker = "extra == 'backend'" },
-    { name = "anthropic", extras = ["vertex"] },
-    { name = "bs4" },
-    { name = "click" },
-    { name = "exa-py" },
-    { name = "google-genai" },
-    { name = "httpx" },
-    { name = "httpx", marker = "extra == 'backend'" },
-    { name = "ipykernel" },
-    { name = "matplotlib" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "pygithub" },
-    { name = "pypdf2" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "python-docx" },
-    { name = "python-dotenv" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "streamlit" },
-    { name = "tiktoken" },
 ]
 
 [[package]]

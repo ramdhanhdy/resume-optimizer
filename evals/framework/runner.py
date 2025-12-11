@@ -269,16 +269,28 @@ class EvalRunner:
 
         Useful for CLI scripts or non-async contexts.
         """
-        return asyncio.run(
-            self.run_stage_eval_with_custom_runner(
-                scenario_id=scenario_id,
-                stage_id=stage_id,
-                context=context,
-                candidates=candidates,
-                runner_fn=runner_fn,
-                randomize=randomize,
-            )
-        )
+        import concurrent.futures
+
+        def _run_in_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(
+                    self.run_stage_eval_with_custom_runner(
+                        scenario_id=scenario_id,
+                        stage_id=stage_id,
+                        context=context,
+                        candidates=candidates,
+                        runner_fn=runner_fn,
+                        randomize=randomize,
+                    )
+                )
+            finally:
+                loop.close()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(_run_in_thread)
+            return future.result()
 
     def get_pending_evaluations(self, limit: int = 50) -> List[StageEval]:
         """Get stage evaluations that need human judgment.
