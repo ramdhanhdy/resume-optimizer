@@ -75,3 +75,16 @@ AGENTS.md
 backend/prompts/
 n#Ignore cloud run config 
 backend/.env.clodurun
+evals/framework/__pycache__/__init__.cpython-311.pyc
+evals/framework/__pycache__/analyzer.cpython-311.pyc
+evals/framework/__pycache__/collector.cpython-311.pyc
+evals/framework/__pycache__/config_resume.cpython-311.pyc
+evals/framework/__pycache__/config.cpython-311.pyc
+evals/framework/__pycache__/runner.cpython-311.pyc
+evals/framework/__pycache__/schemas.cpython-311.pyc
+evals/ui/__pycache__/__init__.cpython-311.pyc
+evals/ui/__pycache__/judge_ui.cpython-311.pyc
+evals/ui/__pycache__/new_eval.cpython-311.pyc
+evals/db/__pycache__/__init__.cpython-311.pyc
+evals/db/__pycache__/eval_db.cpython-311.pyc
+evals/data/resume_evals.db
