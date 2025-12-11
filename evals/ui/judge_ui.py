@@ -8,16 +8,16 @@ import streamlit as st
 import uuid
 from typing import List, Optional
 
-from evals.framework.schemas import StageEval, CandidateOutput
-from evals.framework.collector import JudgmentCollector
-from evals.framework.analyzer import EvalAnalyzer
-from evals.framework.config_resume import (
+from framework.schemas import StageEval, CandidateOutput
+from framework.collector import JudgmentCollector
+from framework.analyzer import EvalAnalyzer
+from framework.config_resume import (
     get_stage_config,
     get_tags_for_stage,
     get_criteria_for_stage,
     CRITERIA_DESCRIPTIONS,
 )
-from evals.db.eval_db import EvalDatabase
+from db.eval_db import EvalDatabase
 
 
 def render_judge_ui(
@@ -262,66 +262,82 @@ def render_results_dashboard(
 
     # Bradley-Terry ranking
     st.subheader("Bradley-Terry Ranking")
-    bt_results = analyzer.bradley_terry_ranking(stage_id)
-
-    if bt_results:
-        bt_df = pd.DataFrame([
-            {
-                "Rank": r.rank,
-                "Model": r.model_id.split("/")[-1],
-                "Strength": f"{r.strength:.3f}",
-            }
-            for r in bt_results
-        ])
-        st.dataframe(bt_df, use_container_width=True, hide_index=True)
+    try:
+        bt_results = analyzer.bradley_terry_ranking(stage_id)
+        if bt_results:
+            bt_df = pd.DataFrame([
+                {
+                    "Rank": r.rank,
+                    "Model": r.model_id.split("/")[-1],
+                    "Strength": f"{r.strength:.3f}",
+                }
+                for r in bt_results
+            ])
+            st.dataframe(bt_df, use_container_width=True, hide_index=True)
+        else:
+            st.caption("Need at least 2 models with pairwise comparisons for Bradley-Terry ranking.")
+    except Exception as e:
+        st.error(f"Error computing Bradley-Terry ranking: {e}")
 
     st.divider()
 
     # Pairwise comparisons
     st.subheader("Pairwise Comparisons")
-    pairwise = analyzer.all_pairwise_comparisons(stage_id)
-
-    if pairwise:
-        pw_df = pd.DataFrame([
-            {
-                "Model A": r.model_a.split("/")[-1],
-                "Model B": r.model_b.split("/")[-1],
-                "P(A > B)": f"{r.p_a_preferred:.2f}",
-                "95% CI": f"[{r.ci_low:.2f}, {r.ci_high:.2f}]",
-                "Significant": "Yes" if r.significant else "No",
-                "N": r.total,
-            }
-            for r in pairwise
-        ])
-        st.dataframe(pw_df, use_container_width=True, hide_index=True)
+    try:
+        pairwise = analyzer.all_pairwise_comparisons(stage_id)
+        if pairwise:
+            pw_df = pd.DataFrame([
+                {
+                    "Model A": r.model_a.split("/")[-1],
+                    "Model B": r.model_b.split("/")[-1],
+                    "P(A > B)": f"{r.p_a_preferred:.2f}",
+                    "95% CI": f"[{r.ci_low:.2f}, {r.ci_high:.2f}]",
+                    "Significant": "Yes" if r.significant else "No",
+                    "N": r.total,
+                }
+                for r in pairwise
+            ])
+            st.dataframe(pw_df, use_container_width=True, hide_index=True)
+        else:
+            st.caption("Need at least 2 models to show pairwise comparisons.")
+    except Exception as e:
+        st.error(f"Error computing pairwise comparisons: {e}")
 
     st.divider()
 
     # Mean scores
     st.subheader("Mean Scores by Criterion")
-    mean_scores = analyzer.compute_mean_scores(stage_id)
+    try:
+        mean_scores = analyzer.compute_mean_scores(stage_id)
+        if mean_scores:
+            scores_data = []
+            for model, criteria in mean_scores.items():
+                row = {"Model": model.split("/")[-1]}
+                row.update({k: f"{v:.2f}" for k, v in criteria.items()})
+                scores_data.append(row)
 
-    if mean_scores:
-        scores_data = []
-        for model, criteria in mean_scores.items():
-            row = {"Model": model.split("/")[-1]}
-            row.update({k: f"{v:.2f}" for k, v in criteria.items()})
-            scores_data.append(row)
-
-        scores_df = pd.DataFrame(scores_data)
-        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+            scores_df = pd.DataFrame(scores_data)
+            st.dataframe(scores_df, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No detailed scores recorded. Add scores when judging to see this section.")
+    except Exception as e:
+        st.error(f"Error computing mean scores: {e}")
 
     st.divider()
 
     # Tag frequencies
     st.subheader("Tag Frequencies")
-    tag_freqs = analyzer.compute_tag_frequencies(stage_id)
-
-    if tag_freqs:
-        for model, tags in tag_freqs.items():
-            st.markdown(f"**{model.split('/')[-1]}**")
-            tag_str = ", ".join(f"{tag} ({count})" for tag, count in tags.items())
-            st.caption(tag_str)
+    try:
+        tag_freqs = analyzer.compute_tag_frequencies(stage_id)
+        if tag_freqs:
+            for model, tags in tag_freqs.items():
+                st.markdown(f"**{model.split('/')[-1]}**")
+                tag_str = ", ".join(f"{tag} ({count})" for tag, count in tags.items())
+                st.caption(tag_str)
+        else:
+            st.caption("No tags recorded. Add tags when judging to see this section.")
+    except Exception as e:
+        st.error(f"Error computing tag frequencies: {e}")
 
 
 def render_pending_queue(

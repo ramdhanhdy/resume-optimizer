@@ -5,8 +5,8 @@ import tempfile
 import os
 from datetime import datetime
 
-from evals.db.eval_db import EvalDatabase
-from evals.framework.schemas import (
+from db.eval_db import EvalDatabase
+from framework.schemas import (
     Scenario,
     CandidateOutput,
     Judgment,

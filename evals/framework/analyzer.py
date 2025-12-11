@@ -14,7 +14,7 @@ from .schemas import (
     PairwiseResult,
     BradleyTerryResult,
 )
-from evals.db.eval_db import EvalDatabase
+from db.eval_db import EvalDatabase
 
 logger = logging.getLogger(__name__)
 

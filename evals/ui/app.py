@@ -1,34 +1,33 @@
 """Streamlit app for evaluation UI.
 
-Run with: streamlit run evals/ui/app.py (from project root)
-Or: cd evals && streamlit run ui/app.py
+Run with: cd evals && uv run streamlit run ui/app.py
 """
 
 import streamlit as st
 import sys
 from pathlib import Path
 
-# Add project root to path for evals namespace imports
+# Add evals root to path for direct imports
 evals_root = Path(__file__).parent.parent
-project_root = evals_root.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+if str(evals_root) not in sys.path:
+    sys.path.insert(0, str(evals_root))
 
 # Add backend/src to path for importing agents and model registry
+project_root = evals_root.parent
 backend_root = project_root / "backend"
 backend_src = backend_root / "src"
 sys.path.insert(0, str(backend_root))
 sys.path.insert(0, str(backend_src))
 
-from evals.db.eval_db import EvalDatabase
-from evals.framework.collector import JudgmentCollector
-from evals.framework.config_resume import get_resume_eval_config, RESUME_STAGES
-from evals.ui.judge_ui import (
+from db.eval_db import EvalDatabase
+from framework.collector import JudgmentCollector
+from framework.config_resume import get_resume_eval_config, RESUME_STAGES
+from ui.judge_ui import (
     render_judge_ui,
     render_results_dashboard,
     render_pending_queue,
 )
-from evals.ui.new_eval import render_new_eval_page
+from ui.new_eval import render_new_eval_page
 
 
 def main():

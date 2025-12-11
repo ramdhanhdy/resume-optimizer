@@ -71,10 +71,14 @@ eval-analyze = "evals.scripts.analyze_results:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# Include all Python packages in the root directory
+packages = ["evals"]
+
 [tool.hatch.build.targets.wheel]
-# Install as 'evals' package - the directory structure maps to evals.framework, evals.db, etc.
-# When installed from project root with `pip install -e evals/`, imports work as `from evals.framework...`
-packages = ["framework", "db", "ui", "scripts"]
+# For editable installs, we need an actual evals/ subdirectory
+# The workaround is to use force-include to map files
+packages = ["evals"]
 
 [tool.hatch.build.targets.sdist]
 include = ["framework", "db", "ui", "scripts", "tests", "docs", "*.py", "*.toml", "*.md"]

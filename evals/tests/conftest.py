@@ -3,8 +3,7 @@
 import sys
 from pathlib import Path
 
-# Add project root (parent of evals/) to path so `from evals.xxx` imports work
+# Add evals root to path for direct imports
 evals_root = Path(__file__).parent.parent
-project_root = evals_root.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+if str(evals_root) not in sys.path:
+    sys.path.insert(0, str(evals_root))

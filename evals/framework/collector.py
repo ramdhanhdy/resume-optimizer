@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Optional
 
 from .schemas import Judgment, CandidateOutput, StageEval
-from evals.db.eval_db import EvalDatabase
+from db.eval_db import EvalDatabase
 
 logger = logging.getLogger(__name__)
 

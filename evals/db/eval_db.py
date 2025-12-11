@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from evals.framework.schemas import (
+from framework.schemas import (
     Scenario,
     StageEval,
     CandidateOutput,
@@ -513,6 +513,8 @@ class EvalDatabase:
     def get_judgments_for_stage(self, stage_id: str) -> List[Dict[str, Any]]:
         """Get all judgments for a stage with model information.
 
+        Optimized to avoid N+1 queries by batch-fetching all participant models.
+
         Args:
             stage_id: Stage to get judgments for
 
@@ -520,6 +522,8 @@ class EvalDatabase:
             List of judgment records with winner model info
         """
         cursor = self.conn.cursor()
+
+        # Step 1: Get all judgments with winner info
         cursor.execute(
             """
             SELECT 
@@ -535,21 +539,39 @@ class EvalDatabase:
         )
         rows = cursor.fetchall()
 
+        if not rows:
+            return []
+
+        # Step 2: Batch fetch all participant models for relevant stage_runs
+        stage_run_ids = list(set(row["stage_run_id"] for row in rows))
+        placeholders = ",".join("?" * len(stage_run_ids))
+        cursor.execute(
+            f"""
+            SELECT stage_run_id, model_id
+            FROM eval_candidates
+            WHERE stage_run_id IN ({placeholders})
+            """,
+            stage_run_ids,
+        )
+
+        # Build stage_run_id -> [model_ids] mapping
+        stage_run_models: Dict[int, List[str]] = {}
+        for r in cursor.fetchall():
+            sr_id = r["stage_run_id"]
+            if sr_id not in stage_run_models:
+                stage_run_models[sr_id] = []
+            if r["model_id"] not in stage_run_models[sr_id]:
+                stage_run_models[sr_id].append(r["model_id"])
+
+        # Step 3: Build results using the pre-fetched mapping
         results = []
         for row in rows:
-            # Get all model IDs that participated in this stage run
-            cursor.execute(
-                "SELECT DISTINCT model_id FROM eval_candidates WHERE stage_run_id = ?",
-                (row["stage_run_id"],),
-            )
-            all_models = [r["model_id"] for r in cursor.fetchall()]
-
             results.append({
                 "id": row["id"],
                 "stage_run_id": row["stage_run_id"],
                 "scenario_id": row["scenario_id"],
                 "winner_model_id": row["winner_model_id"],
-                "all_model_ids": all_models,
+                "all_model_ids": stage_run_models.get(row["stage_run_id"], []),
                 "scores": json.loads(row["scores"]) if row["scores"] else None,
                 "tags": json.loads(row["tags"]) if row["tags"] else None,
             })
@@ -594,6 +616,8 @@ class EvalDatabase:
     def get_all_pairwise(self, stage_id: str) -> List[Dict[str, Any]]:
         """Get all pairwise comparisons for Bradley-Terry analysis.
 
+        Optimized to avoid N+1 queries by batch-fetching all candidates.
+
         Args:
             stage_id: Stage to analyze
 
@@ -601,8 +625,8 @@ class EvalDatabase:
             List of {winner, loser} pairs
         """
         cursor = self.conn.cursor()
-        
-        # Get all judgments with winner info
+
+        # Step 1: Get all judgments with winner info
         cursor.execute(
             """
             SELECT 
@@ -615,25 +639,45 @@ class EvalDatabase:
             """,
             (stage_id,),
         )
-        
+        judgment_rows = cursor.fetchall()
+
+        if not judgment_rows:
+            return []
+
+        # Step 2: Batch fetch all candidates for relevant stage_runs
+        stage_run_ids = list(set(row["stage_run_id"] for row in judgment_rows))
+        placeholders = ",".join("?" * len(stage_run_ids))
+        cursor.execute(
+            f"""
+            SELECT DISTINCT stage_run_id, model_id
+            FROM eval_candidates
+            WHERE stage_run_id IN ({placeholders})
+            """,
+            stage_run_ids,
+        )
+
+        # Build stage_run_id -> [model_ids] mapping
+        stage_run_models: Dict[int, List[str]] = {}
+        for r in cursor.fetchall():
+            sr_id = r["stage_run_id"]
+            if sr_id not in stage_run_models:
+                stage_run_models[sr_id] = []
+            stage_run_models[sr_id].append(r["model_id"])
+
+        # Step 3: Build winner/loser pairs using pre-fetched mapping
         results = []
-        for row in cursor.fetchall():
-            # Get all other models in this stage run (losers)
-            cursor.execute(
-                """
-                SELECT DISTINCT model_id FROM eval_candidates
-                WHERE stage_run_id = ? AND model_id != ?
-                """,
-                (row["stage_run_id"], row["winner"]),
-            )
-            losers = [r["model_id"] for r in cursor.fetchall()]
-            
-            for loser in losers:
-                results.append({
-                    "winner": row["winner"],
-                    "loser": loser,
-                })
-        
+        for row in judgment_rows:
+            winner = row["winner"]
+            sr_id = row["stage_run_id"]
+            all_models = stage_run_models.get(sr_id, [])
+
+            for model in all_models:
+                if model != winner:
+                    results.append({
+                        "winner": winner,
+                        "loser": model,
+                    })
+
         return results
 
     def get_all_head_to_head_counts(

@@ -40,13 +40,13 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-# Add project root to path for evals namespace imports
+# Add evals root to path for direct imports
 evals_root = Path(__file__).parent.parent
-project_root = evals_root.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+if str(evals_root) not in sys.path:
+    sys.path.insert(0, str(evals_root))
 
 # Add backend to path for agent imports
+project_root = evals_root.parent
 backend_root = project_root / "backend"
 backend_src = backend_root / "src"
 for p in (backend_root, backend_src):
@@ -62,10 +62,10 @@ if backend_env.exists():
     except ImportError:
         pass  # dotenv not installed, assume env vars are set externally
 
-from evals.db.eval_db import EvalDatabase
-from evals.framework.runner import EvalRunner
-from evals.framework.schemas import CandidateConfig
-from evals.framework.config_resume import get_resume_eval_config, CANDIDATE_MODELS
+from db.eval_db import EvalDatabase
+from framework.runner import EvalRunner
+from framework.schemas import CandidateConfig
+from framework.config_resume import get_resume_eval_config, CANDIDATE_MODELS
 
 
 def parse_args():

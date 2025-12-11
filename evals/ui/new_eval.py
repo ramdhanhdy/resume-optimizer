@@ -18,13 +18,13 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-# Add project root to path for evals namespace imports
+# Add evals root to path for direct imports
 evals_root = Path(__file__).parent.parent
-project_root = evals_root.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+if str(evals_root) not in sys.path:
+    sys.path.insert(0, str(evals_root))
 
 # Ensure backend is importable for agents and fetchers
+project_root = evals_root.parent
 backend_root = project_root / "backend"
 backend_src = backend_root / "src"
 for p in (backend_root, backend_src):
@@ -41,10 +41,10 @@ if backend_env.exists():
     except Exception:
         pass
 
-from evals.db.eval_db import EvalDatabase
-from evals.framework.runner import EvalRunner
-from evals.framework.schemas import CandidateConfig, Scenario
-from evals.framework.config_resume import (
+from db.eval_db import EvalDatabase
+from framework.runner import EvalRunner
+from framework.schemas import CandidateConfig, Scenario
+from framework.config_resume import (
     RESUME_STAGES,
     CANDIDATE_MODELS,
     get_resume_eval_config,
