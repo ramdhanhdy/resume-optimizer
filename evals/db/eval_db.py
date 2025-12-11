@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from framework.schemas import (
+from evals.framework.schemas import (
     Scenario,
     StageEval,
     CandidateOutput,

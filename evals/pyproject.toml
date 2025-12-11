@@ -1,5 +1,5 @@
 [project]
-name = "resume-optimizer-evals"
+name = "evals"
 version = "0.1.0"
 description = "Evaluation suite for resume optimizer multi-agent pipeline"
 readme = "README.md"
@@ -72,10 +72,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
+# Install as 'evals' package - the directory structure maps to evals.framework, evals.db, etc.
+# When installed from project root with `pip install -e evals/`, imports work as `from evals.framework...`
 packages = ["framework", "db", "ui", "scripts"]
 
 [tool.hatch.build.targets.sdist]
-include = ["framework", "db", "ui", "scripts", "tests", "docs"]
+include = ["framework", "db", "ui", "scripts", "tests", "docs", "*.py", "*.toml", "*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

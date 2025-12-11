@@ -5,9 +5,9 @@ import tempfile
 import os
 import asyncio
 
-from db.eval_db import EvalDatabase
-from framework.runner import EvalRunner
-from framework.schemas import CandidateConfig
+from evals.db.eval_db import EvalDatabase
+from evals.framework.runner import EvalRunner
+from evals.framework.schemas import CandidateConfig
 
 
 @pytest.fixture

@@ -12,13 +12,15 @@ import json
 import sys
 from pathlib import Path
 
-# Add evals root to path
+# Add project root to path for evals namespace imports
 evals_root = Path(__file__).parent.parent
-sys.path.insert(0, str(evals_root))
+project_root = evals_root.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from db.eval_db import EvalDatabase
-from framework.analyzer import EvalAnalyzer
-from framework.config_resume import get_resume_eval_config, RESUME_STAGES
+from evals.db.eval_db import EvalDatabase
+from evals.framework.analyzer import EvalAnalyzer
+from evals.framework.config_resume import get_resume_eval_config, RESUME_STAGES
 
 
 def parse_args():

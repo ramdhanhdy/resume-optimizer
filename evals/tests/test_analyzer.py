@@ -4,9 +4,9 @@ import pytest
 import tempfile
 import os
 
-from db.eval_db import EvalDatabase
-from framework.analyzer import EvalAnalyzer
-from framework.schemas import (
+from evals.db.eval_db import EvalDatabase
+from evals.framework.analyzer import EvalAnalyzer
+from evals.framework.schemas import (
     Scenario,
     CandidateOutput,
     Judgment,

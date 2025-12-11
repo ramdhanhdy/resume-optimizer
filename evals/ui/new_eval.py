@@ -18,8 +18,14 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
+# Add project root to path for evals namespace imports
+evals_root = Path(__file__).parent.parent
+project_root = evals_root.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # Ensure backend is importable for agents and fetchers
-backend_root = Path(__file__).parent.parent.parent / "backend"
+backend_root = project_root / "backend"
 backend_src = backend_root / "src"
 for p in (backend_root, backend_src):
     if p.exists() and str(p) not in sys.path:
@@ -35,10 +41,10 @@ if backend_env.exists():
     except Exception:
         pass
 
-from db.eval_db import EvalDatabase
-from framework.runner import EvalRunner
-from framework.schemas import CandidateConfig, Scenario
-from framework.config_resume import (
+from evals.db.eval_db import EvalDatabase
+from evals.framework.runner import EvalRunner
+from evals.framework.schemas import CandidateConfig, Scenario
+from evals.framework.config_resume import (
     RESUME_STAGES,
     CANDIDATE_MODELS,
     get_resume_eval_config,
@@ -148,12 +154,22 @@ def render_new_eval_page(db: EvalDatabase, evaluator_id: str):
             key="eval_github",
             placeholder="e.g., octocat",
         )
+        github_token = st.text_input(
+            "GitHub Token",
+            key="eval_github_token",
+            type="password",
+            placeholder="ghp_... (required for GitHub integration)",
+            help="Personal access token with 'repo' scope. Required to fetch repository data.",
+        )
     with col2:
         linkedin_url = st.text_input(
             "LinkedIn Profile URL",
             key="eval_linkedin",
             placeholder="https://linkedin.com/in/...",
         )
+    
+    if github_username and not github_token:
+        st.warning("⚠️ GitHub token is required when using GitHub username. The pipeline will fail without it.")
 
     st.divider()
 
@@ -234,6 +250,7 @@ def render_new_eval_page(db: EvalDatabase, evaluator_id: str):
                     stage_id=stage_to_eval,
                     model_ids=selected_models,
                     github_username=github_username if github_username else None,
+                    github_token=github_token if github_token else None,
                     linkedin_url=linkedin_url if linkedin_url else None,
                 )
                 
@@ -373,6 +390,7 @@ def run_evaluation(
     stage_id: str,
     model_ids: List[str],
     github_username: Optional[str] = None,
+    github_token: Optional[str] = None,
     linkedin_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run the evaluation pipeline with multiple models.
@@ -388,6 +406,7 @@ def run_evaluation(
         job_posting=job_text,
         metadata={
             "github_username": github_username,
+            "has_github_token": bool(github_token),  # Don't store token in DB
             "linkedin_url": linkedin_url,
             "source": "ui",
         },
@@ -400,6 +419,7 @@ def run_evaluation(
         resume_text=resume_text,
         job_text=job_text,
         github_username=github_username,
+        github_token=github_token,
         linkedin_url=linkedin_url,
     )
     
@@ -439,6 +459,7 @@ def build_stage_context(
     resume_text: str,
     job_text: str,
     github_username: Optional[str] = None,
+    github_token: Optional[str] = None,
     linkedin_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the context needed for a specific stage.
@@ -455,6 +476,8 @@ def build_stage_context(
     
     if github_username:
         context["github_username"] = github_username
+    if github_token:
+        context["github_token"] = github_token
     if linkedin_url:
         context["linkedin_url"] = linkedin_url
     
@@ -488,12 +511,26 @@ def run_agent_for_stage(
         
         if stage_id == "profile":
             from src.agents.profile_agent import ProfileAgent
+            
+            # Fetch GitHub repos if username and token provided
+            profile_repos = context.get("profile_repos")
+            github_username = context.get("github_username")
+            github_token = context.get("github_token")
+            
+            if github_username and github_token and not profile_repos:
+                try:
+                    from src.agents.github_projects_agent import fetch_github_repos
+                    profile_repos = fetch_github_repos(github_username, github_token, max_repos=20)
+                except Exception as e:
+                    # Log but continue without repos
+                    profile_repos = None
+            
             agent = ProfileAgent(client=client)
             result = ""
             gen = agent.index_profile(
                 model=cfg.model_id,
                 profile_text=context.get("resume_text", ""),
-                profile_repos=context.get("profile_repos"),
+                profile_repos=profile_repos,
                 temperature=cfg.temperature,
             )
             try:
@@ -543,10 +580,11 @@ def run_agent_for_stage(
             from src.agents import ValidatorAgent
             agent = ValidatorAgent(client=client)
             result = ""
-            gen = agent.validate(
-                original_resume=context.get("resume_text", ""),
+            gen = agent.validate_resume(
                 optimized_resume=context.get("optimized_resume", context.get("resume_text", "")),
-                job_analysis=context.get("job_analysis", context.get("job_text", "")),
+                job_posting=context.get("job_text", ""),
+                job_analysis=context.get("job_analysis", ""),
+                profile_index=context.get("profile_index"),
                 model=cfg.model_id,
                 temperature=cfg.temperature,
             )
@@ -560,9 +598,9 @@ def run_agent_for_stage(
             
         elif stage_id == "polish":
             from src.agents import PolishAgent
-            agent = PolishAgent(client=client)
+            agent = PolishAgent(client=client, output_format="docx")
             result = ""
-            gen = agent.polish(
+            gen = agent.polish_resume(
                 optimized_resume=context.get("optimized_resume", context.get("resume_text", "")),
                 validation_report=context.get("validation_report", ""),
                 model=cfg.model_id,

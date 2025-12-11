@@ -7,16 +7,16 @@ model outputs and recording preferences.
 import streamlit as st
 from typing import List, Optional
 
-from framework.schemas import StageEval, CandidateOutput
-from framework.collector import JudgmentCollector
-from framework.analyzer import EvalAnalyzer
-from framework.config_resume import (
+from evals.framework.schemas import StageEval, CandidateOutput
+from evals.framework.collector import JudgmentCollector
+from evals.framework.analyzer import EvalAnalyzer
+from evals.framework.config_resume import (
     get_stage_config,
     get_tags_for_stage,
     get_criteria_for_stage,
     CRITERIA_DESCRIPTIONS,
 )
-from db.eval_db import EvalDatabase
+from evals.db.eval_db import EvalDatabase
 
 
 def render_judge_ui(

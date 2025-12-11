@@ -17,7 +17,7 @@ from .schemas import (
     CandidateOutput,
     CandidateConfig,
 )
-from db.eval_db import EvalDatabase
+from evals.db.eval_db import EvalDatabase
 
 logger = logging.getLogger(__name__)
 
