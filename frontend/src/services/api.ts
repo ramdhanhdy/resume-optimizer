@@ -1,7 +1,17 @@
 import type { ResumeChange } from '../types';
-import { getClientId } from '../utils/clientId';
+import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export class UsageLimitError extends Error {
+  remaining: number;
+  
+  constructor(message: string, remaining: number) {
+    super(message);
+    this.name = 'UsageLimitError';
+    this.remaining = remaining;
+  }
+}
 
 export interface JobAnalysisResponse {
   success: boolean;
@@ -58,6 +68,20 @@ export interface JobPreviewResponse {
   reasons: string[];
 }
 
+export interface ProfileStatusResponse {
+  success: boolean;
+  linkedin: {
+    connected: boolean;
+    cached_at: string | null;
+    profile_id: number | null;
+  };
+  github: {
+    connected: boolean;
+    cached_at: string | null;
+    profile_id: number | null;
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -65,9 +89,14 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private buildClientHeaders(): Record<string, string> {
-    const clientId = getClientId();
-    return clientId ? { 'X-Client-Id': clientId } : {};
+  private async buildAuthHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session?.access_token) {
+      return { 'Authorization': `Bearer ${session.access_token}` };
+    }
+    
+    return {};
   }
 
   private async request<T>(
@@ -75,20 +104,26 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const clientHeaders = this.buildClientHeaders();
+    const authHeaders = await this.buildAuthHeaders();
     
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          ...clientHeaders,
+          ...authHeaders,
           ...options.headers,
         },
       });
 
       if (!response.ok) {
         const error = await response.json();
+        
+        // Handle 402 Payment Required (usage limit reached)
+        if (response.status === 402) {
+          throw new UsageLimitError(error.detail || 'Usage limit reached', error.remaining ?? 0);
+        }
+        
         throw new Error(error.detail || `HTTP error! status: ${response.status}`);
       }
 
@@ -102,12 +137,12 @@ class ApiClient {
   async uploadResume(file: File): Promise<UploadResumeResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    const headers = this.buildClientHeaders();
+    const authHeaders = await this.buildAuthHeaders();
 
     const response = await fetch(`${this.baseUrl}/api/upload-resume`, {
       method: 'POST',
       body: formData,
-      headers,
+      headers: authHeaders,
     });
 
     if (!response.ok) {
@@ -170,10 +205,11 @@ class ApiClient {
   }
 
   async exportResume(application_id: number, format: string = 'docx'): Promise<Blob> {
+    const authHeaders = await this.buildAuthHeaders();
     const response = await fetch(
       `${this.baseUrl}/api/export/${application_id}?format=${format}`,
       {
-        headers: this.buildClientHeaders(),
+        headers: authHeaders,
       }
     );
 
@@ -222,8 +258,19 @@ class ApiClient {
     linkedin_url?: string;
     github_username?: string;
     github_token?: string;
+    force_refresh_profile?: boolean;
   }): Promise<{ success: boolean; job_id: string; stream_url: string; snapshot_url: string }> {
     return this.request('/api/pipeline/start', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async getProfileStatus(params: {
+    linkedin_url?: string;
+    github_username?: string;
+  }): Promise<ProfileStatusResponse> {
+    return this.request('/api/profile/status', {
       method: 'POST',
       body: JSON.stringify(params),
     });

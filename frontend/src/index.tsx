@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { applyBrandConfig, brandConfig } from './design-system/theme/brand-config';
+import { AuthProvider } from './contexts/AuthContext';
 
 // Initialize brand configuration for runtime theming
 applyBrandConfig(brandConfig);
@@ -16,6 +17,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

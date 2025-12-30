@@ -36,6 +36,7 @@ class ApplicationDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 company_name TEXT,
                 job_title TEXT,
+                job_url TEXT,
                 job_posting_text TEXT,
                 original_resume_text TEXT,
                 optimized_resume_text TEXT,
@@ -82,18 +83,25 @@ class ApplicationDatabase:
         """)
 
         # Profiles table (persistent profile memory)
+        # Note: linkedin_url and github_username columns are added via migration 004
+        # for existing databases. New databases get them here.
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                linkedin_url TEXT,      -- LinkedIn URL for cache lookup
+                github_username TEXT,   -- GitHub username for cache lookup
                 sources TEXT,           -- JSON array of sources (e.g., URLs, github:username)
                 profile_text TEXT,      -- raw aggregated text
                 profile_index TEXT      -- agent-produced index (JSON/text)
             )
             """
         )
+        
+        # Note: Indexes for linkedin_url/github_username are created in migration 004
+        # to handle existing databases that don't have these columns yet
 
         # Run metadata table
         cursor.execute(
@@ -157,6 +165,32 @@ class ApplicationDatabase:
                 cursor.execute("INSERT INTO migrations (migration_name) VALUES ('002_add_error_recovery')")
                 self.conn.commit()
 
+        # Migration 003: Add job_url column
+        cursor.execute("SELECT COUNT(*) as count FROM migrations WHERE migration_name = '003_add_job_url'")
+        if cursor.fetchone()['count'] == 0:
+            # Check if column already exists
+            cursor.execute("PRAGMA table_info(applications)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'job_url' not in columns:
+                cursor.execute("ALTER TABLE applications ADD COLUMN job_url TEXT")
+            cursor.execute("INSERT INTO migrations (migration_name) VALUES ('003_add_job_url')")
+            self.conn.commit()
+
+        # Migration 004: Add linkedin_url and github_username to profiles
+        cursor.execute("SELECT 1 FROM migrations WHERE migration_name = '004_add_profile_cache_columns'")
+        if cursor.fetchone() is None:
+            # Check if columns already exist
+            cursor.execute("PRAGMA table_info(profiles)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'linkedin_url' not in columns:
+                cursor.execute("ALTER TABLE profiles ADD COLUMN linkedin_url TEXT")
+            if 'github_username' not in columns:
+                cursor.execute("ALTER TABLE profiles ADD COLUMN github_username TEXT")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_linkedin ON profiles(linkedin_url)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_github ON profiles(github_username)")
+            cursor.execute("INSERT INTO migrations (migration_name) VALUES ('004_add_profile_cache_columns')")
+            self.conn.commit()
+
     # --- Profiles API ---
     def save_profile(
         self,
@@ -164,18 +198,27 @@ class ApplicationDatabase:
         sources: list[str],
         profile_text: str,
         profile_index: str,
+        linkedin_url: Optional[str] = None,
+        github_username: Optional[str] = None,
     ) -> int:
         """Persist a new profile snapshot.
+
+        Args:
+            sources: List of source identifiers
+            profile_text: Raw profile text
+            profile_index: Agent-produced index
+            linkedin_url: LinkedIn URL for cache lookup
+            github_username: GitHub username for cache lookup
 
         Returns the profile row ID.
         """
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            INSERT INTO profiles (sources, profile_text, profile_index)
-            VALUES (?, ?, ?)
+            INSERT INTO profiles (sources, profile_text, profile_index, linkedin_url, github_username)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (json.dumps(list(sources) if sources else []), profile_text, profile_index),
+            (json.dumps(list(sources) if sources else []), profile_text, profile_index, linkedin_url, github_username),
         )
         self.conn.commit()
         last_row = cursor.lastrowid
@@ -183,6 +226,52 @@ class ApplicationDatabase:
             msg = "Failed to retrieve lastrowid after profile insert."
             raise RuntimeError(msg)
         return int(last_row)
+
+    def get_cached_profile(
+        self,
+        *,
+        linkedin_url: Optional[str] = None,
+        github_username: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Get cached profile by LinkedIn URL or GitHub username.
+        
+        Returns the most recent profile matching the given identifiers.
+        """
+        cursor = self.conn.cursor()
+        
+        conditions = []
+        params = []
+        
+        if linkedin_url:
+            conditions.append("linkedin_url = ?")
+            params.append(linkedin_url)
+        if github_username:
+            conditions.append("github_username = ?")
+            params.append(github_username)
+        
+        if not conditions:
+            return None
+        
+        # Use OR to match any of the provided identifiers
+        where_clause = " OR ".join(conditions)
+        cursor.execute(
+            f"""
+            SELECT * FROM profiles
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            params
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        try:
+            rec["sources"] = json.loads(rec.get("sources") or "[]")
+        except Exception:
+            rec["sources"] = []
+        return rec
 
     def get_latest_profile(self) -> Optional[Dict[str, Any]]:
         """Return the most recent saved profile, if any."""
@@ -210,6 +299,7 @@ class ApplicationDatabase:
         job_title: str,
         job_posting_text: str,
         original_resume_text: str,
+        job_url: Optional[str] = None,
     ) -> int:
         """Create a new application record.
 
@@ -218,6 +308,7 @@ class ApplicationDatabase:
             job_title: Job title/position
             job_posting_text: Full job posting text
             original_resume_text: Original resume text
+            job_url: Optional URL of the job posting
 
         Returns:
             Application ID
@@ -226,10 +317,10 @@ class ApplicationDatabase:
         cursor.execute(
             """
             INSERT INTO applications
-            (company_name, job_title, job_posting_text, original_resume_text)
-            VALUES (?, ?, ?, ?)
+            (company_name, job_title, job_url, job_posting_text, original_resume_text)
+            VALUES (?, ?, ?, ?, ?)
         """,
-            (company_name, job_title, job_posting_text, original_resume_text),
+            (company_name, job_title, job_url, job_posting_text, original_resume_text),
         )
 
         self.conn.commit()

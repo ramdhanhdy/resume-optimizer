@@ -12,6 +12,11 @@ from .exa_client import (
     fetch_public_page_text,
     ExaContentError,
 )
+from .scrapingdog_client import (
+    fetch_linkedin_profile,
+    fetch_linkedin_profile_text,
+    ScrapingDogError,
+)
 from .pricing import get_pricing_manager, TokenUsage, CostBreakdown, PricingManager
 
 __all__ = [
@@ -25,6 +30,9 @@ __all__ = [
     "fetch_job_posting_text",
     "fetch_public_page_text",
     "ExaContentError",
+    "fetch_linkedin_profile",
+    "fetch_linkedin_profile_text",
+    "ScrapingDogError",
     "get_pricing_manager",
     "TokenUsage",
     "CostBreakdown",
