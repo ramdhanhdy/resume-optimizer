@@ -9,11 +9,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, X } from 'lucide-react';
+import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, X, LogOut, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import RecoveryBanner from './shared/RecoveryBanner';
 import { stateManager, RecoverySession } from '../services/storage';
+import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../services/api';
 import {
   inputScreenSchema,
   type InputScreenFormData,
@@ -33,11 +35,13 @@ interface InputScreenProps {
     githubUsername?: string;
     githubToken?: string;
     jobTextFromPreview?: string;
+    forceRefreshProfile?: boolean;
   }) => void;
 }
 
 export default function InputScreen({ onStart }: InputScreenProps) {
   const prefersReducedMotion = useReducedMotion();
+  const { user, signOut } = useAuth();
 
   // File upload state
   const [fileName, setFileName] = useState<string>('');
@@ -62,6 +66,16 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const [jobPreviewText, setJobPreviewText] = useState<string | null>(null);
   const jobPreviewAbortRef = useRef<AbortController | null>(null);
 
+  // Profile connection status
+  const [profileStatus, setProfileStatus] = useState<{
+    linkedin: { connected: boolean; cached_at: string | null };
+    github: { connected: boolean; cached_at: string | null };
+  }>({
+    linkedin: { connected: false, cached_at: null },
+    github: { connected: false, cached_at: null },
+  });
+  const [forceRefreshProfile, setForceRefreshProfile] = useState<boolean>(false);
+
   // React Hook Form setup
   const {
     register,
@@ -82,7 +96,50 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   });
 
   const githubUsername = watch('githubUsername');
+  const linkedinUrl = watch('linkedinUrl');
   const jobInputValue = watch('jobInput');
+
+  // Check profile connection status when LinkedIn URL or GitHub username changes
+  useEffect(() => {
+    const checkProfileStatus = async () => {
+      if (!linkedinUrl && !githubUsername) {
+        setProfileStatus({
+          linkedin: { connected: false, cached_at: null },
+          github: { connected: false, cached_at: null },
+        });
+        return;
+      }
+
+      try {
+        const response = await apiClient.getProfileStatus({
+          linkedin_url: linkedinUrl || undefined,
+          github_username: githubUsername || undefined,
+        });
+
+        setProfileStatus({
+          linkedin: {
+            connected: response.linkedin.connected,
+            cached_at: response.linkedin.cached_at,
+          },
+          github: {
+            connected: response.github.connected,
+            cached_at: response.github.cached_at,
+          },
+        });
+
+        // Reset force refresh when profile status changes
+        if (response.linkedin.connected || response.github.connected) {
+          setForceRefreshProfile(false);
+        }
+      } catch (error) {
+        console.error('Failed to check profile status:', error);
+      }
+    };
+
+    // Debounce the check
+    const timeoutId = setTimeout(checkProfileStatus, 500);
+    return () => clearTimeout(timeoutId);
+  }, [linkedinUrl, githubUsername]);
 
   // Check for recovery session on mount
   useEffect(() => {
@@ -311,6 +368,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       githubUsername: data.githubUsername?.trim() || undefined,
       githubToken: data.githubToken?.trim() || undefined,
       jobTextFromPreview: inputIsUrl && jobPreviewText ? jobPreviewText : undefined,
+      forceRefreshProfile,
     });
   };
 
@@ -435,6 +493,20 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             />
           )}
         </AnimatePresence>
+
+        {/* User Menu - Fixed position top right */}
+        <div className="fixed top-4 right-6 z-50 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-slate-200/50">
+          <span className="text-xs text-text-main/60 hidden sm:inline">{user?.email}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut()}
+            className="text-text-main/60 hover:text-text-main h-7 px-2"
+          >
+            <LogOut className="w-3.5 h-3.5 sm:mr-1" />
+            <span className="hidden sm:inline text-xs">Sign out</span>
+          </Button>
+        </div>
 
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
@@ -746,7 +818,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                   </div>
                    
                   {activeIntegrations.linkedin ? (
-                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
+                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
                       <input 
                         {...register('linkedinUrl')}
                         type="url" 
@@ -760,6 +832,44 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                       />
                       {errors.linkedinUrl && (
                         <p className="text-[10px] text-destructive">{errors.linkedinUrl.message}</p>
+                      )}
+                      {/* Profile connection status */}
+                      {linkedinUrl && !errors.linkedinUrl && (
+                        <div className="flex items-center justify-between">
+                          {profileStatus.linkedin.connected ? (
+                            <div className="flex items-center gap-1.5 text-emerald-600">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-medium">Profile saved</span>
+                              {profileStatus.linkedin.cached_at && (
+                                <span className="text-[10px] text-slate-400">
+                                  · {new Date(profileStatus.linkedin.cached_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <span className="text-[10px]">Will fetch on submit</span>
+                            </div>
+                          )}
+                          {profileStatus.linkedin.connected && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setForceRefreshProfile(true);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors",
+                                forceRefreshProfile
+                                  ? "bg-sky-100 text-sky-700 font-medium"
+                                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                              )}
+                            >
+                              <RefreshCw className={cn("w-3 h-3", forceRefreshProfile && "animate-spin")} />
+                              {forceRefreshProfile ? "Will refresh" : "Refresh"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </motion.div>
                   ) : (
@@ -838,6 +948,44 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                           <p className="text-[10px] text-destructive mt-1">{errors.githubToken.message}</p>
                         )}
                       </div>
+                      {/* GitHub connection status */}
+                      {githubUsername && !errors.githubUsername && (
+                        <div className="flex items-center justify-between">
+                          {profileStatus.github.connected ? (
+                            <div className="flex items-center gap-1.5 text-emerald-600">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-medium">Profile saved</span>
+                              {profileStatus.github.cached_at && (
+                                <span className="text-[10px] text-slate-400">
+                                  · {new Date(profileStatus.github.cached_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <span className="text-[10px]">Will fetch on submit</span>
+                            </div>
+                          )}
+                          {profileStatus.github.connected && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setForceRefreshProfile(true);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors",
+                                forceRefreshProfile
+                                  ? "bg-slate-200 text-slate-700 font-medium"
+                                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                              )}
+                            >
+                              <RefreshCw className={cn("w-3 h-3", forceRefreshProfile && "animate-spin")} />
+                              {forceRefreshProfile ? "Will refresh" : "Refresh"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </motion.div>
                   ) : (
                     <p className="text-xs text-text-main/40 pl-1">Analyze repos & technical stack</p>

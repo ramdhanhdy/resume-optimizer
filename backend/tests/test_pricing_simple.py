@@ -3,9 +3,11 @@
 import json
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 def load_config_v2():
     """Load the v2 pricing config."""
-    config_path = Path(__file__).parent / "src" / "api" / "pricing_config_v2.json"
+    config_path = PROJECT_ROOT / "src" / "api" / "pricing_config_v2.json"
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 

@@ -23,7 +23,7 @@ from src.agents import (
     GitHubProjectsAgent,
 )
 from src.api import fetch_job_posting_text, ExaContentError
-from src.database import ApplicationDatabase
+from src.database import ApplicationDatabase, get_database
 from src.utils import save_uploaded_file, cleanup_temp_file, extract_optimized_resume
 from src.api.client_factory import create_client
 from src.streaming import (
@@ -84,6 +84,9 @@ app.add_middleware(
 
 # Initialize database
 _db_path = os.getenv("DATABASE_PATH", "./data/applications.db")
+USE_SUPABASE_DB = os.getenv("USE_SUPABASE_DB", "false").lower() == "true"
+
+# Default SQLite database (used when Supabase is not enabled or for unauthenticated requests)
 db = ApplicationDatabase(db_path=_db_path)
 run_store = RunStore(db)
 stream_manager.attach_store(run_store)
@@ -94,15 +97,49 @@ recovery_service = RecoveryService(db)
 MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
 DEV_MODE_ENABLED = os.getenv("DEV_MODE", "false").lower() == "true"
 
+
+def get_db_for_user(user_id: str = None):
+    """Get database instance for a user.
+    
+    When USE_SUPABASE_DB is enabled and user_id is provided, returns a 
+    SupabaseDatabase instance. Otherwise returns the default SQLite database.
+    """
+    if USE_SUPABASE_DB and user_id:
+        return get_database(user_id)
+    return db
+
+
 # Store in app state for access in routes
 app.state.db = db
 app.state.recovery_service = recovery_service
+app.state.get_db_for_user = get_db_for_user
 
 # Add error interceptor middleware
 app.add_middleware(ErrorInterceptorMiddleware, recovery_service=recovery_service)
 
 # Mount recovery router
 app.include_router(recovery_router)
+
+
+@app.get("/api/usage")
+async def get_usage(http_request: Request):
+    """Get current user's usage information."""
+    from src.middleware.auth import get_user_id_from_request
+    
+    user_id = get_user_id_from_request(http_request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    run_count = run_store.count_runs_for_client(user_id)
+    remaining = max(0, MAX_FREE_RUNS - run_count)
+    
+    return {
+        "success": True,
+        "used": run_count,
+        "remaining": remaining,
+        "cap": MAX_FREE_RUNS,
+        "is_subscribed": False,  # TODO: Check subscription status from Supabase
+    }
 
 
 def _latest_agent_output_text(application_id: int, agent_name: str) -> str:
@@ -281,6 +318,13 @@ class PipelineRequest(BaseModel):
     linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
     github_token: Optional[str] = None
+    force_refresh_profile: bool = False  # Force re-scrape of LinkedIn/GitHub
+
+
+class ProfileStatusRequest(BaseModel):
+    """Request to check profile connection status."""
+    linkedin_url: Optional[str] = None
+    github_username: Optional[str] = None
 
 
 @app.get("/")
@@ -357,6 +401,55 @@ async def job_preview(request: JobPreviewRequest):
             "decision": decision,
             "reasons": reasons,
         }
+
+
+@app.post("/api/profile/status")
+async def get_profile_status(request: ProfileStatusRequest, http_request: Request):
+    """Check if user has cached LinkedIn/GitHub profile data.
+    
+    Returns connection status for each profile source.
+    """
+    from src.middleware.auth import get_user_id_from_request
+    
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
+    
+    linkedin_status = {
+        "connected": False,
+        "cached_at": None,
+        "profile_id": None,
+    }
+    github_status = {
+        "connected": False,
+        "cached_at": None,
+        "profile_id": None,
+    }
+    
+    # Check LinkedIn cache
+    if request.linkedin_url:
+        cached = user_db.get_cached_profile(linkedin_url=request.linkedin_url)
+        if cached and cached.get("profile_index"):
+            linkedin_status = {
+                "connected": True,
+                "cached_at": cached.get("created_at") or cached.get("updated_at"),
+                "profile_id": cached.get("id"),
+            }
+    
+    # Check GitHub cache
+    if request.github_username:
+        cached = user_db.get_cached_profile(github_username=request.github_username)
+        if cached and cached.get("profile_index"):
+            github_status = {
+                "connected": True,
+                "cached_at": cached.get("created_at") or cached.get("updated_at"),
+                "profile_id": cached.get("id"),
+            }
+    
+    return {
+        "success": True,
+        "linkedin": linkedin_status,
+        "github": github_status,
+    }
 
 
 @app.post("/api/analyze-job")
@@ -987,26 +1080,25 @@ async def get_application_reports(application_id: int):
 async def start_pipeline(request: PipelineRequest, http_request: Request):
     """Start the full pipeline with streaming support."""
     import uuid
+    from src.middleware.auth import get_user_id_from_request
 
-    client_id = http_request.headers.get("x-client-id") or http_request.headers.get("X-Client-Id")
-    if not client_id:
-        client_host = http_request.client.host if http_request.client else "anonymous"
-        client_id = f"ip:{client_host}"
+    # Get user ID from JWT token or fall back to client ID
+    user_id = get_user_id_from_request(http_request)
 
-    run_count = run_store.count_runs_for_client(client_id)
+    run_count = run_store.count_runs_for_client(user_id)
     if DEV_MODE_ENABLED:
         print(
-            f"⚠️ DEV_MODE enabled - rate limits disabled for client_id={client_id}, run_count={run_count}"
+            f"⚠️ DEV_MODE enabled - rate limits disabled for user_id={user_id}, run_count={run_count}"
         )
     else:
         if run_count >= MAX_FREE_RUNS:
             raise HTTPException(
-                status_code=429,
-                detail="Free demo limit reached. Please contact the maintainer for additional runs.",
+                status_code=402,
+                detail="Usage limit reached. Please upgrade to continue.",
             )
 
     job_id = str(uuid.uuid4())
-    run_store.create_run(job_id=job_id, client_id=client_id, status="queued")
+    run_store.create_run(job_id=job_id, client_id=user_id, status="queued")
 
     # Start pipeline in background
     asyncio.create_task(run_pipeline_with_streaming(
@@ -1017,6 +1109,8 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         linkedin_url=request.linkedin_url,
         github_username=request.github_username,
         github_token=request.github_token,
+        user_id=user_id,
+        force_refresh_profile=request.force_refresh_profile,
     ))
 
     return {
@@ -1035,11 +1129,20 @@ async def run_pipeline_with_streaming(
     linkedin_url: Optional[str] = None,
     github_username: Optional[str] = None,
     github_token: Optional[str] = None,
+    user_id: Optional[str] = None,
+    force_refresh_profile: bool = False,
 ):
-    """Run the full pipeline and emit streaming events."""
+    """Run the full pipeline and emit streaming events.
+    
+    Args:
+        force_refresh_profile: If True, re-scrape LinkedIn/GitHub even if cached
+    """
     insight_listener_task = None
     session_id = None
     app_id: Optional[int] = None
+    
+    # Get database instance for this user (Supabase if enabled, else SQLite)
+    user_db = get_db_for_user(user_id)
 
     try:
         print(f"Starting pipeline for job_id: {job_id}")
@@ -1107,91 +1210,127 @@ async def run_pipeline_with_streaming(
             
             try:
                 from src.agents.profile_agent import ProfileAgent
-                from src.api import fetch_public_page_text
+                from src.api import fetch_linkedin_profile_text, ScrapingDogError
                 from src.agents.github_projects_agent import fetch_github_repos
                 
                 loop = asyncio.get_event_loop()
                 profile_text = None
                 profile_repos = None
+                used_cache = False
                 
-                # Fetch LinkedIn profile if provided
-                if linkedin_url:
-                    print(f"📥 Fetching LinkedIn profile: {linkedin_url}")
-                    profile_text = await loop.run_in_executor(None, fetch_public_page_text, linkedin_url)
-                    if profile_text:
-                        print(f"✅ LinkedIn profile fetched: {len(profile_text)} chars")
-                    else:
-                        print("⚠️ Could not fetch LinkedIn profile")
+                # Check for cached profile first (avoid re-scraping) unless force refresh
+                cached_profile = None
+                if not force_refresh_profile:
+                    cached_profile = user_db.get_cached_profile(
+                        linkedin_url=linkedin_url,
+                        github_username=github_username
+                    )
                 
-                # Fetch GitHub repos if provided
-                if github_username:
-                    print(f"📥 Fetching GitHub repos for: {github_username}")
-                    if github_token:
-                        print(f"✅ Using user-provided GitHub token")
-                    else:
-                        print(f"⚠️ No GitHub token provided - using unauthenticated API (rate limited)")
-                    try:
-                        profile_repos = await loop.run_in_executor(
-                            None, fetch_github_repos, github_username, github_token, 20
-                        )
-                        if profile_repos:
-                            print(f"✅ GitHub repos fetched: {len(profile_repos)} repos")
-                            await stream_manager.emit(InsightEvent.create(
-                                job_id, "ins-github", "system", "medium",
-                                f"Found {len(profile_repos)} GitHub projects", "profiling"
-                            ))
-                        else:
-                            print("⚠️ No GitHub repos found")
-                    except Exception as e:
-                        print(f"⚠️ GitHub fetch failed (non-fatal): {e}")
-                        import traceback
-                        traceback.print_exc()
-                        profile_repos = None
-                
-                # Build profile index if we have any data
-                if profile_text or profile_repos:
-                    print("🏗️ Building profile index...")
-                    profile_agent = ProfileAgent(client=client)
-                    profile_result = ""
-                    for chunk in profile_agent.index_profile(
-                        model=PROFILE_MODEL,
-                        profile_text=profile_text or "",
-                        profile_repos=profile_repos,
-                        temperature=PROFILE_TEMPERATURE
-                    ):
-                        profile_result += chunk
-                    profile_index = profile_result
-                    print(f"✅ Profile index built: {len(profile_index)} chars")
-
-                    if profile_index and (profile_text or profile_repos):
+                if cached_profile and cached_profile.get("profile_index") and not force_refresh_profile:
+                    # Use cached profile index directly
+                    profile_index = cached_profile["profile_index"]
+                    used_cache = True
+                    print(f"✅ Using cached profile (ID: {cached_profile.get('id')})")
+                    await stream_manager.emit(InsightEvent.create(
+                        job_id, "ins-profile-cached", "system", "medium",
+                        "Using your saved profile data", "profiling"
+                    ))
+                else:
+                    if force_refresh_profile:
+                        print(f"🔄 Force refresh requested - re-scraping profile data")
+                    # No cache - need to fetch fresh data
+                    # Fetch LinkedIn profile if provided (using ScrapingDog)
+                    if linkedin_url:
+                        print(f"📥 Fetching LinkedIn profile via ScrapingDog: {linkedin_url}")
+                        await stream_manager.emit(InsightEvent.create(
+                            job_id, "ins-linkedin", "system", "medium",
+                            "Fetching LinkedIn profile (may take 1-2 minutes)...", "profiling"
+                        ))
                         try:
-                            profile_sources = []
-                            if linkedin_url:
-                                profile_sources.append(f"linkedin:{linkedin_url}")
-                            if github_username:
-                                profile_sources.append(f"github:{github_username}")
-
-                            combined_profile_text = profile_text or ""
-                            if profile_repos:
-                                combined_profile_text = (
-                                    (combined_profile_text + "\n\n" if combined_profile_text else "")
-                                    + "GitHub repositories:\n"
-                                    + json.dumps(profile_repos, ensure_ascii=False)
-                                )
-
-                            saved_profile_id = persist_profile(
-                                db,
-                                sources=profile_sources,
-                                profile_text=combined_profile_text,
-                                profile_index=profile_index,
+                            profile_text = await loop.run_in_executor(None, fetch_linkedin_profile_text, linkedin_url)
+                            if profile_text:
+                                print(f"✅ LinkedIn profile fetched: {len(profile_text)} chars")
+                            else:
+                                print("⚠️ Could not fetch LinkedIn profile")
+                        except ScrapingDogError as e:
+                            print(f"⚠️ LinkedIn fetch failed (non-fatal): {e}")
+                            await stream_manager.emit(InsightEvent.create(
+                                job_id, "ins-linkedin-err", "system", "low",
+                                "Could not fetch LinkedIn profile - continuing without it", "profiling"
+                            ))
+                    
+                    # Fetch GitHub repos if provided
+                    if github_username:
+                        print(f"📥 Fetching GitHub repos for: {github_username}")
+                        if github_token:
+                            print(f"✅ Using user-provided GitHub token")
+                        else:
+                            print(f"⚠️ No GitHub token provided - using unauthenticated API (rate limited)")
+                        try:
+                            profile_repos = await loop.run_in_executor(
+                                None, fetch_github_repos, github_username, github_token, 20
                             )
-                            print(f"✅ Persisted profile snapshot ID: {saved_profile_id}")
-                        except Exception as persist_err:
-                            print(f"⚠️ Failed to persist profile snapshot: {persist_err}")
+                            if profile_repos:
+                                print(f"✅ GitHub repos fetched: {len(profile_repos)} repos")
+                                await stream_manager.emit(InsightEvent.create(
+                                    job_id, "ins-github", "system", "medium",
+                                    f"Found {len(profile_repos)} GitHub projects", "profiling"
+                                ))
+                            else:
+                                print("⚠️ No GitHub repos found")
+                        except Exception as e:
+                            print(f"⚠️ GitHub fetch failed (non-fatal): {e}")
+                            import traceback
+                            traceback.print_exc()
+                            profile_repos = None
+                    
+                    # Build profile index if we have any data
+                    if profile_text or profile_repos:
+                        print("🏗️ Building profile index...")
+                        profile_agent = ProfileAgent(client=client)
+                        profile_result = ""
+                        for chunk in profile_agent.index_profile(
+                            model=PROFILE_MODEL,
+                            profile_text=profile_text or "",
+                            profile_repos=profile_repos,
+                            temperature=PROFILE_TEMPERATURE
+                        ):
+                            profile_result += chunk
+                        profile_index = profile_result
+                        print(f"✅ Profile index built: {len(profile_index)} chars")
 
+                        # Save to cache for future runs
+                        if profile_index:
+                            try:
+                                profile_sources = []
+                                if linkedin_url:
+                                    profile_sources.append(f"linkedin:{linkedin_url}")
+                                if github_username:
+                                    profile_sources.append(f"github:{github_username}")
+
+                                combined_profile_text = profile_text or ""
+                                if profile_repos:
+                                    combined_profile_text = (
+                                        (combined_profile_text + "\n\n" if combined_profile_text else "")
+                                        + "GitHub repositories:\n"
+                                        + json.dumps(profile_repos, ensure_ascii=False)
+                                    )
+
+                                saved_profile_id = user_db.save_profile(
+                                    sources=profile_sources,
+                                    profile_text=combined_profile_text,
+                                    profile_index=profile_index,
+                                    linkedin_url=linkedin_url,
+                                    github_username=github_username,
+                                )
+                                print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
+                            except Exception as persist_err:
+                                print(f"⚠️ Failed to cache profile: {persist_err}")
+
+                if profile_index:
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-done", "system", "high",
-                        "Profile index ready - will enhance optimization", "profiling"
+                        "Profile index ready - will enhance optimization" + (" (cached)" if used_cache else ""), "profiling"
                     ))
                 else:
                     print("⚠️ No profile data available")
@@ -1241,12 +1380,17 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
-        # Create application
-        app_id = db.create_application(
-            company_name="Company",
-            job_title="Position",
+        # Extract company name and job title from job posting using LLM
+        from src.utils.job_metadata_extractor import extract_job_metadata
+        company_name, job_title = extract_job_metadata(job_text_final, client=client)
+        
+        # Create application (job_url is available from pipeline params)
+        app_id = user_db.create_application(
+            company_name=company_name,
+            job_title=job_title,
             job_posting_text=job_text_final,
             original_resume_text=resume_text,
+            job_url=job_url,
         )
         run_store.update_status(job_id, application_id=app_id)
         
@@ -1256,7 +1400,7 @@ async def run_pipeline_with_streaming(
         ))
         print(f"✅ Emitted application_id metric: {app_id}")
         
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=1,
             agent_name="Job Analyzer",
@@ -1318,7 +1462,7 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=2,
             agent_name="Resume Optimizer",
@@ -1383,8 +1527,8 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
-        db.update_application(app_id, optimized_resume_text=optimized_resume)
-        db.save_agent_output(
+        user_db.update_application(app_id, optimized_resume_text=optimized_resume)
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=3,
             agent_name="Optimizer Implementer",
@@ -1482,7 +1626,7 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=4,
             agent_name="Validator",
@@ -1544,8 +1688,8 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
-        db.update_application(app_id, optimized_resume_text=final_resume)
-        db.save_agent_output(
+        user_db.update_application(app_id, optimized_resume_text=final_resume)
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=5,
             agent_name="Polish Agent",
@@ -1576,6 +1720,10 @@ async def run_pipeline_with_streaming(
             recovery_service.mark_recovered(session_id, app_id)
             print(f"✅ Marked recovery session as completed")
 
+        # Update application status to completed
+        if app_id is not None:
+            user_db.update_application(app_id, status="completed")
+        
         # Emit completion
         await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
         await stream_manager.emit(DoneEvent(job_id=job_id))
@@ -1616,6 +1764,10 @@ async def run_pipeline_with_streaming(
                 job_id, "error_category", error_context['error_category'], ""
             ))
 
+        # Update application status to failed
+        if app_id is not None:
+            user_db.update_application(app_id, status="failed")
+        
         await stream_manager.emit(JobStatusEvent.create(job_id, "failed"))
         await stream_manager.emit(InsightEvent.create(
             job_id, "error-1", "error", "high",

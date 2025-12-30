@@ -2,6 +2,9 @@
 import React, { useState, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Screen } from './types';
+import { useAuth } from './contexts/AuthContext';
+import { LoginScreen, AuthCallback } from './components/auth';
+import { LoadingSpinner } from './components/shared';
 import InputScreen from './components/InputScreen';
 import ProcessingScreen from './components/ProcessingScreen';
 import RevealScreen from './components/RevealScreen';
@@ -14,6 +17,7 @@ export interface AppState {
   linkedinUrl?: string;
   githubUsername?: string;
   githubToken?: string;
+  forceRefreshProfile?: boolean;
   companyName?: string;
   jobTitle?: string;
   validationScores?: {
@@ -25,8 +29,12 @@ export interface AppState {
 }
 
 const App: React.FC = () => {
+  const { user, loading } = useAuth();
   const [screen, setScreen] = useState<Screen>(Screen.Input);
   const [appState, setAppState] = useState<AppState>({});
+
+  // Debug auth state
+  console.log('Auth state:', { user: user?.email, loading });
 
   const handleStartProcessing = useCallback((data: { 
     resumeText: string; 
@@ -36,6 +44,7 @@ const App: React.FC = () => {
     githubUsername?: string;
     githubToken?: string;
     jobTextFromPreview?: string;
+    forceRefreshProfile?: boolean;
   }) => {
     setAppState(prev => ({
       ...prev,
@@ -47,6 +56,7 @@ const App: React.FC = () => {
       linkedinUrl: data.linkedinUrl,
       githubUsername: data.githubUsername,
       githubToken: data.githubToken,
+      forceRefreshProfile: data.forceRefreshProfile,
     }));
     setScreen(Screen.Processing);
   }, []);
@@ -60,6 +70,21 @@ const App: React.FC = () => {
     setAppState({});
     setScreen(Screen.Input);
   }, []);
+
+  // Handle OAuth callback route
+  if (window.location.pathname === '/auth/callback') {
+    return <AuthCallback />;
+  }
+
+  // Show loading while checking auth
+  if (loading) {
+    return <LoadingSpinner fullScreen message="Loading..." />;
+  }
+
+  // Show login if not authenticated
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="bg-background-main text-text-main min-h-screen">
@@ -77,6 +102,7 @@ const App: React.FC = () => {
             linkedinUrl={appState.linkedinUrl}
             githubUsername={appState.githubUsername}
             githubToken={appState.githubToken}
+            forceRefreshProfile={appState.forceRefreshProfile}
           />
         )}
         {screen === Screen.Reveal && (

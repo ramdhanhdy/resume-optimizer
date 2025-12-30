@@ -6,6 +6,7 @@ from .docx_generator import html_to_docx
 from .marked_text_to_docx import parse_marked_text_to_docx
 from .execute_docx_code import execute_docx_code
 from .resume_diff_parser import generate_resume_diff
+from .job_metadata_extractor import extract_job_metadata
 
 __all__ = [
     "get_text_diff",
@@ -21,4 +22,5 @@ __all__ = [
     "parse_marked_text_to_docx",
     "execute_docx_code",
     "generate_resume_diff",
+    "extract_job_metadata",
 ]

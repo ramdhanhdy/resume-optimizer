@@ -95,6 +95,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "gpt-5.1",
     },
+    "openai::gpt-5.2": {
+        "provider": "openai",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,  # GPT-5.2 supports temperature parameter
+        },
+        "api_model": "gpt-5.2",
+    },
     "openrouter::moonshotai/kimi-k2-thinking": {
         "provider": "openrouter",
         "capabilities": {
@@ -113,6 +122,24 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         "provider": "openrouter",
         "capabilities": {"supports_files": True, "supports_images": True},
         "api_model": "openai/gpt-5",
+    },
+    "openrouter::openai/gpt-5.2": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,  # GPT-5.2 supports temperature parameter
+        },
+        "api_model": "openai/gpt-5.2",
+    },
+    "openrouter::anthropic/claude-opus-4.5": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,
+        },
+        "api_model": "anthropic/claude-opus-4.5",
     },
     "openrouter::x-ai/grok-4-fast": {
         "provider": "openrouter",
@@ -183,15 +210,6 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "google/gemini-2.5-flash",
     },
-    "zenmux::google/gemini-2.5-flash-lite": {
-        "provider": "zenmux",
-        "capabilities": {
-            "supports_files": True,
-            "supports_images": True,
-            "supports_thinking_budget": True,  # Requires value between 512-24576
-        },
-        "api_model": "google/gemini-2.5-flash-lite",
-    },
     "zenmux::moonshotai/kimi-k2-0905": {
         "provider": "zenmux",
         "capabilities": {
@@ -256,15 +274,6 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "gpt-oss-120b",
     },
-    "cerebras::qwen-3-coder-480b": {
-        "provider": "cerebras",
-        "capabilities": {
-            "supports_files": False,
-            "supports_images": False,
-            "supports_thinking_budget": False,
-        },
-        "api_model": "qwen-3-coder-480b",
-    },
     # Gemini models
     "gemini::gemini-2.5-flash": {
         "provider": "gemini",
@@ -284,24 +293,6 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "gemini-2.5-pro",
     },
-    "gemini::gemini-2.5-flash-lite": {
-        "provider": "gemini",
-        "capabilities": {
-            "supports_files": True,
-            "supports_images": True,
-            "supports_thinking_budget": True,
-        },
-        "api_model": "gemini-2.5-flash-lite",
-    },
-    "gemini::gemini-2.0-flash": {
-        "provider": "gemini",
-        "capabilities": {
-            "supports_files": True,
-            "supports_images": True,
-            "supports_thinking_budget": False,
-        },
-        "api_model": "gemini-2.0-flash",
-    },
     "gemini::gemini-3-pro-preview": {
         "provider": "gemini",
         "capabilities": {
@@ -310,6 +301,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_thinking_budget": True,
         },
         "api_model": "gemini-3-pro-preview",
+    },
+    "gemini::gemini-3-flash-preview": {
+        "provider": "gemini",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_thinking_budget": False,
+        },
+        "api_model": "gemini-3-flash-preview",
     },
 }
 

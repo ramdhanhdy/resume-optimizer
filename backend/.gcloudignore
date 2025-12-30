@@ -41,3 +41,5 @@ test_sample.pdf
 .idea/
 *.code-workspace
 **/authentication_and_metering_spec.md
+
+evals/

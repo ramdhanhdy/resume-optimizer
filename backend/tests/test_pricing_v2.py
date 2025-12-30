@@ -6,12 +6,12 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project src to path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-# Import only pricing module (avoid full API imports)
 import importlib.util
-pricing_path = Path(__file__).parent / "src/api/pricing.py"
+pricing_path = PROJECT_ROOT / "src" / "api" / "pricing.py"
 spec = importlib.util.spec_from_file_location("pricing", str(pricing_path))
 pricing_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pricing_module)

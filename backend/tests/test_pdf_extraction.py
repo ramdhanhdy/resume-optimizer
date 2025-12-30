@@ -5,8 +5,9 @@ import os
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add project src to path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from dotenv import load_dotenv
 
@@ -175,8 +176,8 @@ async def main():
     print("=" * 60)
     print("\nNote: To fully test PDF extraction with Gemini:")
     print("1. Set GEMINI_API_KEY in backend/.env")
-    print("2. Place a test PDF as backend/test_sample.pdf")
-    print("3. Run this script: python backend/test_pdf_extraction.py")
+    print("2. Place a test PDF as backend/tests/test_sample.pdf")
+    print("3. Run this script from repo root: python -m tests.test_pdf_extraction")
     print("=" * 60 + "\n")
 
 

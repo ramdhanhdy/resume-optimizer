@@ -1,0 +1,6 @@
+# Ignore evaluation suite from Vercel deployment
+evals/
+backend/
+docs/
+*.md
+!frontend/**

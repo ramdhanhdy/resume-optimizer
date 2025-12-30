@@ -10,6 +10,7 @@ import type {
   InsightState,
   StepState,
 } from '../types/streaming';
+import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -175,43 +176,63 @@ export function useProcessingJob(jobId: string | null) {
   useEffect(() => {
     if (!jobId) return;
 
-    const streamUrl = `${API_BASE_URL}/api/jobs/${jobId}/stream`;
-    console.log('🔌 Connecting to SSE stream:', streamUrl);
+    let eventSource: EventSource | null = null;
+    let isCancelled = false;
 
-    const eventSource = new EventSource(streamUrl);
-    eventSourceRef.current = eventSource;
+    const connectStream = async () => {
+      // Get access token for SSE (EventSource cannot set headers, so we use URL param)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
-    eventSource.onopen = () => {
-      console.log('✅ SSE connection opened');
-      setState(prev => prev ? {
-        ...prev,
-        connection: { ...prev.connection, connected: true, error: undefined },
-      } : prev);
-    };
+      if (isCancelled) return;
 
-    eventSource.onmessage = (e) => {
-      try {
-        const event: ProcessingEvent = JSON.parse(e.data);
-        handleEvent(event);
-      } catch (err) {
-        console.error('Failed to parse SSE event:', err);
+      let streamUrl = `${API_BASE_URL}/api/jobs/${jobId}/stream`;
+      if (token) {
+        streamUrl += `?access_token=${encodeURIComponent(token)}`;
       }
+      
+      console.log('🔌 Connecting to SSE stream:', streamUrl.split('?')[0]);
+
+      eventSource = new EventSource(streamUrl);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        console.log('✅ SSE connection opened');
+        setState(prev => prev ? {
+          ...prev,
+          connection: { ...prev.connection, connected: true, error: undefined },
+        } : prev);
+      };
+
+      eventSource.onmessage = (e) => {
+        try {
+          const event: ProcessingEvent = JSON.parse(e.data);
+          handleEvent(event);
+        } catch (err) {
+          console.error('Failed to parse SSE event:', err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error('❌ SSE connection error:', err);
+        setState(prev => prev ? {
+          ...prev,
+          connection: { ...prev.connection, connected: false, error: 'Connection lost' },
+        } : prev);
+        
+        // EventSource will auto-reconnect
+      };
     };
 
-    eventSource.onerror = (err) => {
-      console.error('❌ SSE connection error:', err);
-      setState(prev => prev ? {
-        ...prev,
-        connection: { ...prev.connection, connected: false, error: 'Connection lost' },
-      } : prev);
-      
-      // EventSource will auto-reconnect
-    };
+    connectStream();
 
     // Cleanup
     return () => {
       console.log('🔌 Closing SSE connection');
-      eventSource.close();
+      isCancelled = true;
+      if (eventSource) {
+        eventSource.close();
+      }
       eventSourceRef.current = null;
     };
   }, [jobId, handleEvent]);
