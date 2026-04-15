@@ -1,13 +1,15 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Screen } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { LoginScreen, AuthCallback } from './components/auth';
 import { LoadingSpinner } from './components/shared';
 import InputScreen from './components/InputScreen';
-import ProcessingScreen from './components/ProcessingScreen';
-import RevealScreen from './components/RevealScreen';
+
+// Lazy-load heavy screen components to reduce initial bundle
+const ProcessingScreen = lazy(() => import('./components/ProcessingScreen'));
+const RevealScreen = lazy(() => import('./components/RevealScreen'));
 
 export interface AppState {
   applicationId?: number;
@@ -93,25 +95,29 @@ const App: React.FC = () => {
           <InputScreen key="input" onStart={handleStartProcessing} />
         )}
         {screen === Screen.Processing && (
-          <ProcessingScreen 
-            key="processing" 
-            onComplete={handleProcessingComplete}
-            resumeText={appState.resumeText!}
-            jobText={appState.jobText}
-            jobUrl={appState.jobUrl}
-            linkedinUrl={appState.linkedinUrl}
-            githubUsername={appState.githubUsername}
-            githubToken={appState.githubToken}
-            forceRefreshProfile={appState.forceRefreshProfile}
-          />
+          <Suspense fallback={<LoadingSpinner fullScreen message="Preparing..." />}>
+            <ProcessingScreen 
+              key="processing" 
+              onComplete={handleProcessingComplete}
+              resumeText={appState.resumeText!}
+              jobText={appState.jobText}
+              jobUrl={appState.jobUrl}
+              linkedinUrl={appState.linkedinUrl}
+              githubUsername={appState.githubUsername}
+              githubToken={appState.githubToken}
+              forceRefreshProfile={appState.forceRefreshProfile}
+            />
+          </Suspense>
         )}
         {screen === Screen.Reveal && (
-          <RevealScreen 
-            key="reveal" 
-            onRestart={handleRestart}
-            applicationId={appState.applicationId!}
-            scores={appState.validationScores}
-          />
+          <Suspense fallback={<LoadingSpinner fullScreen message="Loading results..." />}>
+            <RevealScreen 
+              key="reveal" 
+              onRestart={handleRestart}
+              applicationId={appState.applicationId!}
+              scores={appState.validationScores}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>

@@ -21,23 +21,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // Timeout fallback: if Supabase is unreachable (e.g. paused project),
+    // don't leave the user stuck on "Loading..." forever.
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('Auth session check timed out — Supabase may be unreachable');
+        setLoading(false);
+      }
+    }, 5000);
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      clearTimeout(timeoutId);
+      if (!cancelled) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    }).catch(() => {
+      clearTimeout(timeoutId);
+      if (!cancelled) {
+        setLoading(false);
+      }
     });
 
     // Listen for auth changes (handles multi-tab sync and token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        if (!cancelled) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signInWithEmail = async (email: string, password: string) => {

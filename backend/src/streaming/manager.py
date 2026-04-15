@@ -174,18 +174,43 @@ class StreamManager:
             if not events:
                 events = self._load_history_locked(job_id)
             status = self._job_status.get(job_id, {"status": "unknown"})
-            if status.get("status") == "unknown" and self._store:
-                metadata = self._store.get_run_metadata(job_id)
+            metadata = self._store.get_run_metadata(job_id) if self._store else None
+            if status.get("status") == "unknown" and metadata:
                 if metadata and metadata.get("status"):
                     status = {"status": metadata["status"]}
             
             # Extract recent chunks and insights for the snapshot
             recent_chunks = []
             recent_insights = []
+            metrics = {}
             
             # Limit to last 50 chunks and 20 insights
             chunk_count = 0
             insight_count = 0
+
+            for event in events:
+                if event.get("type") != "metric_update":
+                    continue
+
+                payload = event.get("payload") or {}
+                key = payload.get("key")
+                if not key:
+                    continue
+
+                metric = {
+                    "key": key,
+                    "value": payload.get("value"),
+                }
+                if payload.get("unit") is not None:
+                    metric["unit"] = payload.get("unit")
+                metrics[key] = metric
+
+            application_id = metadata.get("application_id") if metadata else None
+            if application_id is not None:
+                metrics["application_id"] = {
+                    "key": "application_id",
+                    "value": application_id,
+                }
             
             # Process events in reverse order (most recent first)
             for event in reversed(events[-100:]):  # Look at last 100 events
@@ -200,6 +225,9 @@ class StreamManager:
             snapshot = {
                 "job_id": job_id,
                 "status": status.get("status", "unknown"),
+                "application_id": application_id,
+                "last_event_id": metadata.get("last_event_id") if metadata else None,
+                "metrics": metrics,
                 "events": events,
                 "event_count": len(events),
                 "recent_chunks": list(reversed(recent_chunks)),  # Chronological order

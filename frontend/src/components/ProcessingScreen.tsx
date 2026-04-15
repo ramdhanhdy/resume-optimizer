@@ -36,6 +36,7 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState<string | null>(null);
   const hasStartedRef = React.useRef(false);
+  const completionHandledRef = React.useRef(false);
   
   // Simplified insight display - just track by ID
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -370,13 +371,14 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
   // Handle streaming completion
   useEffect(() => {
-    if (!USE_STREAMING || !isComplete || !streamState) return;
+    if (!USE_STREAMING || !isComplete || !streamState || completionHandledRef.current) return;
+    completionHandledRef.current = true;
 
     console.log('✨ Streaming pipeline complete!');
     
     const handleCompletion = async () => {
       // Extract application data from metrics
-      let applicationId = streamState.metrics['application_id']?.value;
+      let applicationId = streamState.applicationId ?? streamState.metrics['application_id']?.value;
       
       // Fallback: fetch from snapshot if application_id is missing
       if (!applicationId && jobId) {
@@ -384,14 +386,19 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
         try {
           const { apiClient } = await import('../services/api');
           const snapshot = await apiClient.getJobSnapshot(jobId);
-          applicationId = snapshot.metrics?.application_id?.value;
+          applicationId =
+            snapshot.application_id ??
+            snapshot.metrics?.application_id?.value;
           console.log('✅ Retrieved application_id from snapshot:', applicationId);
         } catch (error) {
           console.error('❌ Failed to fetch application_id from snapshot:', error);
         }
       }
       
-      if (!applicationId) {
+      const numericApplicationId =
+        typeof applicationId === 'string' ? Number(applicationId) : applicationId;
+
+      if (!Number.isFinite(numericApplicationId) || numericApplicationId <= 0) {
         console.error('❌ Could not retrieve application_id');
         alert('Pipeline completed but application ID is missing. Please check the console.');
         return;
@@ -403,7 +410,7 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       const culturalFit = streamState.metrics['cultural_fit']?.value || 86;
 
       const completionData = {
-        applicationId,
+        applicationId: numericApplicationId,
         companyName: 'Company', // TODO: Extract from analysis
         jobTitle: 'Position', // TODO: Extract from analysis
         validationScores: {

@@ -164,7 +164,9 @@ export function useProcessingJob(jobId: string | null) {
           break;
 
         case 'done':
-          newState.status = 'completed';
+          if (prev.status !== 'failed' && prev.status !== 'canceled') {
+            newState.status = 'completed';
+          }
           break;
       }
 

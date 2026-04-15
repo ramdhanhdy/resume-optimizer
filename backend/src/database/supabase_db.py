@@ -60,11 +60,22 @@ class SupabaseDatabase:
 
         Returns the profile row ID.
         """
+        # profile_index column is jsonb — ensure we store valid JSON
+        # If it's already a dict/list, use as-is; if it's a string, try parsing
+        # or wrap it as a JSON string value
+        pi_value = profile_index
+        if isinstance(profile_index, str):
+            try:
+                pi_value = json.loads(profile_index)
+            except (json.JSONDecodeError, TypeError):
+                # Raw text from agent — store as a JSON string
+                pi_value = profile_index
+        
         data = {
             "user_id": self.user_id,
             "sources": sources if sources else [],
             "profile_text": profile_text,
-            "profile_index": profile_index,
+            "profile_index": pi_value,
         }
         if linkedin_url:
             data["linkedin_url"] = linkedin_url

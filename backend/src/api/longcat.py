@@ -45,7 +45,7 @@ class LongCatClient:
 
         Args:
             prompt: System prompt
-            model: Model identifier (LongCat-Flash-Chat / LongCat-Flash-Thinking)
+            model: Model identifier (LongCat-Flash-Chat / LongCat-Flash-Thinking / LongCat-Flash-Thinking-2601)
             text_content: Text input from user
             file_path: Unsupported for LongCat (included for signature parity)
             file_type: Unsupported for LongCat (included for signature parity)
@@ -82,9 +82,13 @@ class LongCatClient:
             if top_p is not None:
                 params["top_p"] = top_p
             
-            # Add thinking_budget only for LongCat-Flash-Thinking model
-            if thinking_budget is not None and model == "LongCat-Flash-Thinking":
-                params["thinking_budget"] = thinking_budget
+            # Add enable_thinking for LongCat-Flash-Thinking models
+            is_thinking_model = "Thinking" in model or "thinking" in model.lower()
+            if is_thinking_model:
+                extra_body = {"enable_thinking": True}
+                if thinking_budget is not None:
+                    extra_body["thinking_budget"] = thinking_budget
+                params["extra_body"] = extra_body
             
             stream: Any = self.client.chat.completions.create(**params)
 

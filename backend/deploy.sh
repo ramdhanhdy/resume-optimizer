@@ -136,6 +136,8 @@ if [ "$SETUP_SECRETS" = true ]; then
   create_or_update_secret "longcat-api-key" "LONGCAT_API_KEY"
   create_or_update_secret "zenmux-api-key" "ZENMUX_API_KEY"
   create_or_update_secret "openai-api-key" "OPENAI_API_KEY"
+  create_or_update_secret "scrapingdog-api-key" "SCRAPINGDOG_API_KEY"
+  create_or_update_secret "supabase-secret-key" "SUPABASE_SECRET_KEY"
   
   echo ""
   echo -e "${BLUE}🔑 Granting Cloud Run service account access to secrets...${NC}"
@@ -145,7 +147,7 @@ if [ "$SETUP_SECRETS" = true ]; then
   SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
   
   # Grant access to all secrets (with retry logic for concurrent updates)
-  for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key" "openai-api-key"; do
+  for secret in "openrouter-api-key" "exa-api-key" "gemini-api-key" "cerebras-api-key" "longcat-api-key" "zenmux-api-key" "openai-api-key" "scrapingdog-api-key" "supabase-secret-key"; do
     echo -e "${BLUE}  Granting access to: $secret${NC}"
     
     # Retry up to 3 times with exponential backoff for concurrent policy changes
@@ -188,6 +190,8 @@ SECRET_MAPPING+=",CEREBRAS_API_KEY=cerebras-api-key:latest"
 SECRET_MAPPING+=",LONGCAT_API_KEY=longcat-api-key:latest"
 SECRET_MAPPING+=",ZENMUX_API_KEY=zenmux-api-key:latest"
 SECRET_MAPPING+=",OPENAI_API_KEY=openai-api-key:latest"
+SECRET_MAPPING+=",SCRAPINGDOG_API_KEY=scrapingdog-api-key:latest"
+SECRET_MAPPING+=",SUPABASE_SECRET_KEY=supabase-secret-key:latest"
 
 # Non-sensitive environment variables
 # Note: PORT is automatically set by Cloud Run (always 8080)
@@ -198,9 +202,13 @@ set +a
 
 # For Cloud Run deployment, use * for CORS (simpler) or hardcode production domains
 # The CORS_ORIGINS from .env might have special chars that break gcloud CLI
-ENV_VARS="DATABASE_PATH=/tmp/applications.db"
-ENV_VARS+=",HOST=0.0.0.0"
+ENV_VARS="HOST=0.0.0.0"
 ENV_VARS+=",CORS_ORIGINS=*"
+# Supabase configuration (use Supabase PostgreSQL instead of SQLite)
+ENV_VARS+=",SUPABASE_URL=${SUPABASE_URL:-https://ezdjywejiqqxmqenceal.supabase.co}"
+ENV_VARS+=",USE_SUPABASE_DB=true"
+# Fallback SQLite path (only used if USE_SUPABASE_DB=false)
+ENV_VARS+=",DATABASE_PATH=/tmp/applications.db"
 ENV_VARS+=",DEFAULT_MODEL=${DEFAULT_MODEL:-gemini::gemini-3-pro-preview}"
 ENV_VARS+=",ANALYZER_MODEL=${ANALYZER_MODEL:-gemini::gemini-3-pro-preview}"
 ENV_VARS+=",OPTIMIZER_MODEL=${OPTIMIZER_MODEL:-openai::gpt-5.1}"
@@ -254,7 +262,6 @@ echo "  # Your user (ramdhanhdy@xanalabs.com) already has access"
 echo -e "${BLUE}🔐 Service access configured for your user${NC}"
 echo -e "${YELLOW}⚠️  Public access blocked by organization policy (expected)${NC}"
 echo ""
-echo -e "${YELLOW}⚠️  Note: SQLite database in /tmp is ephemeral${NC}"
-echo "  Data will be lost when container restarts"
-echo "  Consider migrating to Cloud SQL for production"
+echo -e "${GREEN}✅ Database: Supabase PostgreSQL (persistent)${NC}"
+echo "  Data is stored in Supabase and persists across container restarts"
 echo ""
