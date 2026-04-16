@@ -1,6 +1,6 @@
 """FastAPI server for Resume Optimizer backend."""
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ import json
 import asyncio
 import time
 import functools
+import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -49,6 +50,8 @@ from src.services.docx_safety_service import classify_docx_code_safety, is_label
 from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
+
+from src.middleware.auth import get_current_user_id, get_user_id_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -98,15 +101,48 @@ MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
 DEV_MODE_ENABLED = os.getenv("DEV_MODE", "false").lower() == "true"
 
 
+def _is_supabase_auth_user_id(user_id: Optional[str]) -> bool:
+    """Return True when user_id can be used against Supabase auth UUID columns."""
+    if not user_id:
+        return False
+    try:
+        uuid.UUID(str(user_id))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def get_db_for_user(user_id: str = None):
     """Get database instance for a user.
     
-    When USE_SUPABASE_DB is enabled and user_id is provided, returns a 
-    SupabaseDatabase instance. Otherwise returns the default SQLite database.
+    When USE_SUPABASE_DB is enabled and user_id is a Supabase Auth UUID,
+    returns a SupabaseDatabase instance. Otherwise returns the default SQLite
+    database for local/dev fallback identities like ip:127.0.0.1.
     """
-    if USE_SUPABASE_DB and user_id:
+    if USE_SUPABASE_DB and _is_supabase_auth_user_id(user_id):
         return get_database(user_id)
-    return db
+    return db.for_user(user_id)
+
+
+async def require_user_data_user_id(
+    request: Request,
+    auth_user_id: Optional[str] = Depends(get_current_user_id),
+) -> str:
+    """Require real auth in Supabase mode; allow fallback IDs only in SQLite mode."""
+    if USE_SUPABASE_DB:
+        if not auth_user_id:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return auth_user_id
+
+    return get_user_id_from_request(request)
+
+
+def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
+    """Normalize empty strings to None for persisted user preference fields."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
 
 
 # Store in app state for access in routes
@@ -130,7 +166,13 @@ async def get_usage(http_request: Request):
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    run_count = run_store.count_runs_for_client(user_id)
+    user_db = get_db_for_user(user_id)
+    
+    # Use Supabase DB for counting if enabled, otherwise fall back to run_store
+    if USE_SUPABASE_DB and user_id and hasattr(user_db, 'count_runs_for_client'):
+        run_count = user_db.count_runs_for_client(user_id)
+    else:
+        run_count = run_store.count_runs_for_client(user_id)
     remaining = max(0, MAX_FREE_RUNS - run_count)
     
     return {
@@ -142,13 +184,14 @@ async def get_usage(http_request: Request):
     }
 
 
-def _latest_agent_output_text(application_id: int, agent_name: str) -> str:
+def _latest_agent_output_text(application_id: int, agent_name: str, user_db=None) -> str:
     """Fetch the most recent saved output text for a given agent.
 
     Falls back to empty string if none found.
     """
+    _db = user_db or db
     try:
-        outputs = db.get_agent_outputs(application_id)
+        outputs = _db.get_agent_outputs(application_id)
         for rec in reversed(outputs):
             if str(rec.get("agent_name", "")) == agent_name:
                 data = rec.get("output_data")
@@ -319,12 +362,31 @@ class PipelineRequest(BaseModel):
     github_username: Optional[str] = None
     github_token: Optional[str] = None
     force_refresh_profile: bool = False  # Force re-scrape of LinkedIn/GitHub
+    save_resume: bool = False  # Save this resume for future use
+    resume_label: Optional[str] = None  # Label for saved resume (auto-generated if omitted)
+    resume_filename: Optional[str] = None  # Original filename of uploaded resume
 
 
 class ProfileStatusRequest(BaseModel):
     """Request to check profile connection status."""
     linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
+
+
+class SaveResumeRequest(BaseModel):
+    """Request to save a resume for later reuse."""
+    label: str
+    resume_text: str
+    filename: Optional[str] = None
+    content_hash: Optional[str] = None
+    is_default: bool = False
+
+
+class UpdatePreferencesRequest(BaseModel):
+    """Request to update user preferences."""
+    default_linkedin_url: Optional[str] = None
+    default_github_username: Optional[str] = None
+    default_resume_id: Optional[int] = None
 
 
 @app.get("/")
@@ -452,9 +514,150 @@ async def get_profile_status(request: ProfileStatusRequest, http_request: Reques
     }
 
 
+# --- User Preferences & Saved Resumes ---
+
+@app.get("/api/user/preferences")
+async def get_user_preferences(user_id: str = Depends(require_user_data_user_id)):
+    """Get the authenticated user's preferences (LinkedIn, GitHub defaults, default resume)."""
+    user_db = get_db_for_user(user_id)
+    prefs = user_db.get_preferences()
+
+    if not prefs:
+        return {"success": True, "preferences": None}
+
+    # Normalize: don't leak full resume text in preferences response
+    result = {
+        "default_linkedin_url": prefs.get("default_linkedin_url"),
+        "default_github_username": prefs.get("default_github_username"),
+        "default_resume_id": prefs.get("default_resume_id"),
+    }
+    # Include default resume metadata (not full text) for UI display
+    default_resume = prefs.get("default_resume")
+    if default_resume:
+        result["default_resume"] = {
+            "id": default_resume["id"],
+            "label": default_resume.get("label"),
+            "filename": default_resume.get("filename"),
+        }
+    else:
+        result["default_resume"] = None
+
+    return {"success": True, "preferences": result}
+
+
+@app.put("/api/user/preferences")
+async def update_user_preferences(
+    request: UpdatePreferencesRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Upsert the authenticated user's preferences."""
+    user_db = get_db_for_user(user_id)
+
+    if request.default_resume_id is not None:
+        resume = user_db.get_saved_resume(request.default_resume_id)
+        if not resume:
+            raise HTTPException(status_code=404, detail="Saved resume not found")
+
+    fields_set = getattr(request, "model_fields_set", set())
+    pref_updates = {}
+    if "default_linkedin_url" in fields_set:
+        pref_updates["default_linkedin_url"] = _normalized_optional_text(
+            request.default_linkedin_url
+        )
+    if "default_github_username" in fields_set:
+        pref_updates["default_github_username"] = _normalized_optional_text(
+            request.default_github_username
+        )
+    if "default_resume_id" in fields_set:
+        pref_updates["default_resume_id"] = request.default_resume_id
+
+    prefs = user_db.upsert_preferences(
+        **pref_updates,
+    )
+
+    return {"success": True, "preferences": {
+        "default_linkedin_url": prefs.get("default_linkedin_url"),
+        "default_github_username": prefs.get("default_github_username"),
+        "default_resume_id": prefs.get("default_resume_id"),
+    }}
+
+
+@app.get("/api/user/resumes")
+async def list_user_resumes(user_id: str = Depends(require_user_data_user_id)):
+    """List the authenticated user's saved resumes (metadata only, no full text)."""
+    user_db = get_db_for_user(user_id)
+    resumes = user_db.list_saved_resumes()
+
+    return {"success": True, "resumes": resumes}
+
+
+@app.post("/api/user/resumes")
+async def save_user_resume(
+    request: SaveResumeRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Save a resume for the authenticated user."""
+    import hashlib
+
+    # Compute content hash for dedup if not provided
+    content_hash = request.content_hash or hashlib.sha256(
+        request.resume_text.encode()
+    ).hexdigest()
+
+    user_db = get_db_for_user(user_id)
+    existing_resume = user_db.get_resume_by_content_hash(content_hash)
+    if existing_resume:
+        resume_id = existing_resume["id"]
+        if request.is_default:
+            user_db.set_default_resume(resume_id)
+    else:
+        resume_id = user_db.save_resume(
+            label=request.label,
+            resume_text=request.resume_text,
+            filename=request.filename,
+            content_hash=content_hash,
+            is_default=request.is_default,
+        )
+
+    return {"success": True, "resume_id": resume_id}
+
+
+@app.get("/api/user/resumes/{resume_id}")
+async def get_user_resume(
+    resume_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Get a specific saved resume (includes full text)."""
+    user_db = get_db_for_user(user_id)
+    resume = user_db.get_saved_resume(resume_id)
+
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    return {"success": True, "resume": resume}
+
+
+@app.delete("/api/user/resumes/{resume_id}")
+async def delete_user_resume(
+    resume_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Delete a saved resume."""
+    user_db = get_db_for_user(user_id)
+    deleted = user_db.delete_saved_resume(resume_id)
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    return {"success": True}
+
+
 @app.post("/api/analyze-job")
-async def analyze_job(request: JobAnalysisRequest):
+async def analyze_job(request: JobAnalysisRequest, http_request: Request):
     """Analyze job posting (Agent 1)."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     # Get job text
     if request.job_text:
         job_text = request.job_text
@@ -504,13 +707,13 @@ async def analyze_job(request: JobAnalysisRequest):
         job_title = "Position"  # TODO: Extract from analysis
 
         # Save to database (store analysis in agent outputs)
-        app_id = db.create_application(
+        app_id = user_db.create_application(
             company_name=company_name,
             job_title=job_title,
             job_posting_text=job_text,
             original_resume_text="",
         )
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=app_id,
             agent_number=1,
             agent_name="Job Analyzer",
@@ -537,11 +740,14 @@ async def analyze_job(request: JobAnalysisRequest):
 
 
 @app.post("/api/optimize-resume")
-async def optimize_resume(request: ResumeOptimizationRequest):
+async def optimize_resume(request: ResumeOptimizationRequest, http_request: Request):
     """Generate optimization strategy (Agent 2)."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         # Get application data
-        app_data = db.get_application(request.application_id)
+        app_data = user_db.get_application(request.application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
 
@@ -550,7 +756,7 @@ async def optimize_resume(request: ResumeOptimizationRequest):
 
         # Resolve job analysis from previous step
         job_analysis_text = _latest_agent_output_text(
-            request.application_id, "Job Analyzer"
+            request.application_id, "Job Analyzer", user_db=user_db
         )
 
         # Run Resume Optimizer Agent
@@ -572,12 +778,12 @@ async def optimize_resume(request: ResumeOptimizationRequest):
             optimization_metadata = exc.value or {}
 
         # Update database and persist agent output
-        db.update_application(
+        user_db.update_application(
             request.application_id,
             original_resume_text=request.resume_text,
             model_used=OPTIMIZER_MODEL,
         )
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=2,
             agent_name="Resume Optimizer",
@@ -601,11 +807,14 @@ async def optimize_resume(request: ResumeOptimizationRequest):
 
 
 @app.post("/api/implement")
-async def implement_optimization(request: ImplementationRequest):
+async def implement_optimization(request: ImplementationRequest, http_request: Request):
     """Apply optimization strategy (Agent 3)."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         # Get application data
-        app_data = db.get_application(request.application_id)
+        app_data = user_db.get_application(request.application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
 
@@ -614,10 +823,10 @@ async def implement_optimization(request: ImplementationRequest):
 
         # Resolve required inputs
         job_analysis_text = _latest_agent_output_text(
-            request.application_id, "Job Analyzer"
+            request.application_id, "Job Analyzer", user_db=user_db
         )
         optimization_strategy = _latest_agent_output_text(
-            request.application_id, "Resume Optimizer"
+            request.application_id, "Resume Optimizer", user_db=user_db
         )
         original_resume = app_data.get("original_resume_text", "")
 
@@ -643,12 +852,12 @@ async def implement_optimization(request: ImplementationRequest):
         optimized_resume = extract_optimized_resume(implementation_result)
         
         # Update database and persist agent output
-        db.update_application(
+        user_db.update_application(
             request.application_id,
             optimized_resume_text=optimized_resume,
             model_used=IMPLEMENTER_MODEL,
         )
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=3,
             agent_name="Optimizer Implementer",
@@ -674,11 +883,14 @@ async def implement_optimization(request: ImplementationRequest):
 
 
 @app.post("/api/validate")
-async def validate_resume(request: ValidationRequest):
+async def validate_resume(request: ValidationRequest, http_request: Request):
     """Validate optimized resume (Agent 4)."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         # Get application data
-        app_data = db.get_application(request.application_id)
+        app_data = user_db.get_application(request.application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
         
@@ -688,7 +900,7 @@ async def validate_resume(request: ValidationRequest):
         # Resolve required inputs
         job_posting_text = app_data.get("job_posting_text", "")
         job_analysis_text = _latest_agent_output_text(
-            request.application_id, "Job Analyzer"
+            request.application_id, "Job Analyzer", user_db=user_db
         )
         optimized_resume = app_data.get("optimized_resume_text", "")
 
@@ -712,7 +924,7 @@ async def validate_resume(request: ValidationRequest):
             validation_metadata = exc.value or {}
 
         # Persist agent output (scores are derived later)
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=4,
             agent_name="Validator",
@@ -746,11 +958,14 @@ async def validate_resume(request: ValidationRequest):
 
 
 @app.post("/api/polish")
-async def polish_resume(request: PolishRequest):
+async def polish_resume(request: PolishRequest, http_request: Request):
     """Final polish and export (Agent 5)."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         # Get application data
-        app_data = db.get_application(request.application_id)
+        app_data = user_db.get_application(request.application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
 
@@ -760,7 +975,7 @@ async def polish_resume(request: PolishRequest):
         # Resolve required inputs
         optimized_resume = app_data.get("optimized_resume_text", "")
         validation_report = _latest_agent_output_text(
-            request.application_id, "Validator"
+            request.application_id, "Validator", user_db=user_db
         )
 
         # Run Polish Agent
@@ -785,12 +1000,12 @@ async def polish_resume(request: PolishRequest):
         final_resume = extract_optimized_resume(polish_result)
 
         # Update database and persist agent output
-        db.update_application(
+        user_db.update_application(
             request.application_id,
             optimized_resume_text=final_resume,
             model_used=POLISH_MODEL,
         )
-        db.save_agent_output(
+        user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=5,
             agent_name="Polish Agent",
@@ -815,11 +1030,14 @@ async def polish_resume(request: PolishRequest):
 
 
 @app.get("/api/export/{application_id}")
-async def export_resume(application_id: int, format: str = "docx"):
+async def export_resume(application_id: int, http_request: Request, format: str = "docx"):
     """Export final resume in requested format by executing LLM-generated DOCX code."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         # Get application data
-        app_data = db.get_application(application_id)
+        app_data = user_db.get_application(application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
         
@@ -903,10 +1121,13 @@ async def export_resume(application_id: int, format: str = "docx"):
 
 
 @app.get("/api/applications")
-async def list_applications():
+async def list_applications(http_request: Request):
     """List all saved applications."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
-        applications = db.get_all_applications()
+        applications = user_db.get_all_applications()
         return {
             "success": True,
             "applications": applications
@@ -916,15 +1137,18 @@ async def list_applications():
 
 
 @app.get("/api/application/{application_id}")
-async def get_application(application_id: int):
+async def get_application(application_id: int, http_request: Request):
     """Get specific application details."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
-        app_data = db.get_application(application_id)
+        app_data = user_db.get_application(application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
         
         # Get agent outputs to provide plain text resume for display
-        agent_outputs = db.get_agent_outputs(application_id)
+        agent_outputs = user_db.get_agent_outputs(application_id)
         
         # Replace optimized_resume_text with Agent 3's output (plain text)
         # Agent 5's output is DOCX code, not suitable for display
@@ -951,20 +1175,23 @@ async def get_application(application_id: int):
 
 
 @app.get("/api/application/{application_id}/diff")
-async def get_application_diff(application_id: int):
+async def get_application_diff(application_id: int, http_request: Request):
     """Get resume diff with change reasons and validation warnings."""
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         from src.utils import generate_resume_diff
         
         # Get application data
-        app_data = db.get_application(application_id)
+        app_data = user_db.get_application(application_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="Application not found")
         
         original_text = app_data.get("original_resume_text", "")
         
         # Get agent outputs for reasons and optimized text
-        agent_outputs = db.get_agent_outputs(application_id)
+        agent_outputs = user_db.get_agent_outputs(application_id)
         optimization_report = ""
         validation_report = ""
         optimized_text = ""
@@ -1006,7 +1233,7 @@ async def get_application_diff(application_id: int):
         )
         
         # Get validation scores - return actual scores or None
-        validation_scores = db.get_validation_scores(application_id)
+        validation_scores = user_db.get_validation_scores(application_id)
         scores = None
         if validation_scores:
             scores = {
@@ -1029,7 +1256,7 @@ async def get_application_diff(application_id: int):
 
 
 @app.get("/api/application/{application_id}/reports")
-async def get_application_reports(application_id: int):
+async def get_application_reports(application_id: int, http_request: Request):
     """Get structured reports parsed from all agent outputs.
 
     Returns:
@@ -1039,11 +1266,14 @@ async def get_application_reports(application_id: int):
         - optimized_resume_text: Plain text optimized resume from Agent 3
         - agent_costs: Cost breakdown by agent
     """
+    from src.middleware.auth import get_user_id_from_request
+    user_id = get_user_id_from_request(http_request)
+    user_db = get_db_for_user(user_id)
     try:
         from src.utils.report_parsers import parse_all_reports
 
         # Get agent outputs
-        agent_outputs = db.get_agent_outputs(application_id)
+        agent_outputs = user_db.get_agent_outputs(application_id)
         if not agent_outputs:
             raise HTTPException(
                 status_code=404,
@@ -1054,7 +1284,7 @@ async def get_application_reports(application_id: int):
         reports = parse_all_reports(agent_outputs)
 
         # Get validation scores from database for additional context
-        validation_scores = db.get_validation_scores(application_id)
+        validation_scores = user_db.get_validation_scores(application_id)
         if validation_scores:
             reports["validation_scores"] = {
                 "requirements_match": validation_scores.get("requirements_match", 0),
@@ -1080,6 +1310,7 @@ async def get_application_reports(application_id: int):
 async def start_pipeline(request: PipelineRequest, http_request: Request):
     """Start the full pipeline with streaming support."""
     import uuid
+    import hashlib
     from src.middleware.auth import get_user_id_from_request
 
     # Get user ID from JWT token or fall back to client ID
@@ -1096,6 +1327,51 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
                 status_code=402,
                 detail="Usage limit reached. Please upgrade to continue.",
             )
+
+    # Auto-save non-sensitive defaults for real Supabase users, or in explicit SQLite mode.
+    should_persist_user_data = (
+        bool(user_id)
+        and (not USE_SUPABASE_DB or _is_supabase_auth_user_id(user_id))
+    )
+    if should_persist_user_data:
+        try:
+            user_db = get_db_for_user(user_id)
+            pref_data = {}
+            fields_set = getattr(request, "model_fields_set", set())
+            if "linkedin_url" in fields_set:
+                pref_data["default_linkedin_url"] = _normalized_optional_text(
+                    request.linkedin_url
+                )
+            if "github_username" in fields_set:
+                pref_data["default_github_username"] = _normalized_optional_text(
+                    request.github_username
+                )
+
+            # Optionally save the resume
+            if request.save_resume and request.resume_text:
+                content_hash = hashlib.sha256(
+                    request.resume_text.encode()
+                ).hexdigest()
+                label = request.resume_label or request.resume_filename or "My Resume"
+                existing_resume = user_db.get_resume_by_content_hash(content_hash)
+                if existing_resume:
+                    resume_id = existing_resume["id"]
+                    user_db.set_default_resume(resume_id)
+                else:
+                    resume_id = user_db.save_resume(
+                        label=label,
+                        resume_text=request.resume_text,
+                        filename=request.resume_filename,
+                        content_hash=content_hash,
+                        is_default=True,
+                    )
+                pref_data["default_resume_id"] = resume_id
+
+            if pref_data:
+                user_db.upsert_preferences(**pref_data)
+        except Exception as e:
+            # Non-critical: don't block pipeline if preference save fails
+            print(f"⚠️ Failed to auto-save preferences: {e}")
 
     job_id = str(uuid.uuid4())
     run_store.create_run(job_id=job_id, client_id=user_id, status="queued")
@@ -1583,7 +1859,7 @@ async def run_pipeline_with_streaming(
             parsed_scores, red_flags, recommendations = extract_validation_artifacts(validation_result)
             
             # Save validation scores to database
-            db.save_validation_scores(
+            user_db.save_validation_scores(
                 app_id,
                 scores=parsed_scores,
                 red_flags=red_flags,
@@ -1724,16 +2000,16 @@ async def run_pipeline_with_streaming(
         if app_id is not None:
             user_db.update_application(app_id, status="completed")
         
-        # Emit completion
-        await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
-        await stream_manager.emit(DoneEvent(job_id=job_id))
+        # Emit completion after final metrics. The stream endpoint closes on DoneEvent.
         if app_id is not None:
             run_store.update_status(job_id, status="completed", application_id=app_id)
+            # Ensure live clients receive the application id before the SSE stream closes.
+            await stream_manager.emit(MetricUpdateEvent.create(job_id, "application_id", app_id))
         else:
             run_store.update_status(job_id, status="completed")
 
-        # Store application_id in job metadata for retrieval
-        await stream_manager.emit(MetricUpdateEvent.create(job_id, "application_id", app_id))
+        await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
+        await stream_manager.emit(DoneEvent(job_id=job_id))
 
         print(f"🎉 Pipeline complete for job_id: {job_id}, app_id: {app_id}")
         

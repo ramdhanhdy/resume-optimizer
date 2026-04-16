@@ -13,6 +13,9 @@ from typing import List, Dict, Optional, Any
 from supabase import create_client, Client
 
 
+_UNSET = object()
+
+
 class SupabaseDatabase:
     """Supabase PostgreSQL database for tracking job applications."""
 
@@ -60,11 +63,22 @@ class SupabaseDatabase:
 
         Returns the profile row ID.
         """
+        # profile_index column is jsonb — ensure we store valid JSON
+        # If it's already a dict/list, use as-is; if it's a string, try parsing
+        # or wrap it as a JSON string value
+        pi_value = profile_index
+        if isinstance(profile_index, str):
+            try:
+                pi_value = json.loads(profile_index)
+            except (json.JSONDecodeError, TypeError):
+                # Raw text from agent — store as a JSON string
+                pi_value = profile_index
+        
         data = {
             "user_id": self.user_id,
             "sources": sources if sources else [],
             "profile_text": profile_text,
-            "profile_index": profile_index,
+            "profile_index": pi_value,
         }
         if linkedin_url:
             data["linkedin_url"] = linkedin_url
@@ -756,6 +770,182 @@ class SupabaseDatabase:
     def purge_run_events(self, job_id: str) -> None:
         """Delete persisted events for a job."""
         self.client.table("run_events").delete().eq("job_id", job_id).execute()
+
+    # --- Saved Resumes API ---
+
+    def save_resume(
+        self,
+        *,
+        label: str,
+        resume_text: str,
+        filename: Optional[str] = None,
+        content_hash: Optional[str] = None,
+        is_default: bool = False,
+    ) -> int:
+        """Save a resume for later reuse.
+
+        Returns the saved_resume row ID.
+        """
+        # If setting as default, clear existing defaults first
+        if is_default:
+            self.client.table("saved_resumes").update({"is_default": False}).eq(
+                "user_id", self.user_id
+            ).eq("is_default", True).execute()
+
+        data = {
+            "user_id": self.user_id,
+            "label": label,
+            "resume_text": resume_text,
+            "is_default": is_default,
+        }
+        if filename:
+            data["filename"] = filename
+        if content_hash:
+            data["content_hash"] = content_hash
+
+        result = self.client.table("saved_resumes").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert saved resume")
+        resume_id = result.data[0]["id"]
+        if is_default:
+            self.upsert_preferences(default_resume_id=resume_id)
+        return resume_id
+
+    def list_saved_resumes(self) -> List[Dict[str, Any]]:
+        """List all saved resumes for this user (without full text), most recent first."""
+        result = self.client.table("saved_resumes").select(
+            "id, label, filename, content_hash, is_default, created_at, updated_at"
+        ).eq("user_id", self.user_id).order("is_default", desc=True).order(
+            "created_at", desc=True
+        ).execute()
+
+        return [
+            {
+                "id": r["id"],
+                "label": r["label"],
+                "filename": r.get("filename"),
+                "content_hash": r.get("content_hash"),
+                "is_default": r.get("is_default", False),
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in result.data
+        ]
+
+    def get_saved_resume(self, resume_id: int) -> Optional[Dict[str, Any]]:
+        """Get a saved resume by ID (includes full text)."""
+        result = self.client.table("saved_resumes").select("*").eq(
+            "id", resume_id
+        ).eq("user_id", self.user_id).execute()
+
+        if not result.data:
+            return None
+        return result.data[0]
+
+    def get_resume_by_content_hash(self, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Get a saved resume by content hash for this user."""
+        result = self.client.table("saved_resumes").select("*").eq(
+            "user_id", self.user_id
+        ).eq("content_hash", content_hash).limit(1).execute()
+
+        if not result.data:
+            return None
+        return result.data[0]
+
+    def get_default_resume(self) -> Optional[Dict[str, Any]]:
+        """Get the user's default saved resume."""
+        result = self.client.table("saved_resumes").select("*").eq(
+            "user_id", self.user_id
+        ).eq("is_default", True).limit(1).execute()
+
+        if not result.data:
+            return None
+        return result.data[0]
+
+    def delete_saved_resume(self, resume_id: int) -> bool:
+        """Delete a saved resume. Returns True if deleted."""
+        # Clear preference reference if this was the default
+        self.client.table("user_preferences").update({
+            "default_resume_id": None,
+        }).eq("user_id", self.user_id).eq("default_resume_id", resume_id).execute()
+
+        result = self.client.table("saved_resumes").delete().eq(
+            "id", resume_id
+        ).eq("user_id", self.user_id).execute()
+
+        return bool(result.data)
+
+    def set_default_resume(self, resume_id: int) -> bool:
+        """Set a resume as the default, clearing any existing default."""
+        # Verify resume exists
+        check = self.client.table("saved_resumes").select("id").eq(
+            "id", resume_id
+        ).eq("user_id", self.user_id).execute()
+        if not check.data:
+            return False
+
+        # Clear existing defaults
+        self.client.table("saved_resumes").update({"is_default": False}).eq(
+            "user_id", self.user_id
+        ).eq("is_default", True).execute()
+
+        # Set new default
+        self.client.table("saved_resumes").update({"is_default": True}).eq(
+            "id", resume_id
+        ).eq("user_id", self.user_id).execute()
+
+        # Update preferences
+        self.client.table("user_preferences").update({
+            "default_resume_id": resume_id,
+        }).eq("user_id", self.user_id).execute()
+
+        return True
+
+    # --- User Preferences API ---
+
+    def get_preferences(self) -> Optional[Dict[str, Any]]:
+        """Get user preferences. Returns None if no preferences set."""
+        result = self.client.table("user_preferences").select("*").eq(
+            "user_id", self.user_id
+        ).execute()
+
+        if not result.data:
+            return None
+
+        rec = result.data[0]
+        # Join default resume info if available
+        if rec.get("default_resume_id"):
+            resume = self.get_saved_resume(rec["default_resume_id"])
+            rec["default_resume"] = resume
+        else:
+            rec["default_resume"] = None
+
+        return rec
+
+    def upsert_preferences(
+        self,
+        *,
+        default_linkedin_url: Any = _UNSET,
+        default_github_username: Any = _UNSET,
+        default_resume_id: Any = _UNSET,
+    ) -> Dict[str, Any]:
+        """Insert or update user preferences. Returns the upserted row."""
+        data = {"user_id": self.user_id}
+        if default_linkedin_url is not _UNSET:
+            data["default_linkedin_url"] = default_linkedin_url
+        if default_github_username is not _UNSET:
+            data["default_github_username"] = default_github_username
+        if default_resume_id is not _UNSET:
+            data["default_resume_id"] = default_resume_id
+
+        result = self.client.table("user_preferences").upsert(
+            data, on_conflict="user_id"
+        ).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to upsert user preferences")
+        return result.data[0]
 
     def close(self):
         """Close database connection (no-op for Supabase)."""

@@ -66,6 +66,24 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "LongCat-Flash-Thinking",
     },
+    "longcat-flash-thinking-2601": {
+        "provider": "longcat",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "LongCat-Flash-Thinking-2601",
+    },
+    "meituan::longcat-flash-thinking-2601": {
+        "provider": "longcat",
+        "capabilities": {
+            "supports_files": False,
+            "supports_images": False,
+            "supports_thinking_budget": True,
+        },
+        "api_model": "LongCat-Flash-Thinking-2601",
+    },
     # OpenRouter
     "openrouter::qwen/qwen3-max": {
         "provider": "openrouter",
@@ -103,6 +121,24 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_temperature": True,  # GPT-5.2 supports temperature parameter
         },
         "api_model": "gpt-5.2",
+    },
+    "openai::gpt-5.4": {
+        "provider": "openai",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,
+        },
+        "api_model": "gpt-5.4",
+    },
+    "openrouter::openai/gpt-5.4": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,
+        },
+        "api_model": "openai/gpt-5.4",
     },
     "openrouter::moonshotai/kimi-k2-thinking": {
         "provider": "openrouter",
@@ -352,7 +388,7 @@ def get_capabilities(model: str) -> Capabilities:
         return {
             "supports_files": False,
             "supports_images": False,
-            "supports_thinking_budget": (m == "longcat-flash-thinking"),
+            "supports_thinking_budget": ("thinking" in m),
             "supports_temperature": True,
         }
     if provider == "zenmux":

@@ -36,6 +36,12 @@ exports/**
 test_*.py
 test_sample.pdf
 
+# Scripts (not needed in container)
+scripts/
+
+# Migrations (applied separately, not needed in container)
+migrations/
+
 # Editors/IDE
 .vscode/
 .idea/

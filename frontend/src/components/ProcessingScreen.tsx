@@ -22,6 +22,9 @@ interface ProcessingScreenProps {
   githubUsername?: string;
   githubToken?: string;
   forceRefreshProfile?: boolean;
+  saveResume?: boolean;
+  resumeLabel?: string;
+  resumeFilename?: string;
 }
 
 // Average time per step in seconds (used as fallback when no ETA from backend)
@@ -30,12 +33,13 @@ const FALLBACK_STEP_DURATION_SEC = 45; // ~45 seconds per step = ~3-4 min total
 // Feature flag for streaming (set to true to use new streaming infrastructure)
 const USE_STREAMING = true;
 
-const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl, linkedinUrl, githubUsername, githubToken, forceRefreshProfile }) => {
+const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl, linkedinUrl, githubUsername, githubToken, forceRefreshProfile, saveResume, resumeLabel, resumeFilename }) => {
   const [currentActivity, setCurrentActivity] = useState(PROCESSING_ACTIVITIES[0]);
   const [currentPhase, setCurrentPhase] = useState(PROCESSING_PHASES[0]);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState<string | null>(null);
   const hasStartedRef = React.useRef(false);
+  const completionHandledRef = React.useRef(false);
   
   // Simplified insight display - just track by ID
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -151,6 +155,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
             github_username: githubUsername,
             github_token: githubToken,
             force_refresh_profile: forceRefreshProfile,
+            save_resume: saveResume,
+            resume_label: resumeLabel,
+            resume_filename: resumeFilename,
           });
           
           console.log('✅ Pipeline started with job_id:', response.job_id);
@@ -370,13 +377,14 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
 
   // Handle streaming completion
   useEffect(() => {
-    if (!USE_STREAMING || !isComplete || !streamState) return;
+    if (!USE_STREAMING || !isComplete || !streamState || completionHandledRef.current) return;
+    completionHandledRef.current = true;
 
     console.log('✨ Streaming pipeline complete!');
     
     const handleCompletion = async () => {
       // Extract application data from metrics
-      let applicationId = streamState.metrics['application_id']?.value;
+      let applicationId = streamState.applicationId ?? streamState.metrics['application_id']?.value;
       
       // Fallback: fetch from snapshot if application_id is missing
       if (!applicationId && jobId) {
@@ -384,14 +392,19 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
         try {
           const { apiClient } = await import('../services/api');
           const snapshot = await apiClient.getJobSnapshot(jobId);
-          applicationId = snapshot.metrics?.application_id?.value;
+          applicationId =
+            snapshot.application_id ??
+            snapshot.metrics?.application_id?.value;
           console.log('✅ Retrieved application_id from snapshot:', applicationId);
         } catch (error) {
           console.error('❌ Failed to fetch application_id from snapshot:', error);
         }
       }
       
-      if (!applicationId) {
+      const numericApplicationId =
+        typeof applicationId === 'string' ? Number(applicationId) : applicationId;
+
+      if (!Number.isFinite(numericApplicationId) || numericApplicationId <= 0) {
         console.error('❌ Could not retrieve application_id');
         alert('Pipeline completed but application ID is missing. Please check the console.');
         return;
@@ -403,7 +416,7 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
       const culturalFit = streamState.metrics['cultural_fit']?.value || 86;
 
       const completionData = {
-        applicationId,
+        applicationId: numericApplicationId,
         companyName: 'Company', // TODO: Extract from analysis
         jobTitle: 'Position', // TODO: Extract from analysis
         validationScores: {

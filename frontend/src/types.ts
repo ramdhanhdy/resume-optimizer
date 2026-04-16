@@ -3,6 +3,7 @@ export enum Screen {
   Input,
   Processing,
   Reveal,
+  History,
 }
 
 export interface Insight {

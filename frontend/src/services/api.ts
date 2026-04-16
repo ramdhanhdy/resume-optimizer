@@ -82,6 +82,51 @@ export interface ProfileStatusResponse {
   };
 }
 
+export interface UserPreferences {
+  default_linkedin_url: string | null;
+  default_github_username: string | null;
+  default_resume_id: number | null;
+  default_resume: {
+    id: number;
+    label: string | null;
+    filename: string | null;
+  } | null;
+}
+
+export interface UserPreferencesResponse {
+  success: boolean;
+  preferences: UserPreferences | null;
+}
+
+export interface SavedResume {
+  id: number;
+  label: string;
+  filename: string | null;
+  content_hash: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedResumeDetail extends SavedResume {
+  resume_text: string;
+}
+
+export interface ListResumesResponse {
+  success: boolean;
+  resumes: SavedResume[];
+}
+
+export interface GetResumeResponse {
+  success: boolean;
+  resume: SavedResumeDetail;
+}
+
+export interface SaveResumeResponse {
+  success: boolean;
+  resume_id: number;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -259,6 +304,9 @@ class ApiClient {
     github_username?: string;
     github_token?: string;
     force_refresh_profile?: boolean;
+    save_resume?: boolean;
+    resume_label?: string;
+    resume_filename?: string;
   }): Promise<{ success: boolean; job_id: string; stream_url: string; snapshot_url: string }> {
     return this.request('/api/pipeline/start', {
       method: 'POST',
@@ -284,6 +332,58 @@ class ApiClient {
 
   getStreamUrl(job_id: string): string {
     return `${this.baseUrl}/api/jobs/${job_id}/stream`;
+  }
+
+  // --- User Preferences ---
+
+  async getUserPreferences(): Promise<UserPreferencesResponse> {
+    return this.request('/api/user/preferences', {
+      method: 'GET',
+    });
+  }
+
+  async updateUserPreferences(params: {
+    default_linkedin_url?: string;
+    default_github_username?: string;
+    default_resume_id?: number;
+  }): Promise<UserPreferencesResponse> {
+    return this.request('/api/user/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(params),
+    });
+  }
+
+  // --- Saved Resumes ---
+
+  async listSavedResumes(): Promise<ListResumesResponse> {
+    return this.request('/api/user/resumes', {
+      method: 'GET',
+    });
+  }
+
+  async getSavedResume(resumeId: number): Promise<GetResumeResponse> {
+    return this.request(`/api/user/resumes/${resumeId}`, {
+      method: 'GET',
+    });
+  }
+
+  async saveResume(params: {
+    label: string;
+    resume_text: string;
+    filename?: string;
+    content_hash?: string;
+    is_default?: boolean;
+  }): Promise<SaveResumeResponse> {
+    return this.request('/api/user/resumes', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async deleteSavedResume(resumeId: number): Promise<{ success: boolean }> {
+    return this.request(`/api/user/resumes/${resumeId}`, {
+      method: 'DELETE',
+    });
   }
 }
 
