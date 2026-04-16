@@ -121,7 +121,7 @@ def get_db_for_user(user_id: str = None):
     """
     if USE_SUPABASE_DB and _is_supabase_auth_user_id(user_id):
         return get_database(user_id)
-    return db
+    return db.for_user(user_id)
 
 
 async def require_user_data_user_id(
@@ -135,6 +135,14 @@ async def require_user_data_user_id(
         return auth_user_id
 
     return get_user_id_from_request(request)
+
+
+def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
+    """Normalize empty strings to None for persisted user preference fields."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
 
 
 # Store in app state for access in routes
@@ -550,10 +558,21 @@ async def update_user_preferences(
         if not resume:
             raise HTTPException(status_code=404, detail="Saved resume not found")
 
+    fields_set = getattr(request, "model_fields_set", set())
+    pref_updates = {}
+    if "default_linkedin_url" in fields_set:
+        pref_updates["default_linkedin_url"] = _normalized_optional_text(
+            request.default_linkedin_url
+        )
+    if "default_github_username" in fields_set:
+        pref_updates["default_github_username"] = _normalized_optional_text(
+            request.default_github_username
+        )
+    if "default_resume_id" in fields_set:
+        pref_updates["default_resume_id"] = request.default_resume_id
+
     prefs = user_db.upsert_preferences(
-        default_linkedin_url=request.default_linkedin_url,
-        default_github_username=request.default_github_username,
-        default_resume_id=request.default_resume_id,
+        **pref_updates,
     )
 
     return {"success": True, "preferences": {
@@ -586,17 +605,19 @@ async def save_user_resume(
     ).hexdigest()
 
     user_db = get_db_for_user(user_id)
-    resume_id = user_db.save_resume(
-        label=request.label,
-        resume_text=request.resume_text,
-        filename=request.filename,
-        content_hash=content_hash,
-        is_default=request.is_default,
-    )
-
-    # If this is the default resume, update preferences too
-    if request.is_default:
-        user_db.upsert_preferences(default_resume_id=resume_id)
+    existing_resume = user_db.get_resume_by_content_hash(content_hash)
+    if existing_resume:
+        resume_id = existing_resume["id"]
+        if request.is_default:
+            user_db.set_default_resume(resume_id)
+    else:
+        resume_id = user_db.save_resume(
+            label=request.label,
+            resume_text=request.resume_text,
+            filename=request.filename,
+            content_hash=content_hash,
+            is_default=request.is_default,
+        )
 
     return {"success": True, "resume_id": resume_id}
 
@@ -1316,10 +1337,15 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         try:
             user_db = get_db_for_user(user_id)
             pref_data = {}
-            if request.linkedin_url:
-                pref_data["default_linkedin_url"] = request.linkedin_url
-            if request.github_username:
-                pref_data["default_github_username"] = request.github_username
+            fields_set = getattr(request, "model_fields_set", set())
+            if "linkedin_url" in fields_set:
+                pref_data["default_linkedin_url"] = _normalized_optional_text(
+                    request.linkedin_url
+                )
+            if "github_username" in fields_set:
+                pref_data["default_github_username"] = _normalized_optional_text(
+                    request.github_username
+                )
 
             # Optionally save the resume
             if request.save_resume and request.resume_text:
@@ -1327,13 +1353,18 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
                     request.resume_text.encode()
                 ).hexdigest()
                 label = request.resume_label or request.resume_filename or "My Resume"
-                resume_id = user_db.save_resume(
-                    label=label,
-                    resume_text=request.resume_text,
-                    filename=request.resume_filename,
-                    content_hash=content_hash,
-                    is_default=True,
-                )
+                existing_resume = user_db.get_resume_by_content_hash(content_hash)
+                if existing_resume:
+                    resume_id = existing_resume["id"]
+                    user_db.set_default_resume(resume_id)
+                else:
+                    resume_id = user_db.save_resume(
+                        label=label,
+                        resume_text=request.resume_text,
+                        filename=request.resume_filename,
+                        content_hash=content_hash,
+                        is_default=True,
+                    )
                 pref_data["default_resume_id"] = resume_id
 
             if pref_data:

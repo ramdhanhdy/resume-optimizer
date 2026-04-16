@@ -13,6 +13,9 @@ from typing import List, Dict, Optional, Any
 from supabase import create_client, Client
 
 
+_UNSET = object()
+
+
 class SupabaseDatabase:
     """Supabase PostgreSQL database for tracking job applications."""
 
@@ -804,7 +807,10 @@ class SupabaseDatabase:
 
         if not result.data:
             raise RuntimeError("Failed to insert saved resume")
-        return result.data[0]["id"]
+        resume_id = result.data[0]["id"]
+        if is_default:
+            self.upsert_preferences(default_resume_id=resume_id)
+        return resume_id
 
     def list_saved_resumes(self) -> List[Dict[str, Any]]:
         """List all saved resumes for this user (without full text), most recent first."""
@@ -832,6 +838,16 @@ class SupabaseDatabase:
         result = self.client.table("saved_resumes").select("*").eq(
             "id", resume_id
         ).eq("user_id", self.user_id).execute()
+
+        if not result.data:
+            return None
+        return result.data[0]
+
+    def get_resume_by_content_hash(self, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Get a saved resume by content hash for this user."""
+        result = self.client.table("saved_resumes").select("*").eq(
+            "user_id", self.user_id
+        ).eq("content_hash", content_hash).limit(1).execute()
 
         if not result.data:
             return None
@@ -910,17 +926,17 @@ class SupabaseDatabase:
     def upsert_preferences(
         self,
         *,
-        default_linkedin_url: Optional[str] = None,
-        default_github_username: Optional[str] = None,
-        default_resume_id: Optional[int] = None,
+        default_linkedin_url: Any = _UNSET,
+        default_github_username: Any = _UNSET,
+        default_resume_id: Any = _UNSET,
     ) -> Dict[str, Any]:
         """Insert or update user preferences. Returns the upserted row."""
         data = {"user_id": self.user_id}
-        if default_linkedin_url is not None:
+        if default_linkedin_url is not _UNSET:
             data["default_linkedin_url"] = default_linkedin_url
-        if default_github_username is not None:
+        if default_github_username is not _UNSET:
             data["default_github_username"] = default_github_username
-        if default_resume_id is not None:
+        if default_resume_id is not _UNSET:
             data["default_resume_id"] = default_resume_id
 
         result = self.client.table("user_preferences").upsert(

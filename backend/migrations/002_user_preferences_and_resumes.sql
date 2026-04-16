@@ -22,6 +22,9 @@ create table if not exists public.saved_resumes (
 create index if not exists idx_saved_resumes_user on public.saved_resumes(user_id);
 create index if not exists idx_saved_resumes_user_default on public.saved_resumes(user_id) where is_default = true;
 create index if not exists idx_saved_resumes_content_hash on public.saved_resumes(user_id, content_hash);
+create unique index if not exists uniq_saved_resumes_user_content_hash
+  on public.saved_resumes(user_id, content_hash)
+  where content_hash is not null;
 
 create trigger tr_saved_resumes_updated_at
   before update on public.saved_resumes

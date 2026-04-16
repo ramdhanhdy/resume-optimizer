@@ -83,7 +83,7 @@ class LongCatClient:
                 params["top_p"] = top_p
             
             # Add enable_thinking for LongCat-Flash-Thinking models
-            is_thinking_model = "Thinking" in model or "thinking" in model.lower()
+            is_thinking_model = "thinking" in model.lower()
             if is_thinking_model:
                 extra_body = {"enable_thinking": True}
                 if thinking_budget is not None:

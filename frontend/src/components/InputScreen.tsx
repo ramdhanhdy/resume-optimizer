@@ -85,6 +85,8 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
   const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
   const [saveResume, setSaveResume] = useState<boolean>(false);
   const [preferencesLoaded, setPreferencesLoaded] = useState<boolean>(false);
+  const [recoveryCheckComplete, setRecoveryCheckComplete] = useState<boolean>(false);
+  const [hasRecoveryFile, setHasRecoveryFile] = useState<boolean>(false);
 
   // React Hook Form setup
   const {
@@ -124,7 +126,7 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
 
   // Load user preferences & saved resumes on mount (authenticated users only)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !recoveryCheckComplete) return;
     const loadPreferences = async () => {
       try {
         const [prefsRes, resumesRes] = await Promise.all([
@@ -141,7 +143,12 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
             setValue('githubUsername', p.default_github_username);
             setActiveIntegrations(prev => ({ ...prev, github: true }));
           }
-          if (p.default_resume_id && p.default_resume) {
+          if (
+            p.default_resume_id &&
+            p.default_resume &&
+            recoveryCheckComplete &&
+            !hasRecoveryFile
+          ) {
             await hydrateSavedResume(p.default_resume_id);
           }
         }
@@ -155,7 +162,7 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
       }
     };
     loadPreferences();
-  }, [user, setValue, hydrateSavedResume]);
+  }, [user, setValue, hydrateSavedResume, recoveryCheckComplete, hasRecoveryFile]);
 
   // Check profile connection status when LinkedIn URL or GitHub username changes
   useEffect(() => {
@@ -207,6 +214,7 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
         if (session) {
           console.log('Found recovery session:', session.sessionId);
           setRecoverySession(session);
+          setHasRecoveryFile(!!session.fileMetadata);
 
           // Restore form data
           if (session.formData.jobPosting) {
@@ -244,9 +252,13 @@ export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
               }
             }
           }
+        } else {
+          setHasRecoveryFile(false);
         }
       } catch (error) {
         console.error('Failed to check recovery:', error);
+      } finally {
+        setRecoveryCheckComplete(true);
       }
     };
 

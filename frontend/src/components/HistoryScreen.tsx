@@ -115,6 +115,7 @@ export default function HistoryScreen({ onBack, onViewApplication }: HistoryScre
                       variant="ghost"
                       size="sm"
                       onClick={() => onViewApplication(app.id)}
+                      aria-label={`View application ${app.id}`}
                       className="text-accent hover:text-accent/80 shrink-0"
                     >
                       <ExternalLink className="w-4 h-4" />

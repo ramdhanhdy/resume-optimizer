@@ -38,7 +38,9 @@ endpoints, and export flows. All endpoints extract user identity from Supabase J
 - **Integration**: Vercel rewrites `/api/*` to the backend service.
 
 The frontend gates all access behind Supabase Auth. It attaches `Authorization: Bearer`
-tokens to all API requests and passes `access_token` as a query param for SSE streams.
+tokens to API requests. Do not include `access_token` in SSE URLs; attach auth via
+an `Authorization: Bearer` header, or mint a short-lived one-time stream token from
+the backend and send it in a header or secure cookie when opening the SSE connection.
 
 ### Request Flow (High Level)
 
