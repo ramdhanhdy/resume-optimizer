@@ -6,6 +6,7 @@ import { useAuth } from './contexts/AuthContext';
 import { LoginScreen, AuthCallback } from './components/auth';
 import { LoadingSpinner } from './components/shared';
 import InputScreen from './components/InputScreen';
+import HistoryScreen from './components/HistoryScreen';
 
 // Lazy-load heavy screen components to reduce initial bundle
 const ProcessingScreen = lazy(() => import('./components/ProcessingScreen'));
@@ -20,6 +21,9 @@ export interface AppState {
   githubUsername?: string;
   githubToken?: string;
   forceRefreshProfile?: boolean;
+  saveResume?: boolean;
+  resumeLabel?: string;
+  resumeFilename?: string;
   companyName?: string;
   jobTitle?: string;
   validationScores?: {
@@ -47,6 +51,9 @@ const App: React.FC = () => {
     githubToken?: string;
     jobTextFromPreview?: string;
     forceRefreshProfile?: boolean;
+    saveResume?: boolean;
+    resumeLabel?: string;
+    resumeFilename?: string;
   }) => {
     setAppState(prev => ({
       ...prev,
@@ -59,6 +66,9 @@ const App: React.FC = () => {
       githubUsername: data.githubUsername,
       githubToken: data.githubToken,
       forceRefreshProfile: data.forceRefreshProfile,
+      saveResume: data.saveResume,
+      resumeLabel: data.resumeLabel,
+      resumeFilename: data.resumeFilename,
     }));
     setScreen(Screen.Processing);
   }, []);
@@ -92,7 +102,7 @@ const App: React.FC = () => {
     <div className="bg-background-main text-text-main min-h-screen">
       <AnimatePresence mode="wait">
         {screen === Screen.Input && (
-          <InputScreen key="input" onStart={handleStartProcessing} />
+          <InputScreen key="input" onStart={handleStartProcessing} onHistory={() => setScreen(Screen.History)} />
         )}
         {screen === Screen.Processing && (
           <Suspense fallback={<LoadingSpinner fullScreen message="Preparing..." />}>
@@ -106,8 +116,17 @@ const App: React.FC = () => {
               githubUsername={appState.githubUsername}
               githubToken={appState.githubToken}
               forceRefreshProfile={appState.forceRefreshProfile}
+              saveResume={appState.saveResume}
+              resumeLabel={appState.resumeLabel}
+              resumeFilename={appState.resumeFilename}
             />
           </Suspense>
+        )}
+        {screen === Screen.History && (
+          <HistoryScreen
+            key="history"
+            onBack={() => setScreen(Screen.Input)}
+          />
         )}
         {screen === Screen.Reveal && (
           <Suspense fallback={<LoadingSpinner fullScreen message="Loading results..." />}>

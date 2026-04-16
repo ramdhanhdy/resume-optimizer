@@ -138,6 +138,34 @@ class ApplicationDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_events_job_seq ON run_events(job_id, seq)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_metadata_client ON run_metadata(client_id)")
 
+        # Saved resumes table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS saved_resumes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                label TEXT NOT NULL,
+                filename TEXT,
+                resume_text TEXT NOT NULL,
+                content_hash TEXT,
+                is_default INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_default ON saved_resumes(is_default)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_hash ON saved_resumes(content_hash)")
+
+        # User preferences table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                default_linkedin_url TEXT,
+                default_github_username TEXT,
+                default_resume_id INTEGER REFERENCES saved_resumes(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         self.conn.commit()
         self._run_migrations()
 
@@ -189,6 +217,36 @@ class ApplicationDatabase:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_linkedin ON profiles(linkedin_url)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_github ON profiles(github_username)")
             cursor.execute("INSERT INTO migrations (migration_name) VALUES ('004_add_profile_cache_columns')")
+            self.conn.commit()
+
+        # Migration 005: Add saved_resumes and user_preferences tables
+        cursor.execute("SELECT 1 FROM migrations WHERE migration_name = '005_user_preferences_and_resumes'")
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS saved_resumes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    label TEXT NOT NULL,
+                    filename TEXT,
+                    resume_text TEXT NOT NULL,
+                    content_hash TEXT,
+                    is_default INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_default ON saved_resumes(is_default)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_hash ON saved_resumes(content_hash)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    default_linkedin_url TEXT,
+                    default_github_username TEXT,
+                    default_resume_id INTEGER REFERENCES saved_resumes(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("INSERT INTO migrations (migration_name) VALUES ('005_user_preferences_and_resumes')")
             self.conn.commit()
 
     # --- Profiles API ---
@@ -1001,6 +1059,167 @@ class ApplicationDatabase:
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM run_events WHERE job_id = ?", (job_id,))
         self.conn.commit()
+
+    # --- Saved Resumes API ---
+
+    def save_resume(
+        self,
+        *,
+        label: str,
+        resume_text: str,
+        filename: Optional[str] = None,
+        content_hash: Optional[str] = None,
+        is_default: bool = False,
+    ) -> int:
+        """Save a resume for later reuse.
+
+        Returns the saved_resume row ID.
+        """
+        cursor = self.conn.cursor()
+
+        # If setting as default, clear existing defaults first
+        if is_default:
+            cursor.execute("UPDATE saved_resumes SET is_default = 0 WHERE is_default = 1")
+
+        cursor.execute(
+            """
+            INSERT INTO saved_resumes (label, filename, resume_text, content_hash, is_default)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (label, filename, resume_text, content_hash, 1 if is_default else 0),
+        )
+        self.conn.commit()
+        last_row = cursor.lastrowid
+        if last_row is None:
+            raise RuntimeError("Failed to retrieve lastrowid after saved_resume insert.")
+        return int(last_row)
+
+    def list_saved_resumes(self) -> List[Dict[str, Any]]:
+        """List all saved resumes for the current user, most recent first."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, label, filename, content_hash, is_default, created_at, updated_at
+            FROM saved_resumes
+            ORDER BY is_default DESC, created_at DESC
+            """
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_saved_resume(self, resume_id: int) -> Optional[Dict[str, Any]]:
+        """Get a saved resume by ID (includes full text)."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM saved_resumes WHERE id = ?", (resume_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_default_resume(self) -> Optional[Dict[str, Any]]:
+        """Get the user's default saved resume."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT * FROM saved_resumes WHERE is_default = 1 LIMIT 1"
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def delete_saved_resume(self, resume_id: int) -> bool:
+        """Delete a saved resume. Returns True if deleted."""
+        cursor = self.conn.cursor()
+        # Clear preference reference if this was the default
+        cursor.execute(
+            "UPDATE user_preferences SET default_resume_id = NULL WHERE default_resume_id = ?",
+            (resume_id,),
+        )
+        cursor.execute("DELETE FROM saved_resumes WHERE id = ?", (resume_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def set_default_resume(self, resume_id: int) -> bool:
+        """Set a resume as the default, clearing any existing default."""
+        cursor = self.conn.cursor()
+        # Verify resume exists
+        cursor.execute("SELECT id FROM saved_resumes WHERE id = ?", (resume_id,))
+        if not cursor.fetchone():
+            return False
+        # Clear existing defaults
+        cursor.execute("UPDATE saved_resumes SET is_default = 0 WHERE is_default = 1")
+        # Set new default
+        cursor.execute("UPDATE saved_resumes SET is_default = 1 WHERE id = ?", (resume_id,))
+        # Update preferences
+        cursor.execute(
+            "UPDATE user_preferences SET default_resume_id = ?, updated_at = CURRENT_TIMESTAMP",
+            (resume_id,),
+        )
+        self.conn.commit()
+        return True
+
+    # --- User Preferences API ---
+
+    def get_preferences(self) -> Optional[Dict[str, Any]]:
+        """Get user preferences. Returns None if no preferences set."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM user_preferences LIMIT 1")
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        prefs = dict(row)
+        default_resume_id = prefs.get("default_resume_id")
+        prefs["default_resume"] = (
+            self.get_saved_resume(default_resume_id)
+            if default_resume_id is not None
+            else None
+        )
+        return prefs
+
+    def upsert_preferences(
+        self,
+        *,
+        default_linkedin_url: Optional[str] = None,
+        default_github_username: Optional[str] = None,
+        default_resume_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Insert or update user preferences. Returns the upserted row."""
+        cursor = self.conn.cursor()
+
+        # Check if preferences exist
+        cursor.execute("SELECT id FROM user_preferences LIMIT 1")
+        existing = cursor.fetchone()
+
+        if existing:
+            # Build dynamic UPDATE
+            fields = []
+            values = []
+            if default_linkedin_url is not None:
+                fields.append("default_linkedin_url = ?")
+                values.append(default_linkedin_url)
+            if default_github_username is not None:
+                fields.append("default_github_username = ?")
+                values.append(default_github_username)
+            if default_resume_id is not None:
+                fields.append("default_resume_id = ?")
+                values.append(default_resume_id)
+
+            if fields:
+                fields.append("updated_at = CURRENT_TIMESTAMP")
+                values.append(existing["id"])
+                query = f"UPDATE user_preferences SET {', '.join(fields)} WHERE id = ?"
+                cursor.execute(query, values)
+
+            cursor.execute("SELECT * FROM user_preferences WHERE id = ?", (existing["id"],))
+        else:
+            cursor.execute(
+                """
+                INSERT INTO user_preferences (default_linkedin_url, default_github_username, default_resume_id)
+                VALUES (?, ?, ?)
+                """,
+                (default_linkedin_url, default_github_username, default_resume_id),
+            )
+            cursor.execute("SELECT * FROM user_preferences WHERE id = ?", (cursor.lastrowid,))
+
+        self.conn.commit()
+        row = cursor.fetchone()
+        return dict(row) if row else {}
 
     def close(self):
         """Close database connection."""

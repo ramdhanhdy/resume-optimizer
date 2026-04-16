@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, X, LogOut, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileText, Check, Link as LinkIcon, Github, Linkedin, Sparkles, ArrowRight, Zap, X, LogOut, RefreshCw, CheckCircle2, Bookmark, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import RecoveryBanner from './shared/RecoveryBanner';
@@ -36,10 +36,14 @@ interface InputScreenProps {
     githubToken?: string;
     jobTextFromPreview?: string;
     forceRefreshProfile?: boolean;
+    saveResume?: boolean;
+    resumeLabel?: string;
+    resumeFilename?: string;
   }) => void;
+  onHistory?: () => void;
 }
 
-export default function InputScreen({ onStart }: InputScreenProps) {
+export default function InputScreen({ onStart, onHistory }: InputScreenProps) {
   const prefersReducedMotion = useReducedMotion();
   const { user, signOut } = useAuth();
 
@@ -76,6 +80,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   });
   const [forceRefreshProfile, setForceRefreshProfile] = useState<boolean>(false);
 
+  // Saved resumes & preferences state
+  const [savedResumes, setSavedResumes] = useState<Array<{ id: number; label: string; filename: string | null; is_default: boolean }>>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
+  const [saveResume, setSaveResume] = useState<boolean>(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState<boolean>(false);
+
   // React Hook Form setup
   const {
     register,
@@ -98,6 +108,54 @@ export default function InputScreen({ onStart }: InputScreenProps) {
   const githubUsername = watch('githubUsername');
   const linkedinUrl = watch('linkedinUrl');
   const jobInputValue = watch('jobInput');
+
+  const hydrateSavedResume = useCallback(async (resumeId: number) => {
+    try {
+      const res = await apiClient.getSavedResume(resumeId);
+      if (res.resume) {
+        setResumeText(res.resume.resume_text);
+        setFileName(res.resume.filename || res.resume.label);
+        setSelectedResumeId(resumeId);
+      }
+    } catch (e) {
+      console.error('Failed to load saved resume:', e);
+    }
+  }, []);
+
+  // Load user preferences & saved resumes on mount (authenticated users only)
+  useEffect(() => {
+    if (!user) return;
+    const loadPreferences = async () => {
+      try {
+        const [prefsRes, resumesRes] = await Promise.all([
+          apiClient.getUserPreferences(),
+          apiClient.listSavedResumes(),
+        ]);
+        if (prefsRes.preferences) {
+          const p = prefsRes.preferences;
+          if (p.default_linkedin_url) {
+            setValue('linkedinUrl', p.default_linkedin_url);
+            setActiveIntegrations(prev => ({ ...prev, linkedin: true }));
+          }
+          if (p.default_github_username) {
+            setValue('githubUsername', p.default_github_username);
+            setActiveIntegrations(prev => ({ ...prev, github: true }));
+          }
+          if (p.default_resume_id && p.default_resume) {
+            await hydrateSavedResume(p.default_resume_id);
+          }
+        }
+        if (resumesRes.resumes) {
+          setSavedResumes(resumesRes.resumes);
+        }
+      } catch (e) {
+        console.error('Failed to load preferences:', e);
+      } finally {
+        setPreferencesLoaded(true);
+      }
+    };
+    loadPreferences();
+  }, [user, setValue, hydrateSavedResume]);
 
   // Check profile connection status when LinkedIn URL or GitHub username changes
   useEffect(() => {
@@ -171,6 +229,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
             const file = await stateManager.loadFile(session.sessionId);
             if (file) {
               setFileName(file.name);
+              setSelectedResumeId(null);
               // Upload file to get text
               setIsLoading(true);
               try {
@@ -208,10 +267,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       setFileError(validation.error || 'Invalid file');
       setFileName('');
       setResumeText('');
+      setSelectedResumeId(null);
       return;
     }
 
     setFileName(file.name);
+    setSelectedResumeId(null);
     setIsLoading(true);
 
     try {
@@ -224,6 +285,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       setFileError('Failed to upload resume. Please try again.');
       setFileName('');
       setResumeText('');
+      setSelectedResumeId(null);
     } finally {
       setIsLoading(false);
     }
@@ -270,10 +332,12 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       setFileError(validation.error || 'Invalid file');
       setFileName('');
       setResumeText('');
+      setSelectedResumeId(null);
       return;
     }
 
     setFileName(file.name);
+    setSelectedResumeId(null);
     setIsLoading(true);
 
     try {
@@ -286,6 +350,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       setFileError('Failed to upload resume. Please try again.');
       setFileName('');
       setResumeText('');
+      setSelectedResumeId(null);
     } finally {
       setIsLoading(false);
     }
@@ -369,7 +434,20 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       githubToken: data.githubToken?.trim() || undefined,
       jobTextFromPreview: inputIsUrl && jobPreviewText ? jobPreviewText : undefined,
       forceRefreshProfile,
+      saveResume,
+      resumeLabel: fileName || undefined,
+      resumeFilename: fileName || undefined,
     });
+  };
+
+  // Load a saved resume into the form
+  const handleSelectSavedResume = async (resumeIdStr: string) => {
+    const resumeId = Number(resumeIdStr);
+    if (!resumeIdStr || !resumeId) {
+      setSelectedResumeId(null);
+      return;
+    }
+    await hydrateSavedResume(resumeId);
   };
 
   // Recovery handlers
@@ -424,6 +502,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
       // Reset form
       setFileName('');
       setResumeText('');
+      setSelectedResumeId(null);
       setFileError('');
       setValue('jobInput', '');
       setValue('linkedinUrl', '');
@@ -497,6 +576,17 @@ export default function InputScreen({ onStart }: InputScreenProps) {
         {/* User Menu - Fixed position top right */}
         <div className="fixed top-4 right-6 z-50 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-slate-200/50">
           <span className="text-xs text-text-main/60 hidden sm:inline">{user?.email}</span>
+          {onHistory && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onHistory}
+              className="text-text-main/60 hover:text-text-main h-7 px-2"
+            >
+              <History className="w-3.5 h-3.5 sm:mr-1" />
+              <span className="hidden sm:inline text-xs">History</span>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -663,7 +753,7 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                           </div>
                           <button 
                             type="button" 
-                            onClick={(e) => { e.stopPropagation(); setFileName(''); setResumeText(''); }} 
+                            onClick={(e) => { e.stopPropagation(); setFileName(''); setResumeText(''); setSelectedResumeId(null); }} 
                             className="text-xs text-text-main/40 hover:text-destructive transition-colors flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full hover:bg-destructive/5"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -723,6 +813,33 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                 </motion.p>
               )}
             </div>
+
+            {/* Saved Resumes Picker (authenticated users only) */}
+            {user && savedResumes.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-main/70 uppercase tracking-wider flex items-center gap-2">
+                  <Bookmark className="w-4 h-4 text-accent" />
+                  Saved Resumes
+                </label>
+                <select
+                  value={selectedResumeId ?? ''}
+                  onChange={(e) => handleSelectSavedResume(e.target.value)}
+                  className={cn(
+                    'w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm',
+                    'focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent',
+                    'transition-all duration-200 shadow-sm hover:border-slate-300',
+                    !selectedResumeId && 'text-slate-400'
+                  )}
+                >
+                  <option value="">Select a saved resume...</option>
+                  {savedResumes.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}{r.is_default ? ' (default)' : ''}{r.filename ? ` — ${r.filename}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* 2. Job Input Field */}
             <div className="space-y-3">
@@ -993,6 +1110,21 @@ export default function InputScreen({ onStart }: InputScreenProps) {
                 </motion.div>
               </div>
             </div>
+
+            {/* Save Resume Checkbox (authenticated users only) */}
+            {user && resumeText && (
+              <label className="flex items-center gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={saveResume}
+                  onChange={(e) => setSaveResume(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-accent focus:ring-accent/30 cursor-pointer"
+                />
+                <span className="text-sm text-text-main/60 group-hover:text-text-main/80 transition-colors">
+                  Save this resume for next time
+                </span>
+              </label>
+            )}
 
             {/* Submit Action */}
             <div className="pt-6">

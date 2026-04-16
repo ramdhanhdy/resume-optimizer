@@ -1,6 +1,6 @@
 """FastAPI server for Resume Optimizer backend."""
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -50,6 +50,8 @@ from src.services.docx_safety_service import classify_docx_code_safety, is_label
 from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
+
+from src.middleware.auth import get_current_user_id, get_user_id_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,19 @@ def get_db_for_user(user_id: str = None):
     if USE_SUPABASE_DB and _is_supabase_auth_user_id(user_id):
         return get_database(user_id)
     return db
+
+
+async def require_user_data_user_id(
+    request: Request,
+    auth_user_id: Optional[str] = Depends(get_current_user_id),
+) -> str:
+    """Require real auth in Supabase mode; allow fallback IDs only in SQLite mode."""
+    if USE_SUPABASE_DB:
+        if not auth_user_id:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return auth_user_id
+
+    return get_user_id_from_request(request)
 
 
 # Store in app state for access in routes
@@ -339,12 +354,31 @@ class PipelineRequest(BaseModel):
     github_username: Optional[str] = None
     github_token: Optional[str] = None
     force_refresh_profile: bool = False  # Force re-scrape of LinkedIn/GitHub
+    save_resume: bool = False  # Save this resume for future use
+    resume_label: Optional[str] = None  # Label for saved resume (auto-generated if omitted)
+    resume_filename: Optional[str] = None  # Original filename of uploaded resume
 
 
 class ProfileStatusRequest(BaseModel):
     """Request to check profile connection status."""
     linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
+
+
+class SaveResumeRequest(BaseModel):
+    """Request to save a resume for later reuse."""
+    label: str
+    resume_text: str
+    filename: Optional[str] = None
+    content_hash: Optional[str] = None
+    is_default: bool = False
+
+
+class UpdatePreferencesRequest(BaseModel):
+    """Request to update user preferences."""
+    default_linkedin_url: Optional[str] = None
+    default_github_username: Optional[str] = None
+    default_resume_id: Optional[int] = None
 
 
 @app.get("/")
@@ -470,6 +504,131 @@ async def get_profile_status(request: ProfileStatusRequest, http_request: Reques
         "linkedin": linkedin_status,
         "github": github_status,
     }
+
+
+# --- User Preferences & Saved Resumes ---
+
+@app.get("/api/user/preferences")
+async def get_user_preferences(user_id: str = Depends(require_user_data_user_id)):
+    """Get the authenticated user's preferences (LinkedIn, GitHub defaults, default resume)."""
+    user_db = get_db_for_user(user_id)
+    prefs = user_db.get_preferences()
+
+    if not prefs:
+        return {"success": True, "preferences": None}
+
+    # Normalize: don't leak full resume text in preferences response
+    result = {
+        "default_linkedin_url": prefs.get("default_linkedin_url"),
+        "default_github_username": prefs.get("default_github_username"),
+        "default_resume_id": prefs.get("default_resume_id"),
+    }
+    # Include default resume metadata (not full text) for UI display
+    default_resume = prefs.get("default_resume")
+    if default_resume:
+        result["default_resume"] = {
+            "id": default_resume["id"],
+            "label": default_resume.get("label"),
+            "filename": default_resume.get("filename"),
+        }
+    else:
+        result["default_resume"] = None
+
+    return {"success": True, "preferences": result}
+
+
+@app.put("/api/user/preferences")
+async def update_user_preferences(
+    request: UpdatePreferencesRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Upsert the authenticated user's preferences."""
+    user_db = get_db_for_user(user_id)
+
+    if request.default_resume_id is not None:
+        resume = user_db.get_saved_resume(request.default_resume_id)
+        if not resume:
+            raise HTTPException(status_code=404, detail="Saved resume not found")
+
+    prefs = user_db.upsert_preferences(
+        default_linkedin_url=request.default_linkedin_url,
+        default_github_username=request.default_github_username,
+        default_resume_id=request.default_resume_id,
+    )
+
+    return {"success": True, "preferences": {
+        "default_linkedin_url": prefs.get("default_linkedin_url"),
+        "default_github_username": prefs.get("default_github_username"),
+        "default_resume_id": prefs.get("default_resume_id"),
+    }}
+
+
+@app.get("/api/user/resumes")
+async def list_user_resumes(user_id: str = Depends(require_user_data_user_id)):
+    """List the authenticated user's saved resumes (metadata only, no full text)."""
+    user_db = get_db_for_user(user_id)
+    resumes = user_db.list_saved_resumes()
+
+    return {"success": True, "resumes": resumes}
+
+
+@app.post("/api/user/resumes")
+async def save_user_resume(
+    request: SaveResumeRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Save a resume for the authenticated user."""
+    import hashlib
+
+    # Compute content hash for dedup if not provided
+    content_hash = request.content_hash or hashlib.sha256(
+        request.resume_text.encode()
+    ).hexdigest()
+
+    user_db = get_db_for_user(user_id)
+    resume_id = user_db.save_resume(
+        label=request.label,
+        resume_text=request.resume_text,
+        filename=request.filename,
+        content_hash=content_hash,
+        is_default=request.is_default,
+    )
+
+    # If this is the default resume, update preferences too
+    if request.is_default:
+        user_db.upsert_preferences(default_resume_id=resume_id)
+
+    return {"success": True, "resume_id": resume_id}
+
+
+@app.get("/api/user/resumes/{resume_id}")
+async def get_user_resume(
+    resume_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Get a specific saved resume (includes full text)."""
+    user_db = get_db_for_user(user_id)
+    resume = user_db.get_saved_resume(resume_id)
+
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    return {"success": True, "resume": resume}
+
+
+@app.delete("/api/user/resumes/{resume_id}")
+async def delete_user_resume(
+    resume_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Delete a saved resume."""
+    user_db = get_db_for_user(user_id)
+    deleted = user_db.delete_saved_resume(resume_id)
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    return {"success": True}
 
 
 @app.post("/api/analyze-job")
@@ -1130,6 +1289,7 @@ async def get_application_reports(application_id: int, http_request: Request):
 async def start_pipeline(request: PipelineRequest, http_request: Request):
     """Start the full pipeline with streaming support."""
     import uuid
+    import hashlib
     from src.middleware.auth import get_user_id_from_request
 
     # Get user ID from JWT token or fall back to client ID
@@ -1146,6 +1306,41 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
                 status_code=402,
                 detail="Usage limit reached. Please upgrade to continue.",
             )
+
+    # Auto-save non-sensitive defaults for real Supabase users, or in explicit SQLite mode.
+    should_persist_user_data = (
+        bool(user_id)
+        and (not USE_SUPABASE_DB or _is_supabase_auth_user_id(user_id))
+    )
+    if should_persist_user_data:
+        try:
+            user_db = get_db_for_user(user_id)
+            pref_data = {}
+            if request.linkedin_url:
+                pref_data["default_linkedin_url"] = request.linkedin_url
+            if request.github_username:
+                pref_data["default_github_username"] = request.github_username
+
+            # Optionally save the resume
+            if request.save_resume and request.resume_text:
+                content_hash = hashlib.sha256(
+                    request.resume_text.encode()
+                ).hexdigest()
+                label = request.resume_label or request.resume_filename or "My Resume"
+                resume_id = user_db.save_resume(
+                    label=label,
+                    resume_text=request.resume_text,
+                    filename=request.resume_filename,
+                    content_hash=content_hash,
+                    is_default=True,
+                )
+                pref_data["default_resume_id"] = resume_id
+
+            if pref_data:
+                user_db.upsert_preferences(**pref_data)
+        except Exception as e:
+            # Non-critical: don't block pipeline if preference save fails
+            print(f"⚠️ Failed to auto-save preferences: {e}")
 
     job_id = str(uuid.uuid4())
     run_store.create_run(job_id=job_id, client_id=user_id, status="queued")

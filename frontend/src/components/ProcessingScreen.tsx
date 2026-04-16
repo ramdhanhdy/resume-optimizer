@@ -22,6 +22,9 @@ interface ProcessingScreenProps {
   githubUsername?: string;
   githubToken?: string;
   forceRefreshProfile?: boolean;
+  saveResume?: boolean;
+  resumeLabel?: string;
+  resumeFilename?: string;
 }
 
 // Average time per step in seconds (used as fallback when no ETA from backend)
@@ -30,7 +33,7 @@ const FALLBACK_STEP_DURATION_SEC = 45; // ~45 seconds per step = ~3-4 min total
 // Feature flag for streaming (set to true to use new streaming infrastructure)
 const USE_STREAMING = true;
 
-const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl, linkedinUrl, githubUsername, githubToken, forceRefreshProfile }) => {
+const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeText, jobText, jobUrl, linkedinUrl, githubUsername, githubToken, forceRefreshProfile, saveResume, resumeLabel, resumeFilename }) => {
   const [currentActivity, setCurrentActivity] = useState(PROCESSING_ACTIVITIES[0]);
   const [currentPhase, setCurrentPhase] = useState(PROCESSING_PHASES[0]);
   const [progress, setProgress] = useState(0);
@@ -152,6 +155,9 @@ const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ onComplete, resumeT
             github_username: githubUsername,
             github_token: githubToken,
             force_refresh_profile: forceRefreshProfile,
+            save_resume: saveResume,
+            resume_label: resumeLabel,
+            resume_filename: resumeFilename,
           });
           
           console.log('✅ Pipeline started with job_id:', response.job_id);
