@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Neutral, airy palette tuned for light sky backgrounds */
+  --color-ink-900: #0f172a;
+  --color-ink-800: #1e293b;
+  --color-ink-700: #334155;
+  --color-ink-600: #475569;
+  --color-ink-500: #64748b;
+  --color-ink-400: #94a3b8;
+  --color-ink-300: #cbd5e1;
+  --color-ink-200: #e2e8f0;
+  --color-ink-100: #eef2f7;
+  --color-ink-50:  #f5f8fc;
+
+  /* Soft sky accents (Gemini-inspired) */
+  --color-sky-50:  #f0f6ff;
+  --color-sky-100: #e1ecff;
+  --color-sky-200: #c9dcff;
+  --color-sky-300: #a7c5ff;
+  --color-sky-400: #7ea7ff;
+  --color-sky-500: #4d86ff;
+
+  /* Gemini-style star accents */
+  --color-star-blue:   #4285f4;
+  --color-star-red:    #ea4335;
+  --color-star-yellow: #fbbc04;
+  --color-star-green:  #34a853;
+
+  --radius-pill: 9999px;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink-900);
+    background-color: #fbfdff;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-sky-400) 28%, transparent);
+    color: var(--color-ink-900);
+  }
+}
+
+@layer utilities {
+  /*
+   * Gemini-style spotlight: near-white at the top, soft sky-blue bloom
+   * from the bottom-center, like a gentle light source below the stage.
+   */
+  .shell-gradient {
+    background:
+      radial-gradient(80% 55% at 50% 108%, #c9dcff 0%, #e1ecff 22%, #f0f6ff 50%, #ffffff 82%);
+  }
+
+  /* Subtle glass surface used by corner chrome + composer */
+  .glass {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  /* Tinted glass for the composer (picks up the sky bloom) */
+  .glass-sky {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(235, 243, 255, 0.92) 100%
+    );
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  .soft-shadow {
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.035),
+      0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+
+  .soft-shadow-lg {
+    box-shadow:
+      0 1px 3px rgba(15, 23, 42, 0.04),
+      0 12px 36px rgba(31, 61, 128, 0.10);
+  }
+
+  /* Hide scrollbars but keep scroll */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+/* Orb pulse used during processing */
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+.orb-pulse { animation: orb-pulse 2.4s ease-in-out infinite; }
+
+/* Gentle fade for retired lines in the processing feed */
+@keyframes fade-to-muted {
+  from { color: var(--color-ink-900); }
+  to   { color: var(--color-ink-300); }
+}
+.fade-to-muted { animation: fade-to-muted 600ms ease forwards; }
