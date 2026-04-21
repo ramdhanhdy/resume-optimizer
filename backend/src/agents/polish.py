@@ -7,15 +7,20 @@ from ..utils.page_controller import PageEstimator
 class PolishAgent(BaseAgent):
     """Agent for applying final polish recommendations from validator."""
     
-    def __init__(self, client, output_format="docx"):
+    def __init__(self, client, output_format="review"):
         """Initialize Polish agent.
         
         Args:
             client: OpenRouter API client instance
-            output_format: Either "html" or "docx"
+            output_format: "review" for plain text, or legacy "html"/"docx"
         """
         self.output_format = output_format
-        prompt_file = "prompts/agent5_polish.md" if output_format == "html" else "prompts/agent5_polish_docx.md"
+        if output_format == "html":
+            prompt_file = "prompts/agent5_polish.md"
+        elif output_format == "docx":
+            prompt_file = "prompts/agent5_polish_docx.md"
+        else:
+            prompt_file = "prompts/agent5_polish_review.md"
         super().__init__(
             prompt_file=prompt_file,
             agent_name="Polish Agent",

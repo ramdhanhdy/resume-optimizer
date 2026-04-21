@@ -59,6 +59,21 @@ class ApplicationDatabase:
             )
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS application_reviews (
+                application_id INTEGER PRIMARY KEY,
+                plain_text TEXT NOT NULL,
+                markdown TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                summary_points TEXT NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_application_reviews_created_at ON application_reviews(created_at DESC)"
+        )
+
         # Agent outputs table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agent_outputs (
@@ -164,9 +179,6 @@ class ApplicationDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user ON saved_resumes(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user_default ON saved_resumes(user_id, is_default)")
-        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_resumes_user_hash ON saved_resumes(user_id, content_hash) WHERE content_hash IS NOT NULL")
 
         # User preferences table
         cursor.execute("""
@@ -180,10 +192,50 @@ class ApplicationDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id)")
+
+        self._ensure_user_data_schema(cursor)
 
         self.conn.commit()
         self._run_migrations()
+
+    def _ensure_user_data_schema(self, cursor) -> None:
+        """Bring saved resume/preferences tables up to the current user-scoped schema."""
+        cursor.execute("PRAGMA table_info(saved_resumes)")
+        saved_resume_columns = {row["name"] for row in cursor.fetchall()}
+        if "user_id" not in saved_resume_columns:
+            cursor.execute("ALTER TABLE saved_resumes ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local'")
+        if "content_hash" not in saved_resume_columns:
+            cursor.execute("ALTER TABLE saved_resumes ADD COLUMN content_hash TEXT")
+        if "is_default" not in saved_resume_columns:
+            cursor.execute("ALTER TABLE saved_resumes ADD COLUMN is_default INTEGER DEFAULT 0")
+
+        cursor.execute("PRAGMA table_info(user_preferences)")
+        preference_columns = {row["name"] for row in cursor.fetchall()}
+        if "user_id" not in preference_columns:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local'")
+        if "default_linkedin_url" not in preference_columns:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN default_linkedin_url TEXT")
+        if "default_github_username" not in preference_columns:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN default_github_username TEXT")
+        if "default_resume_id" not in preference_columns:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN default_resume_id INTEGER REFERENCES saved_resumes(id) ON DELETE SET NULL")
+
+        # Existing pre-user-scope databases can contain multiple rows that all
+        # receive the default local user_id. Keep the newest preference row so
+        # ON CONFLICT(user_id) remains valid for future upserts.
+        cursor.execute("""
+            DELETE FROM user_preferences
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM user_preferences
+                GROUP BY user_id
+            )
+        """)
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user ON saved_resumes(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user_default ON saved_resumes(user_id, is_default)")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_resumes_user_hash ON saved_resumes(user_id, content_hash) WHERE content_hash IS NOT NULL")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id)")
 
     def _run_migrations(self):
         """Run database migrations."""
@@ -251,9 +303,6 @@ class ApplicationDatabase:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user ON saved_resumes(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user_default ON saved_resumes(user_id, is_default)")
-            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_resumes_user_hash ON saved_resumes(user_id, content_hash) WHERE content_hash IS NOT NULL")
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS user_preferences (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -265,24 +314,37 @@ class ApplicationDatabase:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id)")
+            self._ensure_user_data_schema(cursor)
             cursor.execute("INSERT INTO migrations (migration_name) VALUES ('005_user_preferences_and_resumes')")
             self.conn.commit()
 
-        cursor.execute("PRAGMA table_info(saved_resumes)")
-        saved_resume_columns = {row["name"] for row in cursor.fetchall()}
-        if "user_id" not in saved_resume_columns:
-            cursor.execute("ALTER TABLE saved_resumes ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local'")
+        # Migration 006: Add canonical application reviews
+        cursor.execute("SELECT 1 FROM migrations WHERE migration_name = '006_add_application_reviews'")
+        if cursor.fetchone() is None:
+            migration_path = Path(__file__).parent / 'migrations' / '006_add_application_reviews.sql'
+            if migration_path.exists():
+                with open(migration_path, 'r') as f:
+                    migration_sql = f.read()
+                cursor.executescript(migration_sql)
+            else:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS application_reviews (
+                        application_id INTEGER PRIMARY KEY,
+                        plain_text TEXT NOT NULL,
+                        markdown TEXT NOT NULL,
+                        filename TEXT NOT NULL,
+                        summary_points TEXT NOT NULL DEFAULT '[]',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_application_reviews_created_at ON application_reviews(created_at DESC)"
+                )
+            cursor.execute("INSERT INTO migrations (migration_name) VALUES ('006_add_application_reviews')")
+            self.conn.commit()
 
-        cursor.execute("PRAGMA table_info(user_preferences)")
-        preference_columns = {row["name"] for row in cursor.fetchall()}
-        if "user_id" not in preference_columns:
-            cursor.execute("ALTER TABLE user_preferences ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local'")
-
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user ON saved_resumes(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user_default ON saved_resumes(user_id, is_default)")
-        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_resumes_user_hash ON saved_resumes(user_id, content_hash) WHERE content_hash IS NOT NULL")
-        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id)")
+        self._ensure_user_data_schema(cursor)
         self.conn.commit()
 
     # --- Profiles API ---
@@ -553,6 +615,66 @@ class ApplicationDatabase:
             return dict(row)
         return None
 
+    def save_application_review(
+        self,
+        *,
+        application_id: int,
+        plain_text: str,
+        markdown: str,
+        filename: str,
+        summary_points: List[str],
+    ) -> None:
+        """Insert or update the canonical review document for an application."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO application_reviews (application_id, plain_text, markdown, filename, summary_points)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(application_id) DO UPDATE SET
+                plain_text = excluded.plain_text,
+                markdown = excluded.markdown,
+                filename = excluded.filename,
+                summary_points = excluded.summary_points,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                application_id,
+                plain_text,
+                markdown,
+                filename,
+                json.dumps(summary_points or []),
+            ),
+        )
+        self.conn.commit()
+
+    def get_application_review(self, application_id: int) -> Optional[Dict[str, Any]]:
+        """Get the canonical review document for an application."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                ar.application_id,
+                ar.plain_text,
+                ar.markdown,
+                ar.filename,
+                ar.summary_points,
+                ar.created_at,
+                ar.updated_at,
+                a.status
+            FROM application_reviews ar
+            JOIN applications a ON a.id = ar.application_id
+            WHERE ar.application_id = ?
+            """,
+            (application_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        review = dict(row)
+        review["summary_points"] = json.loads(review.get("summary_points") or "[]")
+        return review
+
     def get_all_applications(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get all applications ordered by most recent.
 
@@ -586,6 +708,10 @@ class ApplicationDatabase:
         # Delete dependent rows first
         cursor.execute(
             "DELETE FROM validation_scores WHERE application_id = ?",
+            (application_id,),
+        )
+        cursor.execute(
+            "DELETE FROM application_reviews WHERE application_id = ?",
             (application_id,),
         )
         cursor.execute(

@@ -46,7 +46,8 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
-from src.services.docx_safety_service import classify_docx_code_safety, is_label_safe
+from src.app.services.review_document import build_review_document, serialize_review_payload
+from src.app.services.export import generate_docx_from_plain_text
 from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
@@ -128,14 +129,14 @@ async def require_user_data_user_id(
     request: Request,
     auth_user_id: Optional[str] = Depends(get_current_user_id),
 ) -> str:
-    """Require real auth in Supabase mode; allow fallback IDs only in SQLite mode."""
-    if USE_SUPABASE_DB:
-        if not auth_user_id:
-            raise HTTPException(status_code=401, detail="Authentication required")
+    """Require real auth for persisted user data, with fallback IDs only in local dev."""
+    if auth_user_id:
         return auth_user_id
 
-    return get_user_id_from_request(request)
+    if DEV_MODE_ENABLED:
+        return get_user_id_from_request(request)
 
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
     """Normalize empty strings to None for persisted user preference fields."""
@@ -143,6 +144,21 @@ def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
         return None
     value = value.strip()
     return value or None
+
+
+def _review_docx_url(application_id: int) -> str:
+    return f"/api/export/{application_id}?format=docx"
+
+
+def _build_review_payload(user_db, application_id: int) -> dict:
+    review_document = user_db.get_application_review(application_id)
+    if not review_document:
+        raise HTTPException(status_code=404, detail="Review document not found")
+
+    return serialize_review_payload(
+        review_document,
+        docx_url=_review_docx_url(application_id),
+    )
 
 
 # Store in app state for access in routes
@@ -979,7 +995,7 @@ async def polish_resume(request: PolishRequest, http_request: Request):
         )
 
         # Run Polish Agent
-        agent = PolishAgent(client=client, output_format="docx")
+        agent = PolishAgent(client=client, output_format="review")
         polish_result = ""
         polish_metadata: Dict[str, Any] = {}
 
@@ -998,12 +1014,27 @@ async def polish_resume(request: PolishRequest, http_request: Request):
 
         # Extract final resume
         final_resume = extract_optimized_resume(polish_result)
+        summary_points: List[str] = []
+        review_document = build_review_document(
+            application_id=request.application_id,
+            status=app_data.get("status") or "completed",
+            resume_text=final_resume,
+            summary_points=summary_points,
+            source_filename=None,
+        )
 
         # Update database and persist agent output
         user_db.update_application(
             request.application_id,
             optimized_resume_text=final_resume,
             model_used=POLISH_MODEL,
+        )
+        user_db.save_application_review(
+            application_id=request.application_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
         )
         user_db.save_agent_output(
             application_id=request.application_id,
@@ -1023,69 +1054,31 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             "success": True,
             "application_id": request.application_id,
             "final_resume": final_resume,
-            "notes": polish_result
+            "notes": polish_result,
+            "review": _build_review_payload(user_db, request.application_id),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/export/{application_id}")
-async def export_resume(application_id: int, http_request: Request, format: str = "docx"):
-    """Export final resume in requested format by executing LLM-generated DOCX code."""
-    from src.middleware.auth import get_user_id_from_request
-    user_id = get_user_id_from_request(http_request)
+async def export_resume(
+    application_id: int,
+    format: str = "docx",
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Export final resume in requested format from the canonical review document."""
     user_db = get_db_for_user(user_id)
     try:
-        # Get application data
-        app_data = user_db.get_application(application_id)
-        if not app_data:
-            raise HTTPException(status_code=404, detail="Application not found")
-        
-        final_resume = app_data.get("optimized_resume_text")
-        if not final_resume:
-            raise HTTPException(status_code=400, detail="No resume to export")
+        review_document = user_db.get_application_review(application_id)
+        if not review_document:
+            raise HTTPException(status_code=404, detail="Review document not found")
         
         # Generate export file
         if format == "docx":
-            from src.utils import execute_docx_code, html_to_docx
             from fastapi.responses import Response
-            import io
-            
-            # Detect if content is HTML or Python code
-            content_lower = final_resume.strip().lower()
-            is_html = (
-                content_lower.startswith("<!doctype") or 
-                content_lower.startswith("<html") or
-                "<html" in content_lower[:500]
-            )
-            
-            print(f"📝 Generating DOCX for application {application_id}")
-            print(f"Content type: {'HTML' if is_html else 'Python code'}")
-            
-            # Generate DOCX based on content type
-            if is_html:
-                print("  → Converting HTML to DOCX")
-                docx_bytes = html_to_docx(final_resume)
-            else:
-                print("  → Executing Python code to generate DOCX")
-                safeguard_result = None
-                try:
-                    safeguard_result = await classify_docx_code_safety(final_resume)
-                except Exception as exc:
-                    print(f"⚠️ DOCX safeguard failed, continuing with sandbox only: {exc}")
-
-                if safeguard_result is not None and not is_label_safe(safeguard_result):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Generated DOCX template was flagged as unsafe and cannot be executed.",
-                    )
-
-                docx_bytes = execute_docx_code(final_resume)
-            
-            # Create safe filename
-            job_title = app_data.get('job_title', 'resume').replace(' ', '_').replace('/', '_')
-            company_name = app_data.get('company_name', 'company').replace(' ', '_').replace('/', '_')
-            filename = f"resume_{job_title}_{company_name}.docx"
+            docx_bytes = generate_docx_from_plain_text(review_document["plain_text"])
+            filename = review_document.get("filename") or "optimized-resume.docx"
             
             # Return as streaming response
             return Response(
@@ -1097,27 +1090,25 @@ async def export_resume(application_id: int, http_request: Request, format: str 
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported format")
-            
-    except ValueError as e:
-        # Handle code execution errors specifically
-        print(f"❌ DOCX code execution failed: {str(e)}")
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Failed to generate DOCX from code: {str(e)}"
-        )
-    except SyntaxError as e:
-        # Handle Python syntax errors in generated code
-        print(f"❌ DOCX code has syntax error: {str(e)}")
-        print(f"   Line {e.lineno}: {e.text}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Generated code has syntax error on line {e.lineno}: {str(e)}"
-        )
     except Exception as e:
         print(f"❌ Unexpected error during DOCX export: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/applications/{application_id}/review")
+async def get_application_review(
+    application_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Return the canonical review payload for frontend_v2."""
+    user_db = get_db_for_user(user_id)
+    review_payload = _build_review_payload(user_db, application_id)
+    return {
+        "success": True,
+        "review": review_payload,
+    }
 
 
 @app.get("/api/applications")
@@ -1387,6 +1378,7 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         github_token=request.github_token,
         user_id=user_id,
         force_refresh_profile=request.force_refresh_profile,
+        resume_filename=request.resume_filename,
     ))
 
     return {
@@ -1407,6 +1399,7 @@ async def run_pipeline_with_streaming(
     github_token: Optional[str] = None,
     user_id: Optional[str] = None,
     force_refresh_profile: bool = False,
+    resume_filename: Optional[str] = None,
 ):
     """Run the full pipeline and emit streaming events.
     
@@ -1932,7 +1925,7 @@ async def run_pipeline_with_streaming(
             "Final polish and formatting...", "polishing"
         ))
         
-        agent5 = PolishAgent(client=client, output_format="docx")
+        agent5 = PolishAgent(client=client, output_format="review")
         
         # Run agent with chunk emission
         polish_result, polish_metadata = await loop.run_in_executor(
@@ -1964,7 +1957,25 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
+        summary_points = [
+            insight["message"] for insight in extracted_insights
+        ] if extracted_insights else []
+        review_document = build_review_document(
+            application_id=app_id,
+            status="completed",
+            resume_text=final_resume,
+            summary_points=summary_points,
+            source_filename=resume_filename,
+        )
+
         user_db.update_application(app_id, optimized_resume_text=final_resume)
+        user_db.save_application_review(
+            application_id=app_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=5,
@@ -2009,7 +2020,12 @@ async def run_pipeline_with_streaming(
             run_store.update_status(job_id, status="completed")
 
         await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
-        await stream_manager.emit(DoneEvent(job_id=job_id))
+        # Build the result payload with the canonical review endpoint metadata.
+        done_payload: dict = {
+            "application_id": app_id,
+            "review_url": f"/api/applications/{app_id}/review" if app_id is not None else None,
+        }
+        await stream_manager.emit(DoneEvent(job_id=job_id, payload=done_payload))
 
         print(f"🎉 Pipeline complete for job_id: {job_id}, app_id: {app_id}")
         
