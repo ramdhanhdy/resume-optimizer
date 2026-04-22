@@ -105,7 +105,6 @@ function HeroAgentLine({
 
   return (
     <motion.p
-      layout
       initial={{ opacity: 0, y: 14, filter: 'blur(4px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: -6 }}
@@ -154,7 +153,6 @@ function AgentRichBody({ body }: { body: AgentMessageBody }) {
   const points = body.summaryPoints ?? [];
   return (
     <motion.div
-      layout
       className="flex w-full flex-col items-start gap-5"
     >
       {points.length > 0 && (
