@@ -28,7 +28,7 @@ function getDevClientId(): string {
   return generated;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   if (!supabase) {
     return DEV_BYPASS_ENABLED ? { 'X-Client-Id': getDevClientId() } : {};
   }
@@ -56,7 +56,7 @@ async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(await authHeaders()),
+    ...(await getAuthHeaders()),
     ...((options.headers as Record<string, string>) ?? {}),
   };
   const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
@@ -80,7 +80,7 @@ export async function uploadResume(file: File): Promise<{ text: string; filename
   const res = await fetch(`${API_BASE_URL}/api/upload-resume`, {
     method: 'POST',
     body: fd,
-    headers: await authHeaders(),
+    headers: await getAuthHeaders(),
   });
   if (!res.ok) throw new ApiError(`Upload failed: ${res.statusText}`, res.status);
   return res.json();
@@ -133,17 +133,31 @@ export async function fetchAuthenticatedBlob(
     : `${API_BASE_URL}${endpointOrUrl}`;
   const res = await fetch(url, {
     method: 'GET',
-    headers: await authHeaders(),
+    headers: await getAuthHeaders(),
   });
   if (!res.ok) {
     throw new ApiError(`Download failed: ${res.statusText}`, res.status);
   }
 
   const disposition = res.headers.get('content-disposition') ?? '';
+  let filename: string | undefined;
+  const filenameStarMatch = disposition.match(/filename\*\s*=\s*([^;]+)/i);
+  if (filenameStarMatch) {
+    const rawValue = filenameStarMatch[1].trim().replace(/^"(.*)"$/, '$1');
+    const encodedValue = rawValue.replace(/^[^']*'[^']*'/, '');
+    try {
+      filename = decodeURIComponent(encodedValue);
+    } catch {
+      filename = undefined;
+    }
+  }
   const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+  if (!filename) {
+    filename = filenameMatch?.[1];
+  }
 
   return {
     blob: await res.blob(),
-    filename: filenameMatch?.[1],
+    filename,
   };
 }

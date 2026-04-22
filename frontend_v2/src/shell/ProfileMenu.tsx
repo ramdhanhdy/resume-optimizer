@@ -15,16 +15,13 @@ export function ProfileMenu({ user, className }: ProfileMenuProps) {
   const label = user?.name || user?.email || 'Sign in';
 
   return (
-    <button
-      type="button"
+    <div
       className={cn(
         'glass rounded-full px-2.5 py-1 text-[13px] text-ink-600',
-        'flex items-center gap-2 transition',
-        'hover:text-ink-900 ring-1 ring-white/70',
-        'hover:ring-sky-200',
+        'flex items-center gap-2 ring-1 ring-white/70',
         className,
       )}
-      aria-label={user ? `Account: ${label}` : 'Sign in'}
+      title={user ? `Account: ${label}` : 'Sign in status'}
     >
       <span
         className={cn(
@@ -37,6 +34,6 @@ export function ProfileMenu({ user, className }: ProfileMenuProps) {
       <span className="hidden max-w-[12ch] truncate sm:inline-block">
         {label}
       </span>
-    </button>
+    </div>
   );
 }

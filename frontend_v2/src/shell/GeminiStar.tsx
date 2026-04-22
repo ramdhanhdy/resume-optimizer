@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { cn } from '@/lib/cn';
 
 interface GeminiStarProps {
@@ -13,6 +14,10 @@ interface GeminiStarProps {
  * top-center of the shell and inline during processing.
  */
 export function GeminiStar({ className, variant = 'color', animate }: GeminiStarProps) {
+  const baseId = useId().replace(/:/g, '');
+  const mainGradientId = `${baseId}-gs-main`;
+  const accentGradientId = `${baseId}-gs-accent`;
+
   if (variant === 'mono') {
     return (
       <svg
@@ -35,25 +40,25 @@ export function GeminiStar({ className, variant = 'color', animate }: GeminiStar
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="gs-main" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={mainGradientId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="var(--color-star-blue)" />
           <stop offset="55%" stopColor="var(--color-star-red)" />
           <stop offset="100%" stopColor="var(--color-star-yellow)" />
         </linearGradient>
-        <linearGradient id="gs-accent" x1="0" y1="1" x2="1" y2="0">
+        <linearGradient id={accentGradientId} x1="0" y1="1" x2="1" y2="0">
           <stop offset="0%" stopColor="var(--color-star-yellow)" />
           <stop offset="100%" stopColor="var(--color-star-green)" />
         </linearGradient>
       </defs>
       {/* Main 4-point diamond */}
       <path
-        fill="url(#gs-main)"
+        fill={`url(#${mainGradientId})`}
         d="M24 4c.9 7.6 3.6 12.6 7.1 16.1C34.6 23.6 39.6 26.3 47 27c-7.4.7-12.4 3.4-15.9 6.9C27.6 37.4 24.9 42.4 24 50c-.9-7.6-3.6-12.6-7.1-16.1C13.4 30.4 8.4 27.7 1 27c7.4-.7 12.4-3.4 15.9-6.9C20.4 16.6 23.1 11.6 24 4z"
         transform="translate(0 -2) scale(0.92) translate(1 1)"
       />
       {/* Smaller accent sparkle, offset */}
       <path
-        fill="url(#gs-accent)"
+        fill={`url(#${accentGradientId})`}
         d="M38 8c.3 2.6 1.2 4.3 2.4 5.5C41.6 14.7 43.3 15.6 46 16c-2.7.4-4.4 1.3-5.6 2.5C39.2 19.7 38.3 21.4 38 24c-.3-2.6-1.2-4.3-2.4-5.5C34.4 17.3 32.7 16.4 30 16c2.7-.4 4.4-1.3 5.6-2.5C36.8 12.3 37.7 10.6 38 8z"
         opacity="0.95"
       />

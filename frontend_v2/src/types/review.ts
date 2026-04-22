@@ -5,8 +5,8 @@ export interface ReviewResume {
 }
 
 export interface ReviewExports {
-  docx_url?: string;
-  pdf_url?: string;
+  docx_url?: string | null;
+  pdf_url?: string | null;
 }
 
 export interface ApplicationReview {
