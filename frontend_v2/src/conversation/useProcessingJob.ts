@@ -326,7 +326,8 @@ function parseSseChunk(rawEvent: string): { id?: string; data?: string } | null 
       continue;
     }
     if (line.startsWith('data:')) {
-      dataLines.push(line.slice(5).trimStart());
+      const data = line.slice(5);
+      dataLines.push(data.startsWith(' ') ? data.slice(1) : data);
     }
   }
 

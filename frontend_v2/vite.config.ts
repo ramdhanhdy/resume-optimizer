@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  if (mode !== 'development' && !env.VITE_API_URL) {
+    throw new Error('VITE_API_URL must be set for non-development builds.');
+  }
   // In dev we proxy /api to the backend so every fetch is same-origin and
   // CORS is sidestepped entirely. In prod VITE_API_URL wins.
   const backendTarget = env.VITE_API_URL || 'http://localhost:8000';
@@ -28,7 +31,7 @@ export default defineConfig(({ mode }) => {
       // resolve to the current origin (and go through the proxy above).
       // Prod builds use whatever VITE_API_URL was set at build time.
       'import.meta.env.VITE_API_URL': JSON.stringify(
-        mode === 'development' ? '' : env.VITE_API_URL || 'http://localhost:8000',
+        mode === 'development' ? '' : (env.VITE_API_URL ?? ''),
       ),
     },
     resolve: {

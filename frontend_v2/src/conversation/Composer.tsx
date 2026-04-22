@@ -27,6 +27,9 @@ export function Composer() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hiddenFileInputRef = useRef<HTMLInputElement | null>(null);
+  const activeAgentIdRef = useRef<string | undefined>(activeAgent?.id);
+  const uploadTokenRef = useRef(0);
+  const mountedRef = useRef(true);
 
   const ui: AgentUI = activeAgent?.ui ?? { kind: 'none' };
   const scriptEnded = !state.currentStepId;
@@ -35,11 +38,20 @@ export function Composer() {
 
   // Reset composer state whenever the active step changes.
   useEffect(() => {
+    activeAgentIdRef.current = activeAgent?.id;
+    uploadTokenRef.current += 1;
     setValue('');
     setFile(null);
     setUploadError(null);
     setUploading(false);
   }, [activeAgent?.id]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      uploadTokenRef.current += 1;
+    };
+  }, []);
 
   // Auto-size the textarea.
   useEffect(() => {
@@ -77,16 +89,38 @@ export function Composer() {
         submit({ text: `[mock] ${file.name}`, file });
         return;
       }
+      const uploadToken = ++uploadTokenRef.current;
+      const submitAgentId = activeAgentIdRef.current;
       try {
         setUploading(true);
         setUploadError(null);
         const { text } = await uploadResume(file);
+        if (
+          !mountedRef.current ||
+          uploadTokenRef.current !== uploadToken ||
+          activeAgentIdRef.current !== submitAgentId
+        ) {
+          return;
+        }
         submit({ text, file });
       } catch (err) {
+        if (
+          !mountedRef.current ||
+          uploadTokenRef.current !== uploadToken ||
+          activeAgentIdRef.current !== submitAgentId
+        ) {
+          return;
+        }
         const msg = err instanceof Error ? err.message : 'Upload failed';
         setUploadError(msg);
       } finally {
-        setUploading(false);
+        if (
+          mountedRef.current &&
+          uploadTokenRef.current === uploadToken &&
+          activeAgentIdRef.current === submitAgentId
+        ) {
+          setUploading(false);
+        }
       }
       return;
     }

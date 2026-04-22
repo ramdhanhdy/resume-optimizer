@@ -1038,6 +1038,7 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             filename=review_document["filename"],
             summary_points=review_document["summary_points"],
         )
+        user_db.update_application(request.application_id, status="completed")
         user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=5,

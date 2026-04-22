@@ -844,6 +844,13 @@ class ApplicationDatabase:
             application_id: ID of the application to delete
         """
         cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM applications WHERE id = ? AND user_id = ?",
+            (application_id, self.user_id),
+        )
+        if cursor.fetchone() is None:
+            raise ValueError("Application not found or not owned by the current user.")
+
         # Delete dependent rows first
         cursor.execute(
             "DELETE FROM validation_scores WHERE application_id = ?",

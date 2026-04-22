@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Download, Loader2, Sparkles } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApplicationReview } from '@/types/review';
 import { fetchAuthenticatedBlob } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -24,6 +24,7 @@ interface ReviewActionsProps {
  */
 export function ReviewActions({ review }: ReviewActionsProps) {
   const [tweaking, setTweaking] = useState<string | null>(null);
+  const tweakTimeoutRef = useRef<number | null>(null);
 
   const downloadPlainText = useCallback((reviewPayload: ApplicationReview) => {
     const blob = new Blob([reviewPayload.resume.plain_text], {
@@ -63,8 +64,22 @@ export function ReviewActions({ review }: ReviewActionsProps) {
   }, [downloadPlainText, review]);
 
   const handleTweak = useCallback((label: string) => {
+    if (tweakTimeoutRef.current !== null) {
+      window.clearTimeout(tweakTimeoutRef.current);
+    }
     setTweaking(label);
-    window.setTimeout(() => setTweaking(null), 3000);
+    tweakTimeoutRef.current = window.setTimeout(() => {
+      tweakTimeoutRef.current = null;
+      setTweaking(null);
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tweakTimeoutRef.current !== null) {
+        window.clearTimeout(tweakTimeoutRef.current);
+      }
+    };
   }, []);
 
   return (
