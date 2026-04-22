@@ -16,8 +16,9 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: backendTarget,
           changeOrigin: true,
-          // SSE works over plain HTTP; http-proxy handles chunked responses
-          // natively, but we disable buffering by keeping the default.
+          // Disable proxy timeouts so long-lived SSE/fetch stream requests
+          // do not get cut off during optimization.
+          timeout: 0,
         },
       },
     },
