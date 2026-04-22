@@ -1,4 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type Ref,
+} from 'react';
 import { motion } from 'framer-motion';
 import { UploadCloud } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -12,18 +20,39 @@ interface FileDropZoneProps {
  * Minimalist drag-and-drop surface that fades in above the input bar.
  * Clicking it also opens the native file picker.
  */
-export function FileDropZone({ accept, onPickFile }: FileDropZoneProps) {
+export const FileDropZone = forwardRef<HTMLInputElement, FileDropZoneProps>(
+  function FileDropZone({ accept, onPickFile }, forwardedRef) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const setInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      inputRef.current = node;
+      assignRef(forwardedRef, node);
+    },
+    [forwardedRef],
+  );
+
+  const activatePicker = useCallback(() => {
+    inputRef.current?.click();
+  }, []);
+
+  const pickAcceptedFile = useCallback(
+    (file: File | null | undefined) => {
+      if (!file || !matchesAccept(file, accept)) return;
+      onPickFile(file);
+    },
+    [accept, onPickFile],
+  );
+
   const onDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
+    (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setDragging(false);
       const file = e.dataTransfer.files?.[0];
-      if (file) onPickFile(file);
+      pickAcceptedFile(file);
     },
-    [onPickFile],
+    [pickAcceptedFile],
   );
 
   return (
@@ -42,7 +71,13 @@ export function FileDropZone({ accept, onPickFile }: FileDropZoneProps) {
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
-      onClick={() => inputRef.current?.click()}
+      onClick={activatePicker}
+      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activatePicker();
+        }
+      }}
       className={cn(
         'group flex cursor-pointer items-center justify-center gap-3',
         'glass-sky rounded-3xl px-5 py-4 text-[14px] text-ink-500',
@@ -52,6 +87,7 @@ export function FileDropZone({ accept, onPickFile }: FileDropZoneProps) {
       )}
       role="button"
       aria-label="Drop a file or click to upload"
+      tabIndex={0}
     >
       <UploadCloud
         className={cn(
@@ -66,20 +102,20 @@ export function FileDropZone({ accept, onPickFile }: FileDropZoneProps) {
         <span className="text-ink-400">or click to browse</span>
       </span>
       <input
-        ref={inputRef}
+        ref={setInputRef}
         type="file"
         accept={accept}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onPickFile(f);
+          pickAcceptedFile(f);
           // reset so the same file can be re-picked later
           e.target.value = '';
         }}
       />
     </motion.div>
   );
-}
+});
 
 /**
  * Tiny "attached file" pill that lives inside the input bar once a file
@@ -115,4 +151,35 @@ export function AttachedFilePill({
       </button>
     </motion.span>
   );
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === 'function') {
+    ref(value);
+    return;
+  }
+  ref.current = value;
+}
+
+function matchesAccept(file: File, accept?: string): boolean {
+  if (!accept?.trim()) return true;
+
+  const fileName = file.name.toLowerCase();
+  const mimeType = file.type.toLowerCase();
+
+  return accept
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+    .some((rule) => {
+      if (rule.startsWith('.')) {
+        return fileName.endsWith(rule);
+      }
+      if (rule.endsWith('/*')) {
+        const prefix = rule.slice(0, -1);
+        return mimeType.startsWith(prefix);
+      }
+      return mimeType === rule;
+    });
 }

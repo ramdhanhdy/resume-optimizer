@@ -27,7 +27,7 @@ export interface Choice {
 export type AgentUI =
   | { kind: 'text'; placeholder?: string; multiline?: boolean }
   | { kind: 'choices'; choices: Choice[]; allowFreeText?: boolean; placeholder?: string }
-  | { kind: 'file'; accept?: string; placeholder?: string; allowText?: boolean }
+  | { kind: 'file'; accept?: string; placeholder?: string; allowFreeText?: boolean }
   | { kind: 'auth'; providers: Array<'google' | 'email'> }
   /**
    * Phase 5 reveal state. No composer input; the AgentMessage's body
@@ -83,7 +83,7 @@ export type Message = AgentMessage | UserMessage;
  * a type migration; use the helpers in `ConversationContext` to read safely.
  */
 export interface CollectedData {
-  resumeFile?: { name: string; size: number; mime: string };
+  resumeFile?: { name: string; size: number; mime: string; file?: File };
   resumeText?: string;
   jobInput?: string; // raw job description text or URL
   jobIsUrl?: boolean;

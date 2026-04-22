@@ -68,7 +68,7 @@ export const initialScript: ScriptStep[] = [
       kind: 'file',
       accept: '.pdf,.docx,.txt,.md',
       placeholder: 'or paste your resume text here…',
-      allowText: true,
+      allowFreeText: true,
     },
     handle: (input) => {
       const patch: Partial<CollectedData> = {};
@@ -77,6 +77,7 @@ export const initialScript: ScriptStep[] = [
           name: input.file.name,
           size: input.file.size,
           mime: input.file.type,
+          file: input.file,
         };
       }
       if (input.text && input.text.trim().length > 0) {
@@ -160,8 +161,8 @@ export const initialScript: ScriptStep[] = [
     id: 'processing',
     phase: 'PROCESSING',
     // The <ProcessingStream/> replaces the hero line while this step is
-    // active, so this `message` only shows for a split second during the
-    // phase transition. Keep it short and calming.
+    // active. If this fallback line does make it into the transcript,
+    // keep it short and user-facing rather than dev-only.
     message: () => "Alright — optimizing now.",
     ui: { kind: 'none' },
     handle: () => ({ nextStepId: 'reviewing' }),
@@ -169,8 +170,13 @@ export const initialScript: ScriptStep[] = [
   {
     id: 'reviewing',
     phase: 'REVIEWING',
+    // Normal completion uses COMPLETE_PROCESSING / completeProcessing in
+    // ConversationContext.tsx to atomically push the rich reveal message
+    // before the alreadyEmitted guard can synthesize this fallback step.
+    // Keep this copy aligned with the real reveal in case a plain ADVANCE
+    // path ever lands here.
     message: () =>
-      "All done — here's the optimized draft. Phase 5 will surface the diff view here.",
+      "All done — your optimized draft is ready. Review the summary and download the file whenever you're ready.",
     ui: { kind: 'none' },
     handle: () => ({ nextStepId: null }),
   },

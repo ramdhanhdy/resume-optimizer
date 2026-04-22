@@ -25,6 +25,20 @@ interface ReviewActionsProps {
 export function ReviewActions({ review }: ReviewActionsProps) {
   const [tweaking, setTweaking] = useState<string | null>(null);
 
+  const downloadPlainText = useCallback((reviewPayload: ApplicationReview) => {
+    const blob = new Blob([reviewPayload.resume.plain_text], {
+      type: 'text/plain;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = reviewPayload.resume.filename.replace(/\.(docx|pdf)$/i, '.txt');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
   const handleDownload = useCallback(() => {
     if (!review) return;
     if (review.exports.docx_url) {
@@ -39,25 +53,14 @@ export function ReviewActions({ review }: ReviewActionsProps) {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to download review export:', error);
+        } catch {
+          downloadPlainText(review);
         }
       })();
       return;
     }
-    const blob = new Blob([review.resume.plain_text], {
-      type: 'text/plain;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = review.resume.filename.replace(/\.(docx|pdf)$/i, '.txt');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [review]);
+    downloadPlainText(review);
+  }, [downloadPlainText, review]);
 
   const handleTweak = useCallback((label: string) => {
     setTweaking(label);

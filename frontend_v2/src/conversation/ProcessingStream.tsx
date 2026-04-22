@@ -5,7 +5,12 @@ import { STEP_LABELS, type StepName } from '@/types/streaming';
 import { useProcessingJob } from './useProcessingJob';
 import { useConversation } from './ConversationContext';
 import { useTypewriter } from './useTypewriter';
-import { getApplicationReview, startPipeline, MOCK_STREAM } from '@/lib/api';
+import {
+  getApplicationReview,
+  startPipeline,
+  uploadResume,
+  MOCK_STREAM,
+} from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 /**
@@ -48,14 +53,19 @@ export function ProcessingStream() {
     (async () => {
       try {
         let resumeText = state.data.resumeText ?? '';
-        let resumeFilename: string | undefined;
+        const resumeFilename = state.data.resumeFile?.name;
 
-        if (state.data.resumeFile && !resumeText) {
-          // We only have metadata in state — fetch the File from the
-          // attachment flow. Since we don't persist File objects, fall
-          // back to whatever text the user pasted. A future refinement is
-          // to re-prompt or upload from the captured File.
-          resumeFilename = state.data.resumeFile.name;
+        if (state.data.resumeFile?.file && !resumeText) {
+          try {
+            const uploaded = await uploadResume(state.data.resumeFile.file);
+            resumeText = uploaded.text;
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Resume upload failed.';
+            throw new Error(`${message} Re-attach the file and try again.`, {
+              cause: err,
+            });
+          }
         }
 
         if (!resumeText) {
@@ -81,7 +91,7 @@ export function ProcessingStream() {
   }, []);
 
   // --- 2) Subscribe to the SSE stream ---
-  const { state: jobState, isComplete, isFailed } = useProcessingJob(jobId);
+  const { state: jobState, isComplete, isFailed, isCanceled } = useProcessingJob(jobId);
 
   // --- 3) Track step transitions ---
   useEffect(() => {
@@ -111,6 +121,7 @@ export function ProcessingStream() {
 
     let cancelled = false;
     let revealTimeout: number | undefined;
+    setStartError(null);
 
     const finish = async () => {
       try {
@@ -228,15 +239,19 @@ export function ProcessingStream() {
         </AnimatePresence>
       </div>
 
-      {startError && !isFailed && (
+      {startError && !isFailed && !isCanceled && (
         <p className="mt-1 text-[13px] text-red-500">{startError}</p>
       )}
 
-      {isFailed && (
+      {isCanceled ? (
+        <p className="mt-1 text-[13px] text-ink-500">
+          Optimization was canceled before the final review was ready.
+        </p>
+      ) : isFailed ? (
         <p className="mt-1 text-[13px] text-red-500">
           Something went wrong on the backend. Check the server logs and try again.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

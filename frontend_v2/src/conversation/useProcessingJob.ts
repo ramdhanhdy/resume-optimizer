@@ -9,7 +9,7 @@ import type {
 import type { ApplicationReview } from '@/types/review';
 import { STEP_ORDER } from '@/types/streaming';
 import { supabase } from '@/lib/supabase';
-import { API_BASE_URL, MOCK_STREAM } from '@/lib/api';
+import { API_BASE_URL, getAuthHeaders, MOCK_STREAM } from '@/lib/api';
 
 /**
  * Subscribe to the SSE stream for a processing job. Mirrors the legacy
@@ -30,11 +30,25 @@ function initializeSteps(): StepState[] {
 
 export function useProcessingJob(jobId: string | null) {
   const [state, setState] = useState<ProcessingJobState | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const lastEventTsRef = useRef<number>(Date.now());
+  const [authVersion, setAuthVersion] = useState(0);
+  const streamControllerRef = useRef<AbortController | null>(null);
+  const lastEventIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      setAuthVersion((value) => value + 1);
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   // Initialize state when jobId changes.
   useEffect(() => {
+    lastEventIdRef.current = null;
     if (!jobId) {
       setState(null);
       return;
@@ -56,8 +70,6 @@ export function useProcessingJob(jobId: string | null) {
 
   // Handle incoming events.
   const handleEvent = useCallback((event: ProcessingEvent) => {
-    lastEventTsRef.current = Date.now();
-
     setState((prev) => {
       if (!prev) return prev;
       const next = { ...prev };
@@ -173,25 +185,29 @@ export function useProcessingJob(jobId: string | null) {
     }
 
     let cancelled = false;
-    let es: EventSource | null = null;
+    const controller = new AbortController();
+    streamControllerRef.current = controller;
 
     (async () => {
-      let streamUrl = `${API_BASE_URL}/api/jobs/${jobId}/stream`;
-      // EventSource can't set headers, so pass the token as a query param.
-      if (supabase) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          streamUrl += `?access_token=${encodeURIComponent(session.access_token)}`;
+      try {
+        const headers = await getAuthHeaders();
+        if (lastEventIdRef.current) {
+          headers['Last-Event-ID'] = lastEventIdRef.current;
         }
-      }
-      if (cancelled) return;
+        if (cancelled) return;
 
-      es = new EventSource(streamUrl);
-      eventSourceRef.current = es;
+        const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/stream`, {
+          headers,
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error(`Stream connection failed: ${response.status} ${response.statusText}`);
+        }
+        if (!response.body) {
+          throw new Error('Stream connection failed: empty response body');
+        }
 
-      es.onopen = () => {
         setState((prev) =>
           prev
             ? {
@@ -200,18 +216,25 @@ export function useProcessingJob(jobId: string | null) {
               }
             : prev,
         );
-      };
-
-      es.onmessage = (e) => {
-        try {
-          handleEvent(JSON.parse(e.data) as ProcessingEvent);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to parse SSE event:', err);
-        }
-      };
-
-      es.onerror = () => {
+        await consumeSseStream(response.body, {
+          onEvent: handleEvent,
+          onEventId: (eventId) => {
+            lastEventIdRef.current = eventId;
+          },
+          signal: controller.signal,
+        });
+        if (cancelled || controller.signal.aborted) return;
+        setState((prev) =>
+          prev
+            ? {
+                ...prev,
+                connection: { ...prev.connection, connected: false, error: undefined },
+              }
+            : prev,
+        );
+      } catch (err) {
+        if (cancelled || controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : 'Connection lost';
         setState((prev) =>
           prev
             ? {
@@ -219,26 +242,101 @@ export function useProcessingJob(jobId: string | null) {
                 connection: {
                   ...prev.connection,
                   connected: false,
-                  error: 'Connection lost',
+                  error: message,
                 },
               }
             : prev,
         );
-      };
+      }
     })();
 
     return () => {
       cancelled = true;
-      es?.close();
-      eventSourceRef.current = null;
+      controller.abort();
+      if (streamControllerRef.current === controller) {
+        streamControllerRef.current = null;
+      }
     };
-  }, [jobId, handleEvent]);
+  }, [authVersion, jobId, handleEvent]);
 
   return {
     state,
     isConnected: state?.connection.connected ?? false,
     isComplete: state?.status === 'completed',
     isFailed: state?.status === 'failed',
+    isCanceled: state?.status === 'canceled',
+  };
+}
+
+async function consumeSseStream(
+  stream: ReadableStream<Uint8Array>,
+  {
+    onEvent,
+    onEventId,
+    signal,
+  }: {
+    onEvent: (event: ProcessingEvent) => void;
+    onEventId: (eventId: string) => void;
+    signal: AbortSignal;
+  },
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (!signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      let separatorIndex = buffer.indexOf('\n\n');
+
+      while (separatorIndex !== -1) {
+        const rawEvent = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        const parsed = parseSseChunk(rawEvent);
+        if (parsed?.id) {
+          onEventId(parsed.id);
+        }
+        if (parsed?.data) {
+          try {
+            onEvent(JSON.parse(parsed.data) as ProcessingEvent);
+          } catch (err) {
+            console.error('Failed to parse SSE event:', err);
+          }
+        }
+        separatorIndex = buffer.indexOf('\n\n');
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function parseSseChunk(rawEvent: string): { id?: string; data?: string } | null {
+  const lines = rawEvent.split('\n');
+  const dataLines: string[] = [];
+  let eventId: string | undefined;
+
+  for (const line of lines) {
+    if (!line || line.startsWith(':')) continue;
+    if (line.startsWith('id:')) {
+      eventId = line.slice(3).trim();
+      continue;
+    }
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (!eventId && dataLines.length === 0) {
+    return null;
+  }
+
+  return {
+    id: eventId,
+    data: dataLines.length > 0 ? dataLines.join('\n') : undefined,
   };
 }
 

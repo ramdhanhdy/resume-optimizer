@@ -43,7 +43,7 @@ function chipsFromData(data: CollectedData): Chip[] {
       try {
         label = new URL(data.jobInput).hostname.replace(/^www\./, '');
       } catch {
-        label = data.jobInput.slice(0, 28);
+        label = data.jobInput.length > 30 ? data.jobInput.slice(0, 28) + '…' : data.jobInput;
       }
     } else if (label.length > 30) {
       label = label.slice(0, 28) + '…';

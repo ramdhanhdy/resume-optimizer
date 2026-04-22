@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { FileText } from 'lucide-react';
 import type { AgentMessageBody, Message } from './types';
 import { useTypewriter } from './useTypewriter';
@@ -100,7 +100,8 @@ function HeroAgentLine({
   text: string;
   align?: 'center' | 'left';
 }) {
-  const { displayed, done } = useTypewriter(text, { speed: 20 });
+  const reduce = useReducedMotion();
+  const { displayed, done } = useTypewriter(text, { speed: 20, enabled: !reduce });
 
   return (
     <motion.p
@@ -123,11 +124,19 @@ function HeroAgentLine({
       <span aria-hidden="true">{displayed}</span>
       <motion.span
         aria-hidden="true"
-        animate={done ? { opacity: 0 } : { opacity: [0.2, 1, 0.2] }}
+        animate={
+          reduce
+            ? { opacity: done ? 0 : 1 }
+            : done
+              ? { opacity: 0 }
+              : { opacity: [0.2, 1, 0.2] }
+        }
         transition={
-          done
-            ? { duration: 0.35, ease: 'easeOut' }
-            : { duration: 1, repeat: Infinity, ease: 'easeInOut' }
+          reduce
+            ? { duration: 0.15, ease: 'easeOut' }
+            : done
+              ? { duration: 0.35, ease: 'easeOut' }
+              : { duration: 1, repeat: Infinity, ease: 'easeInOut' }
         }
         className="ml-0.5 inline-block h-[0.95em] w-[2px] translate-y-[0.12em] rounded-sm bg-sky-400 align-baseline"
       />

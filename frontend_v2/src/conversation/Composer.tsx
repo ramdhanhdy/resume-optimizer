@@ -26,6 +26,7 @@ export function Composer() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hiddenFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const ui: AgentUI = activeAgent?.ui ?? { kind: 'none' };
   const scriptEnded = !state.currentStepId;
@@ -125,6 +126,7 @@ export function Composer() {
           {ui.kind === 'file' && !file && (
             <motion.div key={`file-${activeAgent?.id}`} className="w-full">
               <FileDropZone
+                ref={hiddenFileInputRef}
                 accept={ui.accept}
                 onPickFile={(f) => setFile(f)}
               />
@@ -180,13 +182,8 @@ export function Composer() {
         {/* Attach — always visible, opens native picker */}
         <button
           type="button"
-          onClick={() => {
-            const input = document.querySelector<HTMLInputElement>(
-              'input[type="file"]',
-            );
-            input?.click();
-          }}
-          disabled={ui.kind !== 'file'}
+          onClick={() => hiddenFileInputRef.current?.click()}
+          disabled={ui.kind !== 'file' || Boolean(file)}
           className={cn(
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
             'text-ink-500 transition hover:bg-white/60 hover:text-ink-800',
