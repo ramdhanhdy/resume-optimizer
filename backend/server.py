@@ -1,6 +1,6 @@
 """FastAPI server for Resume Optimizer backend."""
 
-from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -134,7 +134,9 @@ async def require_user_data_user_id(
         return auth_user_id
 
     if DEV_MODE_ENABLED:
-        return get_user_id_from_request(request)
+        fallback_user_id = get_user_id_from_request(request)
+        if fallback_user_id is not None:
+            return fallback_user_id
 
     raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -1057,6 +1059,8 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             "notes": polish_result,
             "review": _build_review_payload(user_db, request.application_id),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1064,7 +1068,7 @@ async def polish_resume(request: PolishRequest, http_request: Request):
 @app.get("/api/export/{application_id}")
 async def export_resume(
     application_id: int,
-    format: str = "docx",
+    export_format: str = Query("docx", alias="format"),
     user_id: str = Depends(require_user_data_user_id),
 ):
     """Export final resume in requested format from the canonical review document."""
@@ -1075,7 +1079,7 @@ async def export_resume(
             raise HTTPException(status_code=404, detail="Review document not found")
         
         # Generate export file
-        if format == "docx":
+        if export_format == "docx":
             from fastapi.responses import Response
             docx_bytes = generate_docx_from_plain_text(review_document["plain_text"])
             filename = review_document.get("filename") or "optimized-resume.docx"
@@ -1090,10 +1094,13 @@ async def export_resume(
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported format")
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Unexpected error during DOCX export: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(
+            "Unexpected error during resume export for application_id=%s",
+            application_id,
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
