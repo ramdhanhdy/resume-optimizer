@@ -100,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Short delay so the UI transition feels deliberate.
       await new Promise((r) => setTimeout(r, 600));
       setUser(DEV_USER);
+      setSession({ user: DEV_USER } as Session);
       return;
     }
     await supabase.auth.signInWithOAuth({

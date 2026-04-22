@@ -27,10 +27,10 @@ export function AuthPills({ providers, onPick, disabled }: AuthPillsProps) {
   const [pending, setPending] = useState<'google' | 'email' | null>(null);
 
   const handleGoogle = async () => {
-    onPick?.('google');
     setPending('google');
     try {
       await signInWithOAuth('google');
+      onPick?.('google');
     } catch {
       setPending(null);
     }
