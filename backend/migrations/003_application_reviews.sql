@@ -24,12 +24,45 @@ alter table public.application_reviews enable row level security;
 
 create policy "Users can view own application_reviews"
   on public.application_reviews for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.applications
+      where public.applications.id = application_reviews.application_id
+        and public.applications.user_id = auth.uid()
+    )
+  );
 
 create policy "Users can insert own application_reviews"
   on public.application_reviews for insert
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.applications
+      where public.applications.id = application_reviews.application_id
+        and public.applications.user_id = auth.uid()
+    )
+  );
 
 create policy "Users can update own application_reviews"
   on public.application_reviews for update
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.applications
+      where public.applications.id = application_reviews.application_id
+        and public.applications.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.applications
+      where public.applications.id = application_reviews.application_id
+        and public.applications.user_id = auth.uid()
+    )
+  );

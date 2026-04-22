@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 
 from docx import Document
 from docx.document import Document as DocxDocument
@@ -10,6 +11,30 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
+
+
+COMMON_SECTION_HEADINGS = {
+    "summary",
+    "professional summary",
+    "profile",
+    "experience",
+    "work experience",
+    "professional experience",
+    "employment history",
+    "education",
+    "skills",
+    "technical skills",
+    "projects",
+    "certifications",
+    "awards",
+    "publications",
+    "leadership",
+    "activities",
+    "languages",
+    "interests",
+    "volunteer",
+    "volunteer experience",
+}
 
 
 def plain_text_to_docx(resume_text: str) -> bytes:
@@ -89,12 +114,25 @@ def _set_font(run, *, size: int = 11, bold: bool = False) -> None:
 
 
 def _is_section_heading(line: str) -> bool:
+    line = line.strip()
+    if not line:
+        return False
     if len(line) > 60:
         return False
     if "@" in line or "http" in line.lower():
         return False
     alpha = [ch for ch in line if ch.isalpha()]
-    return bool(alpha) and line == line.upper()
+    if not alpha:
+        return False
+
+    normalized = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z]+", " ", line)).strip().lower()
+    if normalized in COMMON_SECTION_HEADINGS:
+        return True
+
+    if line == line.upper():
+        return True
+
+    return bool(re.fullmatch(r"[A-Z][a-z]+", line))
 
 
 def _is_bullet_line(line: str) -> bool:

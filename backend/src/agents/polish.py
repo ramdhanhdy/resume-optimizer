@@ -1,7 +1,12 @@
 """Agent 5: Polish Agent - Applies validator recommendations and finalizes resume."""
 
+import logging
+
 from .base import BaseAgent
 from ..utils.page_controller import PageEstimator
+
+
+logger = logging.getLogger(__name__)
 
 
 class PolishAgent(BaseAgent):
@@ -19,8 +24,11 @@ class PolishAgent(BaseAgent):
             prompt_file = "prompts/agent5_polish.md"
         elif output_format == "docx":
             prompt_file = "prompts/agent5_polish_docx.md"
-        else:
+        elif output_format == "review":
             prompt_file = "prompts/agent5_polish_review.md"
+        else:
+            logger.warning("Unsupported PolishAgent output_format=%s", output_format)
+            raise ValueError(f"Unsupported output_format: {output_format}")
         super().__init__(
             prompt_file=prompt_file,
             agent_name="Polish Agent",

@@ -25,6 +25,7 @@ class ApplicationDatabase:
         self.db_path = db_path
         self.user_id = user_id
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
 
@@ -44,6 +45,7 @@ class ApplicationDatabase:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS applications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 company_name TEXT,
@@ -62,12 +64,14 @@ class ApplicationDatabase:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS application_reviews (
                 application_id INTEGER PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'local',
                 plain_text TEXT NOT NULL,
                 markdown TEXT NOT NULL,
                 filename TEXT NOT NULL,
                 summary_points TEXT NOT NULL DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
             )
         """)
         cursor.execute(
@@ -194,6 +198,7 @@ class ApplicationDatabase:
         """)
 
         self._ensure_user_data_schema(cursor)
+        self._ensure_application_data_schema(cursor)
 
         self.conn.commit()
         self._run_migrations()
@@ -236,6 +241,101 @@ class ApplicationDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_saved_resumes_user_default ON saved_resumes(user_id, is_default)")
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_resumes_user_hash ON saved_resumes(user_id, content_hash) WHERE content_hash IS NOT NULL")
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id)")
+
+    def _ensure_application_data_schema(self, cursor) -> None:
+        """Bring application tables up to the current user-scoped schema."""
+        cursor.execute("PRAGMA table_info(applications)")
+        application_columns = {row["name"] for row in cursor.fetchall()}
+        if "user_id" not in application_columns:
+            cursor.execute("ALTER TABLE applications ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local'")
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_applications_user ON applications(user_id)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_applications_user_updated_at ON applications(user_id, updated_at DESC)"
+        )
+
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'application_reviews'"
+        )
+        if cursor.fetchone() is None:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS application_reviews (
+                    application_id INTEGER PRIMARY KEY,
+                    user_id TEXT NOT NULL DEFAULT 'local',
+                    plain_text TEXT NOT NULL,
+                    markdown TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    summary_points TEXT NOT NULL DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+                )
+                """
+            )
+        else:
+            cursor.execute("PRAGMA table_info(application_reviews)")
+            review_columns = {row["name"] for row in cursor.fetchall()}
+            cursor.execute("PRAGMA foreign_key_list(application_reviews)")
+            review_foreign_keys = cursor.fetchall()
+            has_application_fk = any(
+                row["table"] == "applications"
+                and row["from"] == "application_id"
+                and row["to"] == "id"
+                and str(row["on_delete"]).upper() == "CASCADE"
+                for row in review_foreign_keys
+            )
+
+            if "user_id" not in review_columns or not has_application_fk:
+                cursor.execute(
+                    """
+                    CREATE TABLE application_reviews__new (
+                        application_id INTEGER PRIMARY KEY,
+                        user_id TEXT NOT NULL DEFAULT 'local',
+                        plain_text TEXT NOT NULL,
+                        markdown TEXT NOT NULL,
+                        filename TEXT NOT NULL,
+                        summary_points TEXT NOT NULL DEFAULT '[]',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO application_reviews__new (
+                        application_id,
+                        user_id,
+                        plain_text,
+                        markdown,
+                        filename,
+                        summary_points,
+                        created_at,
+                        updated_at
+                    )
+                    SELECT
+                        ar.application_id,
+                        a.user_id,
+                        ar.plain_text,
+                        ar.markdown,
+                        ar.filename,
+                        ar.summary_points,
+                        ar.created_at,
+                        ar.updated_at
+                    FROM application_reviews ar
+                    JOIN applications a ON a.id = ar.application_id
+                    """
+                )
+                cursor.execute("DROP TABLE application_reviews")
+                cursor.execute("ALTER TABLE application_reviews__new RENAME TO application_reviews")
+
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_application_reviews_user ON application_reviews(user_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_application_reviews_created_at ON application_reviews(created_at DESC)"
+        )
 
     def _run_migrations(self):
         """Run database migrations."""
@@ -330,21 +430,26 @@ class ApplicationDatabase:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS application_reviews (
                         application_id INTEGER PRIMARY KEY,
+                        user_id TEXT NOT NULL DEFAULT 'local',
                         plain_text TEXT NOT NULL,
                         markdown TEXT NOT NULL,
                         filename TEXT NOT NULL,
                         summary_points TEXT NOT NULL DEFAULT '[]',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
                     )
                 """)
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_application_reviews_user ON application_reviews(user_id)"
+                )
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_application_reviews_created_at ON application_reviews(created_at DESC)"
                 )
             cursor.execute("INSERT INTO migrations (migration_name) VALUES ('006_add_application_reviews')")
             self.conn.commit()
 
-        self._ensure_user_data_schema(cursor)
+        self._ensure_application_data_schema(cursor)
         self.conn.commit()
 
     # --- Profiles API ---
@@ -473,10 +578,17 @@ class ApplicationDatabase:
         cursor.execute(
             """
             INSERT INTO applications
-            (company_name, job_title, job_url, job_posting_text, original_resume_text)
-            VALUES (?, ?, ?, ?, ?)
+            (user_id, company_name, job_title, job_url, job_posting_text, original_resume_text)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (company_name, job_title, job_url, job_posting_text, original_resume_text),
+            (
+                self.user_id,
+                company_name,
+                job_title,
+                job_url,
+                job_posting_text,
+                original_resume_text,
+            ),
         )
 
         self.conn.commit()
@@ -504,10 +616,11 @@ class ApplicationDatabase:
             return
 
         values.append(application_id)
+        values.append(self.user_id)
         query = f"""
             UPDATE applications
             SET {", ".join(fields)}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
         """
 
         cursor = self.conn.cursor()
@@ -608,7 +721,10 @@ class ApplicationDatabase:
             Application record as dictionary
         """
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM applications WHERE id = ?", (application_id,))
+        cursor.execute(
+            "SELECT * FROM applications WHERE id = ? AND user_id = ?",
+            (application_id, self.user_id),
+        )
         row = cursor.fetchone()
 
         if row:
@@ -627,10 +743,25 @@ class ApplicationDatabase:
         """Insert or update the canonical review document for an application."""
         cursor = self.conn.cursor()
         cursor.execute(
+            "SELECT 1 FROM applications WHERE id = ? AND user_id = ?",
+            (application_id, self.user_id),
+        )
+        if cursor.fetchone() is None:
+            raise ValueError("Application not found or not owned by the current user.")
+
+        cursor.execute(
             """
-            INSERT INTO application_reviews (application_id, plain_text, markdown, filename, summary_points)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO application_reviews (
+                application_id,
+                user_id,
+                plain_text,
+                markdown,
+                filename,
+                summary_points
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(application_id) DO UPDATE SET
+                user_id = excluded.user_id,
                 plain_text = excluded.plain_text,
                 markdown = excluded.markdown,
                 filename = excluded.filename,
@@ -639,6 +770,7 @@ class ApplicationDatabase:
             """,
             (
                 application_id,
+                self.user_id,
                 plain_text,
                 markdown,
                 filename,
@@ -662,21 +794,27 @@ class ApplicationDatabase:
                 ar.updated_at,
                 a.status
             FROM application_reviews ar
-            JOIN applications a ON a.id = ar.application_id
+            JOIN applications a
+              ON a.id = ar.application_id
+             AND a.user_id = ar.user_id
             WHERE ar.application_id = ?
+              AND ar.user_id = ?
             """,
-            (application_id,),
+            (application_id, self.user_id),
         )
         row = cursor.fetchone()
         if not row:
             return None
 
         review = dict(row)
-        review["summary_points"] = json.loads(review.get("summary_points") or "[]")
+        try:
+            review["summary_points"] = json.loads(review.get("summary_points") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            review["summary_points"] = []
         return review
 
     def get_all_applications(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get all applications ordered by most recent.
+        """Get all applications for the current user ordered by most recent.
 
         Args:
             limit: Maximum number of records to return
@@ -690,10 +828,11 @@ class ApplicationDatabase:
             SELECT id, company_name, job_title, created_at, updated_at,
                    status, total_cost
             FROM applications
+            WHERE user_id = ?
             ORDER BY updated_at DESC
             LIMIT ?
         """,
-            (limit,),
+            (self.user_id, limit),
         )
 
         return [dict(row) for row in cursor.fetchall()]
@@ -711,8 +850,8 @@ class ApplicationDatabase:
             (application_id,),
         )
         cursor.execute(
-            "DELETE FROM application_reviews WHERE application_id = ?",
-            (application_id,),
+            "DELETE FROM application_reviews WHERE application_id = ? AND user_id = ?",
+            (application_id, self.user_id),
         )
         cursor.execute(
             "DELETE FROM agent_outputs WHERE application_id = ?",
@@ -720,8 +859,8 @@ class ApplicationDatabase:
         )
         # Delete the application itself
         cursor.execute(
-            "DELETE FROM applications WHERE id = ?",
-            (application_id,),
+            "DELETE FROM applications WHERE id = ? AND user_id = ?",
+            (application_id, self.user_id),
         )
         self.conn.commit()
 
@@ -783,13 +922,16 @@ class ApplicationDatabase:
         return None
 
     def get_total_spent(self) -> float:
-        """Get total amount spent across all applications.
+        """Get total amount spent across all applications for the current user.
 
         Returns:
             Total cost in USD
         """
         cursor = self.conn.cursor()
-        cursor.execute("SELECT SUM(total_cost) as total FROM applications")
+        cursor.execute(
+            "SELECT SUM(total_cost) as total FROM applications WHERE user_id = ?",
+            (self.user_id,),
+        )
         result = cursor.fetchone()
         return result["total"] if result["total"] else 0.0
 
