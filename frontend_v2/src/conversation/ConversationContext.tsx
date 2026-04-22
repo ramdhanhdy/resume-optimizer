@@ -1,0 +1,276 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from 'react';
+import type {
+  AgentMessage,
+  ConversationState,
+  Message,
+  UserMessage,
+} from './types';
+import type { ApplicationReview } from '@/types/review';
+import { findStep, initialScript } from './script';
+
+type Action =
+  | { type: 'BOOT' }
+  | { type: 'AGENT_TYPING'; value: boolean }
+  | { type: 'PUSH_AGENT'; message: AgentMessage; stepId: string }
+  | { type: 'PUSH_USER'; message: UserMessage }
+  | { type: 'ADVANCE'; nextStepId: string | null; patch?: Record<string, unknown> }
+  | { type: 'COMPLETE_PROCESSING'; review: ApplicationReview; message: AgentMessage }
+  | { type: 'RESET' };
+
+const initialState: ConversationState = {
+  phase: 'IDLE',
+  messages: [],
+  data: {},
+  agentTyping: false,
+};
+
+function reducer(state: ConversationState, action: Action): ConversationState {
+  switch (action.type) {
+    case 'BOOT': {
+      const first = initialScript[0];
+      return {
+        ...initialState,
+        currentStepId: first.id,
+        phase: first.phase,
+      };
+    }
+    case 'AGENT_TYPING':
+      return { ...state, agentTyping: action.value };
+    case 'PUSH_AGENT': {
+      return {
+        ...state,
+        messages: [...state.messages, action.message],
+        activeAgentMessageId: action.message.id,
+        currentStepId: action.stepId,
+        agentTyping: false,
+      };
+    }
+    case 'PUSH_USER': {
+      return {
+        ...state,
+        messages: [...state.messages, action.message],
+        // User answered, so previous agent message no longer owns the composer.
+        activeAgentMessageId: undefined,
+      };
+    }
+    case 'ADVANCE': {
+      const mergedData = { ...state.data, ...(action.patch ?? {}) };
+      if (action.nextStepId === null) {
+        return { ...state, data: mergedData, currentStepId: undefined };
+      }
+      const next = findStep(action.nextStepId);
+      return {
+        ...state,
+        data: mergedData,
+        currentStepId: action.nextStepId,
+        phase: next ? next.phase : state.phase,
+      };
+    }
+    case 'COMPLETE_PROCESSING': {
+      // Atomic transition from PROCESSING -> REVIEWING: merge the result
+      // into data AND push the final agent message in one dispatch so
+      // the auto-emit effect doesn't race with a second prompt.
+      const reviewStep = findStep('reviewing');
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          review: action.review,
+        },
+        messages: [...state.messages, action.message],
+        activeAgentMessageId: action.message.id,
+        currentStepId: 'reviewing',
+        phase: reviewStep ? reviewStep.phase : 'REVIEWING',
+        agentTyping: false,
+      };
+    }
+    case 'RESET':
+      return { ...initialState };
+    default:
+      return state;
+  }
+}
+
+export interface ConversationApi {
+  state: ConversationState;
+  /** Active agent message (the one currently owning the composer). */
+  activeAgent?: AgentMessage;
+  /** Submit the user's reply from the composer. */
+  submit: (input: { text: string; choiceValue?: string; file?: File | null }) => void;
+  /**
+   * Phase 5: called by <ProcessingStream/> once the SSE `done` event
+   * lands. Transitions phase -> REVIEWING, merges the result payload
+   * into `data`, and pushes the reveal message (summary list + closing).
+   */
+  completeProcessing: (review: ApplicationReview) => void;
+  reset: () => void;
+}
+
+const Ctx = createContext<ConversationApi | null>(null);
+
+function makeId(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const bootedRef = useRef(false);
+
+  // Boot the script once on mount, then emit the first agent message.
+  useEffect(() => {
+    if (bootedRef.current) return;
+    bootedRef.current = true;
+    dispatch({ type: 'BOOT' });
+  }, []);
+
+  // Whenever currentStepId changes but the latest message isn't from that
+  // step's agent prompt, emit it (with a short typing delay for polish).
+  useEffect(() => {
+    const step = findStep(state.currentStepId);
+    if (!step) return;
+    const last = state.messages[state.messages.length - 1];
+    const alreadyEmitted =
+      last && last.role === 'agent' && last.stepId === step.id;
+    if (alreadyEmitted) return;
+
+    let cancelled = false;
+    dispatch({ type: 'AGENT_TYPING', value: true });
+    const delay = state.messages.length === 0 ? 250 : 550;
+    const t = window.setTimeout(() => {
+      if (cancelled) return;
+      const msg: AgentMessage = {
+        id: makeId('agent'),
+        role: 'agent',
+        text: step.message(state.data),
+        ui: step.ui,
+        stepId: step.id,
+        createdAt: Date.now(),
+      };
+      dispatch({ type: 'PUSH_AGENT', message: msg, stepId: step.id });
+    }, delay);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+    // We intentionally depend only on currentStepId; data changes during
+    // a single step should not re-emit the prompt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.currentStepId]);
+
+  const submit = useCallback<ConversationApi['submit']>(
+    (input) => {
+      const step = findStep(state.currentStepId);
+      if (!step) return;
+
+      const isFileStep = step.ui.kind === 'file';
+
+      // Compose a user message for the transcript.
+      const humanText =
+        input.choiceValue !== undefined
+          ? labelForChoice(step, input.choiceValue) ?? input.text
+          : isFileStep && input.file
+            ? input.file.name
+            : input.text;
+
+      const userMsg: UserMessage = {
+        id: makeId('user'),
+        role: 'user',
+        text: humanText || (input.file ? input.file.name : ''),
+        choiceValue: input.choiceValue,
+        attachment: input.file
+          ? { name: input.file.name, size: input.file.size, mime: input.file.type }
+          : undefined,
+        createdAt: Date.now(),
+      };
+
+      // Nothing to echo? Still advance, but skip the empty bubble.
+      if (userMsg.text || userMsg.attachment) {
+        dispatch({ type: 'PUSH_USER', message: userMsg });
+      }
+
+      const { patch, nextStepId } = step.handle(input, state.data);
+      dispatch({ type: 'ADVANCE', nextStepId, patch });
+    },
+    [state.currentStepId, state.data],
+  );
+
+  const reset = useCallback(() => {
+    bootedRef.current = false;
+    dispatch({ type: 'RESET' });
+    // Re-boot on the next tick so the BOOT effect reruns.
+    window.setTimeout(() => {
+      bootedRef.current = true;
+      dispatch({ type: 'BOOT' });
+    }, 0);
+  }, []);
+
+  const completeProcessing = useCallback<ConversationApi['completeProcessing']>(
+    (review) => {
+      const points = review.summary_points ?? [];
+      const message: AgentMessage = {
+        id: makeId('agent'),
+        role: 'agent',
+        text: "All done! I've completely revamped your profile. Here are the main things I focused on:",
+        body: {
+          summaryPoints: points,
+          closing:
+            'How does it look? We can keep tweaking it, or you can grab the file now.',
+        },
+        ui: { kind: 'review' },
+        stepId: 'reviewing',
+        createdAt: Date.now(),
+      };
+      dispatch({ type: 'COMPLETE_PROCESSING', review, message });
+    },
+    [],
+  );
+
+  const activeAgent = useMemo<AgentMessage | undefined>(() => {
+    if (!state.activeAgentMessageId) return undefined;
+    const found = state.messages.find(
+      (m): m is AgentMessage =>
+        m.role === 'agent' && m.id === state.activeAgentMessageId,
+    );
+    return found;
+  }, [state.activeAgentMessageId, state.messages]);
+
+  const value = useMemo<ConversationApi>(
+    () => ({ state, activeAgent, submit, completeProcessing, reset }),
+    [state, activeAgent, submit, completeProcessing, reset],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+};
+
+export function useConversation(): ConversationApi {
+  const ctx = useContext(Ctx);
+  if (!ctx) {
+    throw new Error('useConversation must be used within <ConversationProvider>');
+  }
+  return ctx;
+}
+
+// ——— helpers ———
+
+function labelForChoice(
+  step: ReturnType<typeof findStep>,
+  value: string,
+): string | undefined {
+  if (!step) return undefined;
+  if (step.ui.kind !== 'choices') return undefined;
+  return step.ui.choices.find((c) => c.value === value)?.label;
+}
+
+// Re-exported for convenience in feed/components.
+export type { Message };

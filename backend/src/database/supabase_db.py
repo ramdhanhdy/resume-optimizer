@@ -328,6 +328,64 @@ class SupabaseDatabase:
             return self._map_application_to_sqlite_format(result.data[0])
         return None
 
+    def save_application_review(
+        self,
+        *,
+        application_id: int,
+        plain_text: str,
+        markdown: str,
+        filename: str,
+        summary_points: List[str],
+    ) -> None:
+        """Insert or update the canonical review document for an application."""
+        application_check = self.client.table("applications").select("id").eq(
+            "id", application_id
+        ).eq("user_id", self.user_id).is_("deleted_at", "null").limit(1).execute()
+        if not application_check.data:
+            raise ValueError("Application not found or not owned by the current user.")
+
+        self.client.table("application_reviews").upsert(
+            {
+                "application_id": application_id,
+                "user_id": self.user_id,
+                "plain_text": plain_text,
+                "markdown": markdown,
+                "filename": filename,
+                "summary_points": summary_points or [],
+            },
+            on_conflict="application_id",
+        ).execute()
+
+    def get_application_review(self, application_id: int) -> Optional[Dict[str, Any]]:
+        """Get the canonical review document for an application."""
+        result = self.client.table("application_reviews").select("*").eq(
+            "application_id", application_id
+        ).eq("user_id", self.user_id).limit(1).execute()
+
+        if not result.data:
+            return None
+
+        review = result.data[0]
+        app = self.client.table("applications").select("status").eq(
+            "id", application_id
+        ).eq("user_id", self.user_id).is_("deleted_at", "null").limit(1).execute()
+        if not app.data:
+            return None
+
+        review["status"] = app.data[0]["status"]
+        summary_points = review.get("summary_points")
+        if isinstance(summary_points, str):
+            try:
+                summary_points = json.loads(summary_points)
+            except (TypeError, json.JSONDecodeError):
+                summary_points = []
+        if summary_points is None:
+            summary_points = []
+        elif not isinstance(summary_points, list):
+            summary_points = list(summary_points) if isinstance(summary_points, (tuple, set)) else []
+        review["summary_points"] = summary_points
+        return review
+
     def _map_application_to_sqlite_format(self, app: Dict[str, Any]) -> Dict[str, Any]:
         """Map Supabase application fields to SQLite format for compatibility."""
         return {
@@ -967,4 +1025,4 @@ def get_database(user_id: Optional[str] = None):
         return SupabaseDatabase(user_id)
     else:
         from .db import ApplicationDatabase
-        return ApplicationDatabase()
+        return ApplicationDatabase(user_id=user_id or "local")
