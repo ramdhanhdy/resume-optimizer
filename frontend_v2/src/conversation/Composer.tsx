@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Loader2, Mic, Plus } from 'lucide-react';
+import { ArrowUp, Mic, Plus } from 'lucide-react';
 import { useConversation } from './ConversationContext';
 import { ChoicePills } from './ChoicePills';
 import { AttachedFilePill, FileDropZone } from './FileDropZone';
 import { AuthPills } from './AuthPills';
 import { ReviewActions } from './ReviewActions';
-import { uploadResume, MOCK_STREAM } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import type { AgentUI } from './types';
 
@@ -23,35 +22,19 @@ export function Composer() {
   const { state, activeAgent, submit } = useConversation();
   const [value, setValue] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hiddenFileInputRef = useRef<HTMLInputElement | null>(null);
-  const activeAgentIdRef = useRef<string | undefined>(activeAgent?.id);
-  const uploadTokenRef = useRef(0);
-  const mountedRef = useRef(true);
 
   const ui: AgentUI = activeAgent?.ui ?? { kind: 'none' };
   const scriptEnded = !state.currentStepId;
   const isProcessing = state.phase === 'PROCESSING';
-  const disabled = isProcessing || !activeAgent || scriptEnded || uploading;
+  const disabled = isProcessing || !activeAgent || scriptEnded;
 
   // Reset composer state whenever the active step changes.
   useEffect(() => {
-    activeAgentIdRef.current = activeAgent?.id;
-    uploadTokenRef.current += 1;
     setValue('');
     setFile(null);
-    setUploadError(null);
-    setUploading(false);
-  }, [activeAgent?.id]);
-
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-      uploadTokenRef.current += 1;
-    };
-  }, []);
+  }, [state.currentStepId]);
 
   // Auto-size the textarea.
   useEffect(() => {
@@ -77,74 +60,17 @@ export function Composer() {
     }
   })();
 
-  const handleTextSubmit = async () => {
+  const handleTextSubmit = () => {
     if (!canSubmit) return;
 
-    // File-step special case: if the user attached a file and didn't type
-    // text themselves, extract the text server-side before submitting so
-    // downstream phases (and /api/pipeline/start) have `resume_text` ready.
-    if (ui.kind === 'file' && file && !value.trim()) {
-      // Mock stream mode doesn't actually care about the contents.
-      if (MOCK_STREAM) {
-        submit({ text: `[mock] ${file.name}`, file });
-        return;
-      }
-      const uploadToken = ++uploadTokenRef.current;
-      const submitAgentId = activeAgentIdRef.current;
-      try {
-        setUploading(true);
-        setUploadError(null);
-        const { text } = await uploadResume(file);
-        if (
-          !mountedRef.current ||
-          uploadTokenRef.current !== uploadToken ||
-          activeAgentIdRef.current !== submitAgentId
-        ) {
-          return;
-        }
-        submit({ text, file });
-      } catch (err) {
-        if (
-          !mountedRef.current ||
-          uploadTokenRef.current !== uploadToken ||
-          activeAgentIdRef.current !== submitAgentId
-        ) {
-          return;
-        }
-        const msg = err instanceof Error ? err.message : 'Upload failed';
-        setUploadError(msg);
-      } finally {
-        if (
-          mountedRef.current &&
-          uploadTokenRef.current === uploadToken &&
-          activeAgentIdRef.current === submitAgentId
-        ) {
-          setUploading(false);
-        }
-      }
-      return;
-    }
-
+    // File uploads are intentionally deferred until PROCESSING.
+    // That keeps the step transition to ask_job synchronous and avoids
+    // blocking the script on resume extraction.
     submit({ text: value, file });
   };
 
   return (
     <div className="flex flex-col items-center gap-3">
-      {/* Inline upload error surface (file step only) */}
-      <AnimatePresence>
-        {uploadError && (
-          <motion.p
-            key="upload-err"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-[12px] text-red-500"
-          >
-            {uploadError}
-          </motion.p>
-        )}
-      </AnimatePresence>
-
       {/* Contextual module slot */}
       <div className="w-full">
         <AnimatePresence mode="popLayout">
@@ -257,18 +183,7 @@ export function Composer() {
 
         {/* Right-side ambient controls */}
         <AnimatePresence mode="wait" initial={false}>
-          {uploading ? (
-            <motion.div
-              key="uploading"
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-900 text-white"
-              aria-label="Uploading"
-            >
-              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
-            </motion.div>
-          ) : canSubmit ? (
+          {canSubmit ? (
             <motion.button
               key="send"
               type="submit"

@@ -173,11 +173,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
       const step = findStep(state.currentStepId);
       if (!step) return;
 
+      const isFileStep = step.ui.kind === 'file';
+
       // Compose a user message for the transcript.
       const humanText =
         input.choiceValue !== undefined
           ? labelForChoice(step, input.choiceValue) ?? input.text
-          : input.text;
+          : isFileStep && input.file
+            ? input.file.name
+            : input.text;
 
       const userMsg: UserMessage = {
         id: makeId('user'),

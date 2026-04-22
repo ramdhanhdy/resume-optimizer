@@ -33,33 +33,21 @@ export function ProcessingStream() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const startedRef = useRef(false);
-  const mountedRef = useRef(true);
 
   // Step-by-step log rendered on the stage. We append an entry the first
   // time we see each StepName in `currentStep`.
   const [stepLog, setStepLog] = useState<StepName[]>([]);
 
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
   // --- 1) Start the pipeline on mount ---
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    let cancelled = false;
 
     if (MOCK_STREAM) {
       // No real backend call; just invent a job id and let the hook's
       // scripted stream take over.
-      if (mountedRef.current) {
-        setJobId(`mock-${Date.now().toString(36)}`);
-      }
-      return () => {
-        cancelled = true;
-      };
+      setJobId(`mock-${Date.now().toString(36)}`);
+      return;
     }
 
     (async () => {
@@ -92,21 +80,12 @@ export function ProcessingStream() {
           job_url: state.data.jobIsUrl ? state.data.jobInput : undefined,
           resume_filename: resumeFilename,
         });
-        if (cancelled || !mountedRef.current) {
-          return;
-        }
         setJobId(response.job_id);
       } catch (err) {
-        if (cancelled || !mountedRef.current) {
-          return;
-        }
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setStartError(msg);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
     // Only run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
