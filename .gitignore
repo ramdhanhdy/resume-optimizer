@@ -55,7 +55,6 @@ backend/prompts/
 
 # Cloud Run local env files
 backend/.env.cloudrun
-backend/.env.clodurun
 
 # Evals
 evals/**/__pycache__/
