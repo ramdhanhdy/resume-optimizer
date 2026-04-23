@@ -1,9 +1,14 @@
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { ReviewResume } from '@/types/review';
 import { cn } from '@/lib/cn';
 
 interface ResumeStageProps {
   resume: ReviewResume;
+  /**
+   * When true, dims the paper and overlays a soft sky shimmer so the
+   * stage reads as "being rewritten" while a refinement is in flight.
+   */
+  refining?: boolean;
 }
 
 /**
@@ -14,14 +19,15 @@ interface ResumeStageProps {
  * We deliberately show a plain-text rendering rather than a diff — the
  * spec wants a clean, confidence-building preview, not a technical view.
  */
-export function ResumeStage({ resume }: ResumeStageProps) {
+export function ResumeStage({ resume, refining }: ResumeStageProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{ duration: 0.7, delay: 0.2, ease: [0.2, 0.7, 0.2, 1] }}
-      className="flex-1 min-h-0 overflow-y-auto px-4 pb-16 sm:px-8"
+      className="relative flex-1 min-h-0 overflow-y-auto px-4 pb-16 sm:px-8"
       aria-label="Optimized resume preview"
+      aria-busy={refining ? 'true' : undefined}
     >
       <div className="mx-auto w-full max-w-[720px] flex flex-col py-6 sm:py-8">
       {/* Filename ribbon — small label floating above the paper */}
@@ -38,9 +44,15 @@ export function ResumeStage({ resume }: ResumeStageProps) {
       {/* The paper */}
       <motion.article
         layout
+        animate={{
+          opacity: refining ? 0.45 : 1,
+          filter: refining ? 'blur(1.5px)' : 'blur(0px)',
+        }}
+        transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}
         className={cn(
           'relative rounded-xl bg-white',
           'ring-1 ring-ink-100',
+          refining && 'ring-sky-200',
         )}
         style={{
           // Layered soft shadows: bottom for depth, top for the "lit from
@@ -73,6 +85,52 @@ export function ResumeStage({ resume }: ResumeStageProps) {
           </pre>
         </div>
       </motion.article>
+
+      {/* Shimmer overlay — fades in over the paper while a refinement
+          is in-flight. The underlying text stays dimly legible so the
+          continuity with the finished resume is preserved. */}
+      <AnimatePresence>
+        {refining && (
+          <motion.div
+            key="refining-shimmer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-start justify-center"
+          >
+            <div className="sticky top-20 h-[60vh] w-full max-w-[720px] overflow-hidden rounded-xl">
+              {/* Soft radial wash */}
+              <motion.div
+                animate={{ opacity: [0.35, 0.6, 0.35] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'radial-gradient(ellipse at center, rgba(125, 170, 255, 0.28) 0%, rgba(200, 220, 255, 0.1) 45%, transparent 75%)',
+                  filter: 'blur(20px)',
+                }}
+              />
+              {/* Sweeping highlight band */}
+              <motion.div
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{
+                  duration: 2.2,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+                className="absolute inset-y-0 w-[40%]"
+                style={{
+                  background:
+                    'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)',
+                  filter: 'blur(10px)',
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       </div>
     </motion.div>
   );

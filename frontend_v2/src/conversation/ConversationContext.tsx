@@ -14,6 +14,7 @@ import type {
   UserMessage,
 } from './types';
 import type { ApplicationReview } from '@/types/review';
+import { refineResume as refineResumeApi } from '@/lib/api';
 import { findStep, initialScript } from './script';
 
 type Action =
@@ -23,6 +24,9 @@ type Action =
   | { type: 'PUSH_USER'; message: UserMessage }
   | { type: 'ADVANCE'; nextStepId: string | null; patch?: Record<string, unknown> }
   | { type: 'COMPLETE_PROCESSING'; review: ApplicationReview; message: AgentMessage }
+  | { type: 'REFINE_START'; instruction: string }
+  | { type: 'REFINE_SUCCESS'; review: ApplicationReview; message: AgentMessage }
+  | { type: 'REFINE_ERROR'; error: string }
   | { type: 'RESET' };
 
 const initialState: ConversationState = {
@@ -74,6 +78,34 @@ function reducer(state: ConversationState, action: Action): ConversationState {
         phase: next ? next.phase : state.phase,
       };
     }
+    case 'REFINE_START': {
+      return {
+        ...state,
+        refining: true,
+        refineInstruction: action.instruction,
+        refineError: undefined,
+      };
+    }
+    case 'REFINE_SUCCESS': {
+      return {
+        ...state,
+        refining: false,
+        refineError: undefined,
+        data: {
+          ...state.data,
+          review: action.review,
+        },
+        messages: [...state.messages, action.message],
+        activeAgentMessageId: action.message.id,
+      };
+    }
+    case 'REFINE_ERROR': {
+      return {
+        ...state,
+        refining: false,
+        refineError: action.error,
+      };
+    }
     case 'COMPLETE_PROCESSING': {
       // Atomic transition from PROCESSING -> REVIEWING: merge the result
       // into data AND push the final agent message in one dispatch so
@@ -111,6 +143,12 @@ export interface ConversationApi {
    * into `data`, and pushes the reveal message (summary list + closing).
    */
   completeProcessing: (review: ApplicationReview) => void;
+  /**
+   * Phase 5 refinement: user submitted a free-form tweak instruction
+   * from the composer. Locks the composer, shows the refining UI, then
+   * replaces the review payload with the refined version on success.
+   */
+  refine: (instruction: string) => void;
   reset: () => void;
 }
 
@@ -215,6 +253,59 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     }, 0);
   }, []);
 
+  // Keep a ref to the latest review so `refine` doesn't need to be
+  // recreated (and fire a re-render) every time the review payload
+  // changes. The callback only reads the current value at call-time.
+  const reviewRef = useRef<ApplicationReview | undefined>(state.data.review);
+  reviewRef.current = state.data.review;
+
+  const refine = useCallback<ConversationApi['refine']>((instruction) => {
+    const trimmed = instruction.trim();
+    if (!trimmed) return;
+    const current = reviewRef.current;
+    if (!current) return;
+
+    // Echo the user's instruction into the transcript so the chat
+    // history reads as a natural back-and-forth.
+    const userMsg: UserMessage = {
+      id: makeId('user'),
+      role: 'user',
+      text: trimmed,
+      createdAt: Date.now(),
+    };
+    dispatch({ type: 'PUSH_USER', message: userMsg });
+    dispatch({ type: 'REFINE_START', instruction: trimmed });
+
+    void (async () => {
+      try {
+        const updated = await refineResumeApi({
+          applicationId: current.application_id,
+          instruction: trimmed,
+          current,
+        });
+        const points = updated.summary_points ?? [];
+        const message: AgentMessage = {
+          id: makeId('agent'),
+          role: 'agent',
+          text: 'Done — here\u2019s the updated version with your note applied.',
+          body: {
+            summaryPoints: points,
+            closing:
+              'Want to keep tweaking, or grab the file?',
+          },
+          ui: { kind: 'review' },
+          stepId: 'reviewing',
+          createdAt: Date.now(),
+        };
+        dispatch({ type: 'REFINE_SUCCESS', review: updated, message });
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : 'Refinement failed — try again.';
+        dispatch({ type: 'REFINE_ERROR', error: msg });
+      }
+    })();
+  }, []);
+
   const completeProcessing = useCallback<ConversationApi['completeProcessing']>(
     (review) => {
       const points = review.summary_points ?? [];
@@ -246,8 +337,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [state.activeAgentMessageId, state.messages]);
 
   const value = useMemo<ConversationApi>(
-    () => ({ state, activeAgent, submit, completeProcessing, reset }),
-    [state, activeAgent, submit, completeProcessing, reset],
+    () => ({ state, activeAgent, submit, completeProcessing, refine, reset }),
+    [state, activeAgent, submit, completeProcessing, refine, reset],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

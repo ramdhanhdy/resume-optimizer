@@ -106,4 +106,14 @@ export interface ConversationState {
   currentStepId?: string;
   /** Transient flag while the "agent is typing" indicator is shown. */
   agentTyping: boolean;
+  /**
+   * Phase 5: true while a user-initiated refinement is in-flight.
+   * Drives the muted typewriter line in the chat column, the shimmer
+   * overlay on the resume stage, and the locked composer state.
+   */
+  refining?: boolean;
+  /** Last instruction the user submitted during a refinement. */
+  refineInstruction?: string;
+  /** Transient error message if a refinement request failed. */
+  refineError?: string;
 }

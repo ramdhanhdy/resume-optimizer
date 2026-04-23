@@ -1,6 +1,6 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { Download, Loader2, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Download, Sparkles } from 'lucide-react';
+import { useCallback } from 'react';
 import type { ApplicationReview } from '@/types/review';
 import { fetchAuthenticatedBlob } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -10,22 +10,14 @@ interface ReviewActionsProps {
 }
 
 /**
- * Phase 5 contextual action bar. Renders in place of the text input when
- * the active agent message has `ui.kind === 'review'`.
+ * Phase 5 contextual action bar. Sits above the free-form refinement
+ * composer and exposes the single primary action: downloading the
+ * finished resume. Free-form tweaks are now entered through the
+ * composer's text input (see `Composer.tsx`), not through preset pills.
  *
  *   [ ⬇ Download .docx ]    ← primary, sky-glow
- *   [ Make it shorter ]     ← tweak secondary
- *   [ Sound more professional ] ← tweak secondary
- *
- * Clicking a tweak pill fades the whole bar out, pretends to process for
- * ~3s with a small inline spinner, then fades back in. The actual
- * document-edit flow is left for a future iteration; for now the visual
- * loop is enough to communicate "the system is working on your tweak".
  */
 export function ReviewActions({ review }: ReviewActionsProps) {
-  const [tweaking, setTweaking] = useState<string | null>(null);
-  const tweakTimeoutRef = useRef<number | null>(null);
-
   const downloadPlainText = useCallback((reviewPayload: ApplicationReview) => {
     const blob = new Blob([reviewPayload.resume.plain_text], {
       type: 'text/plain;charset=utf-8',
@@ -63,65 +55,19 @@ export function ReviewActions({ review }: ReviewActionsProps) {
     downloadPlainText(review);
   }, [downloadPlainText, review]);
 
-  const handleTweak = useCallback((label: string) => {
-    if (tweakTimeoutRef.current !== null) {
-      window.clearTimeout(tweakTimeoutRef.current);
-    }
-    setTweaking(label);
-    tweakTimeoutRef.current = window.setTimeout(() => {
-      tweakTimeoutRef.current = null;
-      setTweaking(null);
-    }, 3000);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (tweakTimeoutRef.current !== null) {
-        window.clearTimeout(tweakTimeoutRef.current);
-      }
-    };
-  }, []);
-
   return (
-    <div className="flex min-h-[3.5rem] w-full flex-col items-start gap-2">
-      <AnimatePresence mode="wait">
-        {tweaking ? (
-          <motion.div
-            key="tweaking"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -2 }}
-            transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-full glass-sky px-4 py-2',
-              'text-[13px] text-ink-600 ring-1 ring-sky-200/60 soft-shadow',
-            )}
-          >
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-500" strokeWidth={2} />
-            <span>Rewriting · {tweaking.toLowerCase()}…</span>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="actions"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -2 }}
-            transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-            className="flex flex-wrap items-center gap-2"
-          >
-            <PrimaryPill onClick={handleDownload} disabled={!review}>
-              <Download className="h-4 w-4" strokeWidth={2} />
-              <span>Download {review?.resume.filename?.split('.').pop() ?? 'docx'}</span>
-            </PrimaryPill>
-            <TweakPill onClick={() => handleTweak('Make it shorter')}>
-              Make it shorter
-            </TweakPill>
-            <TweakPill onClick={() => handleTweak('Sound more professional')}>
-              Sound more professional
-            </TweakPill>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex w-full items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <PrimaryPill onClick={handleDownload} disabled={!review}>
+          <Download className="h-4 w-4" strokeWidth={2} />
+          <span>Download {review?.resume.filename?.split('.').pop() ?? 'docx'}</span>
+        </PrimaryPill>
+      </motion.div>
     </div>
   );
 }
@@ -165,26 +111,3 @@ function PrimaryPill({
   );
 }
 
-function TweakPill({
-  children,
-  onClick,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.97 }}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2',
-        'text-[13px] text-ink-700 glass-sky soft-shadow',
-        'ring-1 ring-sky-200/60 transition hover:text-ink-900 hover:ring-sky-300',
-      )}
-    >
-      {children}
-    </motion.button>
-  );
-}

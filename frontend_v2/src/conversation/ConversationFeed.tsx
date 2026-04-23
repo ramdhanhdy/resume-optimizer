@@ -1,6 +1,6 @@
 import { AnimatePresence } from 'framer-motion';
 import { useConversation } from './ConversationContext';
-import { AgentTypingIndicator, MessageBubble } from './MessageBubble';
+import { AgentTypingIndicator, MessageBubble, RefiningIndicator } from './MessageBubble';
 import { ProcessingStream } from './ProcessingStream';
 import { cn } from '@/lib/cn';
 
@@ -33,6 +33,7 @@ export function ConversationFeed() {
   // momentarily undefined after a user reply while the next step prepares).
   const showTyping = state.agentTyping || !activeAgent;
   const isReviewing = state.phase === 'REVIEWING';
+  const isRefining = !!state.refining;
 
   return (
     <section
@@ -45,7 +46,12 @@ export function ConversationFeed() {
       )}
     >
       <AnimatePresence mode="wait" initial={false}>
-        {showTyping ? (
+        {isRefining ? (
+          <RefiningIndicator
+            key="refining"
+            instruction={state.refineInstruction ?? ''}
+          />
+        ) : showTyping ? (
           <AgentTypingIndicator key="typing" />
         ) : (
           <MessageBubble

@@ -125,6 +125,29 @@ export async function getApplicationReview(
   return response.review;
 }
 
+export interface RefineResumeInput {
+  applicationId: number;
+  instruction: string;
+  /** Current review payload — used by the stub to echo back unchanged. */
+  current: ApplicationReview;
+}
+
+/**
+ * Refine an already-optimized resume based on a free-form user instruction.
+ *
+ * TODO(backend): wire to `POST /api/applications/:id/refine` once the
+ * endpoint exists. For now this is a visual-only stub that waits ~2.5s
+ * and returns the existing review so the UI loop can be exercised.
+ */
+export async function refineResume(
+  input: RefineResumeInput,
+): Promise<ApplicationReview> {
+  await new Promise((resolve) => window.setTimeout(resolve, 2500));
+  // Intentionally unmodified; the real endpoint will return a fresh
+  // ApplicationReview with an updated resume + summary_points.
+  return input.current;
+}
+
 export async function fetchAuthenticatedBlob(
   endpointOrUrl: string,
 ): Promise<{ blob: Blob; filename?: string }> {

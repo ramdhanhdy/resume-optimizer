@@ -203,6 +203,85 @@ function AgentRichBody({ body }: { body: AgentMessageBody }) {
 }
 
 /**
+ * "Refining" indicator — left-aligned editorial column shown while a
+ * user-initiated refinement is in flight. Echoes the user's instruction
+ * in italic muted type beneath a soft typewriter hero so the wait never
+ * feels opaque.
+ */
+export function RefiningIndicator({ instruction }: { instruction: string }) {
+  const reduce = useReducedMotion();
+  const { displayed, done } = useTypewriter('Rewriting with your note…', {
+    speed: 24,
+    enabled: !reduce,
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}
+      className="flex w-full flex-col items-start gap-3"
+    >
+      <p
+        className={cn(
+          'w-full text-left text-[22px] font-light leading-[1.28]',
+          'tracking-[-0.01em] text-ink-700 sm:text-[24px]',
+        )}
+        aria-label="Rewriting with your note"
+      >
+        <span aria-hidden="true">{displayed}</span>
+        <motion.span
+          aria-hidden="true"
+          animate={
+            done
+              ? { opacity: [0.4, 1, 0.4] }
+              : { opacity: [0.2, 1, 0.2] }
+          }
+          transition={{
+            duration: done ? 1.2 : 1,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+          className="ml-0.5 inline-block h-[0.95em] w-[2px] translate-y-[0.12em] rounded-sm bg-sky-400 align-baseline"
+        />
+      </p>
+      {instruction && (
+        <motion.p
+          initial={{ opacity: 0, x: -4 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className="text-[14px] italic leading-relaxed text-ink-500 sm:text-[15px]"
+        >
+          — &ldquo;{instruction}&rdquo;
+        </motion.p>
+      )}
+      <ShimmerDots />
+    </motion.div>
+  );
+}
+
+function ShimmerDots() {
+  return (
+    <div className="flex items-center gap-1.5" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="block h-1.5 w-1.5 rounded-full bg-sky-300"
+          animate={{ opacity: [0.25, 1, 0.25], y: [0, -2, 0] }}
+          transition={{
+            duration: 1.2,
+            repeat: Infinity,
+            delay: i * 0.15,
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * "Agent is thinking" indicator — three gently pulsing sky dots, centered
  * so it sits on the same axis as the hero prose.
  */

@@ -157,7 +157,10 @@ function ShellChrome() {
               transition={{ duration: 0.4 }}
               className="relative flex h-full flex-col overflow-hidden pt-28 sm:pt-36"
             >
-              <ResumeStage resume={state.data.review.resume} />
+              <ResumeStage
+                resume={state.data.review.resume}
+                refining={state.refining}
+              />
             </motion.section>
           )}
         </AnimatePresence>

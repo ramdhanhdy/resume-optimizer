@@ -19,7 +19,7 @@ import type { AgentUI } from './types';
  * stays stable.
  */
 export function Composer() {
-  const { state, activeAgent, submit } = useConversation();
+  const { state, activeAgent, submit, refine } = useConversation();
   const [value, setValue] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -28,7 +28,13 @@ export function Composer() {
   const ui: AgentUI = activeAgent?.ui ?? { kind: 'none' };
   const scriptEnded = !state.currentStepId;
   const isProcessing = state.phase === 'PROCESSING';
-  const disabled = isProcessing || !activeAgent || scriptEnded;
+  const isReview = ui.kind === 'review';
+  const isRefining = !!state.refining;
+  // In review mode the "script" has ended but the composer stays live
+  // as the refinement entry point, so don't treat script-end as disabled.
+  const disabled = isProcessing
+    || (!isReview && (!activeAgent || scriptEnded))
+    || (isReview && isRefining);
 
   // Reset composer state whenever the active step changes.
   useEffect(() => {
@@ -53,8 +59,9 @@ export function Composer() {
         return !!file || value.trim().length > 0;
       case 'choices':
         return ui.allowFreeText ? value.trim().length > 0 : false;
-      case 'auth':
       case 'review':
+        return value.trim().length > 0;
+      case 'auth':
       case 'none':
         return false;
     }
@@ -62,6 +69,12 @@ export function Composer() {
 
   const handleTextSubmit = () => {
     if (!canSubmit) return;
+
+    if (isReview) {
+      refine(value);
+      setValue('');
+      return;
+    }
 
     // File uploads are intentionally deferred until PROCESSING.
     // That keeps the step transition to ask_job synchronous and avoids
@@ -112,17 +125,23 @@ export function Composer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
               transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}
-              className="w-full"
+              className="flex w-full flex-col items-start gap-3"
             >
               <ReviewActions review={state.data.review} />
+              {!isRefining && !value && (
+                <RefineSuggestions onPick={(s) => setValue(s)} />
+              )}
+              {state.refineError && (
+                <p className="text-[13px] text-red-500">{state.refineError}</p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Ambient pill-shaped input bar — hidden entirely during the Phase 5
-          reveal so the contextual action pills above are the only input. */}
-      {ui.kind !== 'review' && (
+      {/* Ambient pill-shaped input bar. In review mode it stays mounted
+          as the free-form refinement entry point (placeholder + locked
+          styling during an in-flight refinement). */}
       <motion.form
         layout
         onSubmit={(e) => {
@@ -133,9 +152,10 @@ export function Composer() {
           'glass-sky flex w-full items-center gap-2 rounded-full pl-2 pr-3 py-1.5',
           'soft-shadow-lg ring-1 ring-sky-200/60 transition',
           'focus-within:ring-sky-300/80',
-          disabled && !isProcessing && 'opacity-70',
-          // Locked look during PROCESSING: flatten, desaturate, and dim.
-          isProcessing &&
+          disabled && !isProcessing && !isRefining && 'opacity-70',
+          // Locked look during PROCESSING or an in-flight refinement:
+          // flatten, desaturate, and dim so it reads as "working on it".
+          (isProcessing || isRefining) &&
             'pointer-events-none opacity-60 saturate-50 ring-ink-200/60',
         )}
       >
@@ -219,7 +239,6 @@ export function Composer() {
           )}
         </AnimatePresence>
       </motion.form>
-      )}
     </div>
   );
 }
@@ -236,10 +255,54 @@ function placeholderFor(ui: AgentUI, phase: string): string {
     case 'auth':
       return 'Pick a sign-in option above…';
     case 'review':
-      // Never rendered (the input bar is hidden in review mode), but
-      // required to make the switch exhaustive.
-      return '';
+      return 'Tell me what to tweak…';
     case 'none':
       return 'Ask your co-pilot…';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Refine suggestions
+// ---------------------------------------------------------------------------
+
+const REFINE_SUGGESTIONS = [
+  'Make it shorter',
+  'Add more metrics',
+  "Match the job's tone",
+] as const;
+
+/**
+ * Ghost suggestion chips shown above the composer during review. Clicking
+ * one populates the input (the user can still edit before sending).
+ */
+function RefineSuggestions({ onPick }: { onPick: (suggestion: string) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 2 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      {REFINE_SUGGESTIONS.map((s, i) => (
+        <motion.button
+          key={s}
+          type="button"
+          onClick={() => onPick(s)}
+          initial={{ opacity: 0, y: 3 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 * i, duration: 0.25 }}
+          whileHover={{ y: -1 }}
+          whileTap={{ scale: 0.97 }}
+          className={cn(
+            'inline-flex items-center rounded-full px-3 py-1',
+            'text-[12px] text-ink-500 bg-white/40 ring-1 ring-sky-200/50',
+            'transition hover:text-ink-800 hover:bg-white/70 hover:ring-sky-300',
+          )}
+        >
+          {s}
+        </motion.button>
+      ))}
+    </motion.div>
+  );
 }

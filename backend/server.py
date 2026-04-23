@@ -163,6 +163,42 @@ def _build_review_payload(user_db, application_id: int) -> dict:
     )
 
 
+def _resolve_review_source_filename(
+    *,
+    request_resume_filename: Optional[str],
+    application_data: Dict[str, Any],
+    existing_review: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """Resolve the best available source filename for review exports."""
+    return (
+        _normalized_optional_text(request_resume_filename)
+        or _normalized_optional_text(application_data.get("resume_filename"))
+        or _normalized_optional_text(application_data.get("original_resume_filename"))
+        or _normalized_optional_text((existing_review or {}).get("filename"))
+    )
+
+
+async def _build_polish_summary_points(
+    polish_result: str,
+    *,
+    existing_review: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Build summary points for /api/polish using the same extractor as the pipeline."""
+    extracted_insights = await insight_extractor.extract_insights_async(
+        polish_result, "polish", max_insights=3
+    )
+    summary_points = [
+        insight["message"]
+        for insight in extracted_insights
+        if isinstance(insight, dict) and insight.get("message")
+    ]
+    if summary_points:
+        return summary_points
+
+    review_points = (existing_review or {}).get("summary_points") or []
+    return [point for point in review_points if isinstance(point, str) and point.strip()]
+
+
 # Store in app state for access in routes
 app.state.db = db
 app.state.recovery_service = recovery_service
@@ -369,6 +405,7 @@ class ValidationRequest(BaseModel):
 class PolishRequest(BaseModel):
     application_id: int
     output_format: str = "html"
+    resume_filename: Optional[str] = None
 
 
 class PipelineRequest(BaseModel):
@@ -995,6 +1032,7 @@ async def polish_resume(request: PolishRequest, http_request: Request):
         validation_report = _latest_agent_output_text(
             request.application_id, "Validator", user_db=user_db
         )
+        existing_review = user_db.get_application_review(request.application_id)
 
         # Run Polish Agent
         agent = PolishAgent(client=client, output_format="review")
@@ -1016,13 +1054,21 @@ async def polish_resume(request: PolishRequest, http_request: Request):
 
         # Extract final resume
         final_resume = extract_optimized_resume(polish_result)
-        summary_points: List[str] = []
+        summary_points = await _build_polish_summary_points(
+            polish_result,
+            existing_review=existing_review,
+        )
+        source_filename = _resolve_review_source_filename(
+            request_resume_filename=request.resume_filename,
+            application_data=app_data,
+            existing_review=existing_review,
+        )
         review_document = build_review_document(
             application_id=request.application_id,
             status=app_data.get("status") or "completed",
             resume_text=final_resume,
             summary_points=summary_points,
-            source_filename=None,
+            source_filename=source_filename,
         )
 
         # Update database and persist agent output
