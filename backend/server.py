@@ -179,13 +179,15 @@ def _resolve_review_source_filename(
 
 
 async def _build_polish_summary_points(
-    polish_result: str,
+    optimization_report: str,
+    validation_report: str,
     *,
     existing_review: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Build summary points for /api/polish using the same extractor as the pipeline."""
+    polish_insights_input = f"Optimization Strategy Applied:\n{optimization_report}\n\nValidation Polish Applied:\n{validation_report}"
     extracted_insights = await insight_extractor.extract_insights_async(
-        polish_result, "polish", max_insights=3
+        polish_insights_input, "polish", max_insights=4
     )
     summary_points = [
         insight["message"]
@@ -1032,6 +1034,9 @@ async def polish_resume(request: PolishRequest, http_request: Request):
         validation_report = _latest_agent_output_text(
             request.application_id, "Validator", user_db=user_db
         )
+        optimization_report = _latest_agent_output_text(
+            request.application_id, "Resume Optimizer", user_db=user_db
+        )
         existing_review = user_db.get_application_review(request.application_id)
 
         # Run Polish Agent
@@ -1055,7 +1060,8 @@ async def polish_resume(request: PolishRequest, http_request: Request):
         # Extract final resume
         final_resume = extract_optimized_resume(polish_result)
         summary_points = await _build_polish_summary_points(
-            polish_result,
+            optimization_report,
+            validation_report,
             existing_review=existing_review,
         )
         source_filename = _resolve_review_source_filename(
@@ -2001,8 +2007,9 @@ async def run_pipeline_with_streaming(
         
         # Extract insights
         print("🔍 Extracting insights from polish...")
+        polish_insights_input = f"Optimization Strategy Applied:\n{optimization_result}\n\nValidation Polish Applied:\n{validation_result}"
         extracted_insights = await insight_extractor.extract_insights_async(
-            polish_result, "polish", max_insights=3
+            polish_insights_input, "polish", max_insights=4
         )
         for idx, insight in enumerate(extracted_insights):
             await stream_manager.emit(InsightEvent.create(

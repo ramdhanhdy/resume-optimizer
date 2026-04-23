@@ -40,43 +40,40 @@ def test_resolve_review_source_filename_prefers_request_then_app_then_existing_r
 
 
 def test_build_polish_summary_points_uses_extracted_insights_when_available(monkeypatch):
-    async def fake_extract_insights(_polish_result, _agent_type, max_insights=3):
-        assert max_insights == 3
+    async def fake_extract_insights(_insights_input, _agent_type, max_insights=4):
+        assert max_insights == 4
         return [
-            {"category": "strength", "message": "Tightened impact bullets"},
-            {"category": "clarity", "message": "Improved section ordering"},
+            {"message": "New insight 1"},
+            {"message": "New insight 2"},
         ]
 
     monkeypatch.setattr(
-        server.insight_extractor,
-        "extract_insights_async",
-        fake_extract_insights,
+        server.insight_extractor, "extract_insights_async", fake_extract_insights
     )
 
     summary_points = asyncio.run(
-        server._build_polish_summary_points("polish output", existing_review=None)
+        server._build_polish_summary_points("opt_report", "val_report", existing_review=None)
     )
 
     assert summary_points == [
-        "Tightened impact bullets",
-        "Improved section ordering",
+        "New insight 1",
+        "New insight 2",
     ]
 
 
 def test_build_polish_summary_points_falls_back_to_existing_review(monkeypatch):
-    async def fake_extract_insights(_polish_result, _agent_type, max_insights=3):
-        assert max_insights == 3
+    async def fake_extract_insights(_insights_input, _agent_type, max_insights=4):
+        assert max_insights == 4
         return []
 
     monkeypatch.setattr(
-        server.insight_extractor,
-        "extract_insights_async",
-        fake_extract_insights,
+        server.insight_extractor, "extract_insights_async", fake_extract_insights
     )
 
     summary_points = asyncio.run(
         server._build_polish_summary_points(
-            "polish output",
+            "opt_report",
+            "val_report",
             existing_review={"summary_points": ["Kept existing insight"]},
         )
     )
