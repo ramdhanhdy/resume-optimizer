@@ -128,9 +128,6 @@ export function Composer() {
               className="flex w-full flex-col items-start gap-3"
             >
               <ReviewActions review={state.data.review} />
-              {!isRefining && !value && (
-                <RefineSuggestions onPick={(s) => setValue(s)} />
-              )}
               {state.refineError && (
                 <p className="text-[13px] text-red-500">{state.refineError}</p>
               )}
@@ -259,50 +256,4 @@ function placeholderFor(ui: AgentUI, phase: string): string {
     case 'none':
       return 'Ask your co-pilot…';
   }
-}
-
-// ---------------------------------------------------------------------------
-// Refine suggestions
-// ---------------------------------------------------------------------------
-
-const REFINE_SUGGESTIONS = [
-  'Make it shorter',
-  'Add more metrics',
-  "Match the job's tone",
-] as const;
-
-/**
- * Ghost suggestion chips shown above the composer during review. Clicking
- * one populates the input (the user can still edit before sending).
- */
-function RefineSuggestions({ onPick }: { onPick: (suggestion: string) => void }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 2 }}
-      transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
-      className="flex flex-wrap items-center gap-1.5"
-    >
-      {REFINE_SUGGESTIONS.map((s, i) => (
-        <motion.button
-          key={s}
-          type="button"
-          onClick={() => onPick(s)}
-          initial={{ opacity: 0, y: 3 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 * i, duration: 0.25 }}
-          whileHover={{ y: -1 }}
-          whileTap={{ scale: 0.97 }}
-          className={cn(
-            'inline-flex items-center rounded-full px-3 py-1',
-            'text-[12px] text-ink-500 bg-white/40 ring-1 ring-sky-200/50',
-            'transition hover:text-ink-800 hover:bg-white/70 hover:ring-sky-300',
-          )}
-        >
-          {s}
-        </motion.button>
-      ))}
-    </motion.div>
-  );
 }
