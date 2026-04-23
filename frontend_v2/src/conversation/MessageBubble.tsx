@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { FileText } from 'lucide-react';
 import type { AgentMessageBody, Message } from './types';
@@ -21,6 +22,8 @@ interface MessageBubbleProps {
  *   - User            → right-aligned, subtle sky tint
  */
 export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
+  const [heroDone, setHeroDone] = useState(false);
+
   if (message.role === 'agent') {
     if (isLatest) {
       // Review messages (with a `body`) flow top-down, left-aligned, so
@@ -34,8 +37,12 @@ export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
             isReview ? 'items-start' : 'items-center',
           )}
         >
-          <HeroAgentLine text={message.text} align={isReview ? 'left' : 'center'} />
-          {message.body && <AgentRichBody body={message.body} />}
+          <HeroAgentLine 
+            text={message.text} 
+            align={isReview ? 'left' : 'center'} 
+            onDone={() => setHeroDone(true)}
+          />
+          {message.body && <AgentRichBody body={message.body} wait={!heroDone} />}
         </div>
       );
     }
@@ -96,12 +103,20 @@ export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
 function HeroAgentLine({
   text,
   align = 'center',
+  onDone,
 }: {
   text: string;
   align?: 'center' | 'left';
+  onDone?: () => void;
 }) {
   const reduce = useReducedMotion();
   const { displayed, done } = useTypewriter(text, { speed: 20, enabled: !reduce });
+
+  useEffect(() => {
+    if (done && onDone) {
+      onDone();
+    }
+  }, [done, onDone]);
 
   return (
     <motion.p
@@ -149,7 +164,7 @@ function HeroAgentLine({
  * Staggers in so the list points arrive one at a time after the hero has
  * finished typing.
  */
-function AgentRichBody({ body }: { body: AgentMessageBody }) {
+function AgentRichBody({ body, wait }: { body: AgentMessageBody; wait?: boolean }) {
   const points = body.summaryPoints ?? [];
   return (
     <motion.div
@@ -161,9 +176,9 @@ function AgentRichBody({ body }: { body: AgentMessageBody }) {
             <motion.li
               key={point}
               initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
+              animate={wait ? { opacity: 0, x: -6 } : { opacity: 1, x: 0 }}
               transition={{
-                delay: 0.4 + i * 0.12,
+                delay: i * 0.12,
                 duration: 0.4,
                 ease: 'easeOut',
               }}
@@ -184,9 +199,9 @@ function AgentRichBody({ body }: { body: AgentMessageBody }) {
       {body.closing && (
         <motion.p
           initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={wait ? { opacity: 0, y: 6 } : { opacity: 1, y: 0 }}
           transition={{
-            delay: 0.4 + points.length * 0.12 + 0.15,
+            delay: points.length * 0.12 + 0.15,
             duration: 0.45,
             ease: 'easeOut',
           }}
