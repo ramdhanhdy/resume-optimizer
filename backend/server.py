@@ -22,6 +22,7 @@ from src.agents import (
     ValidatorAgent,
     PolishAgent,
     GitHubProjectsAgent,
+    ResumeRefinementAgent,
 )
 from src.api import fetch_job_posting_text, ExaContentError
 from src.database import ApplicationDatabase, get_database
@@ -64,6 +65,7 @@ VALIDATOR_MODEL = os.getenv("VALIDATOR_MODEL") or DEFAULT_MODEL
 PROFILE_MODEL = os.getenv("PROFILE_MODEL") or DEFAULT_MODEL
 INSIGHT_MODEL = os.getenv("INSIGHT_MODEL") or DEFAULT_MODEL
 POLISH_MODEL = os.getenv("POLISH_MODEL") or "openrouter::anthropic/claude-sonnet-4.5"
+REFINE_MODEL = os.getenv("REFINE_MODEL") or POLISH_MODEL
 
 # Per-agent temperature settings
 ANALYZER_TEMPERATURE = float(os.getenv("ANALYZER_TEMPERATURE", "0.3"))
@@ -72,6 +74,7 @@ IMPLEMENTER_TEMPERATURE = float(os.getenv("IMPLEMENTER_TEMPERATURE", "0.1"))
 VALIDATOR_TEMPERATURE = float(os.getenv("VALIDATOR_TEMPERATURE", "0.2"))
 PROFILE_TEMPERATURE = float(os.getenv("PROFILE_TEMPERATURE", "0.1"))
 POLISH_TEMPERATURE = float(os.getenv("POLISH_TEMPERATURE", "0.8"))
+REFINE_TEMPERATURE = float(os.getenv("REFINE_TEMPERATURE", str(POLISH_TEMPERATURE)))
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
@@ -199,6 +202,31 @@ async def _build_polish_summary_points(
 
     review_points = (existing_review or {}).get("summary_points") or []
     return [point for point in review_points if isinstance(point, str) and point.strip()]
+
+
+async def _build_refinement_summary_points(
+    instruction: str,
+    refined_resume: str,
+    *,
+    existing_review: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    insights_input = f"User refinement instruction:\n{instruction}\n\nUpdated resume:\n{refined_resume}"
+    extracted_insights = await insight_extractor.extract_insights_async(
+        insights_input, "polish", max_insights=4
+    )
+    summary_points = [
+        insight["message"]
+        for insight in extracted_insights
+        if isinstance(insight, dict) and insight.get("message")
+    ]
+    if summary_points:
+        return summary_points
+
+    review_points = (existing_review or {}).get("summary_points") or []
+    fallback_points = [point for point in review_points if isinstance(point, str) and point.strip()]
+    if fallback_points:
+        return fallback_points
+    return ["Applied your requested refinement to the resume."]
 
 
 # Store in app state for access in routes
@@ -408,6 +436,10 @@ class PolishRequest(BaseModel):
     application_id: int
     output_format: str = "html"
     resume_filename: Optional[str] = None
+
+
+class RefineResumeRequest(BaseModel):
+    instruction: str
 
 
 class PipelineRequest(BaseModel):
@@ -1171,6 +1203,133 @@ async def get_application_review(
     }
 
 
+@app.post("/api/applications/{application_id}/refine")
+async def refine_application_resume(
+    application_id: int,
+    request: RefineResumeRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    instruction = request.instruction.strip()
+    if not instruction:
+        raise HTTPException(status_code=400, detail="Instruction is required")
+
+    user_db = get_db_for_user(user_id)
+    try:
+        app_data = user_db.get_application(application_id)
+        if not app_data:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        existing_review = user_db.get_application_review(application_id)
+        if not existing_review:
+            raise HTTPException(status_code=404, detail="Review document not found")
+
+        current_resume = (
+            existing_review.get("plain_text")
+            or app_data.get("optimized_resume_text")
+            or ""
+        ).strip()
+        if not current_resume:
+            raise HTTPException(status_code=400, detail="Current resume is empty")
+
+        job_context_parts = [
+            str(app_data.get("company_name") or "").strip(),
+            str(app_data.get("job_title") or "").strip(),
+            str(app_data.get("job_posting_text") or "").strip(),
+        ]
+        job_context = "\n\n".join(part for part in job_context_parts if part)
+        if not job_context:
+            job_context = "No job context is available."
+
+        validation_report = _latest_agent_output_text(
+            application_id, "Validator", user_db=user_db
+        )
+
+        client = create_client()
+        agent = ResumeRefinementAgent(client=client)
+        refined_result = ""
+        refine_metadata: Dict[str, Any] = {}
+
+        gen = agent.refine_resume(
+            current_resume=current_resume,
+            instruction=instruction,
+            job_context=job_context,
+            validation_report=validation_report or "No validation context is available.",
+            model=REFINE_MODEL,
+            temperature=REFINE_TEMPERATURE,
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                refined_result += chunk
+        except StopIteration as exc:
+            refine_metadata = exc.value or {}
+
+        refined_resume = extract_optimized_resume(refined_result).strip()
+        if not refined_resume:
+            raise HTTPException(status_code=500, detail="Refinement returned an empty resume")
+
+        summary_points = await _build_refinement_summary_points(
+            instruction,
+            refined_resume,
+            existing_review=existing_review,
+        )
+        source_filename = _resolve_review_source_filename(
+            request_resume_filename=None,
+            application_data=app_data,
+            existing_review=existing_review,
+        )
+        review_document = build_review_document(
+            application_id=application_id,
+            status="completed",
+            resume_text=refined_resume,
+            summary_points=summary_points,
+            source_filename=source_filename,
+        )
+
+        user_db.update_application(
+            application_id,
+            optimized_resume_text=refined_resume,
+            model_used=REFINE_MODEL,
+            status="completed",
+        )
+        user_db.save_application_review(
+            application_id=application_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
+        user_db.save_agent_output(
+            application_id=application_id,
+            agent_number=6,
+            agent_name="Resume Refinement Agent",
+            input_data={
+                "instruction": instruction,
+                "current_resume": current_resume,
+                "job_context": job_context,
+                "validation_report": validation_report,
+            },
+            output_data={"text": refined_result},
+            cost=refine_metadata.get("cost", 0.0),
+            input_tokens=refine_metadata.get("input_tokens", 0),
+            output_tokens=refine_metadata.get("output_tokens", 0),
+        )
+
+        return {
+            "success": True,
+            "application_id": application_id,
+            "review": _build_review_payload(user_db, application_id),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Unexpected error during resume refinement for application_id=%s",
+            application_id,
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/applications")
 async def list_applications(http_request: Request):
     """List all saved applications."""
@@ -1366,6 +1525,8 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
 
     # Get user ID from JWT token or fall back to client ID
     user_id = get_user_id_from_request(http_request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     run_count = run_store.count_runs_for_client(user_id)
     if DEV_MODE_ENABLED:

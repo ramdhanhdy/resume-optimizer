@@ -131,6 +131,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         },
         "api_model": "gpt-5.4",
     },
+    "openai::gpt-5.5": {
+        "provider": "openai",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,
+        },
+        "api_model": "gpt-5.5",
+    },
     "openrouter::openai/gpt-5.4": {
         "provider": "openrouter",
         "capabilities": {
@@ -139,6 +148,15 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
             "supports_temperature": True,
         },
         "api_model": "openai/gpt-5.4",
+    },
+    "openrouter::openai/gpt-5.5": {
+        "provider": "openrouter",
+        "capabilities": {
+            "supports_files": True,
+            "supports_images": True,
+            "supports_temperature": True,
+        },
+        "api_model": "openai/gpt-5.5",
     },
     "openrouter::moonshotai/kimi-k2-thinking": {
         "provider": "openrouter",

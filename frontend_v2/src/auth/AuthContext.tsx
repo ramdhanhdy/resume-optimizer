@@ -8,14 +8,14 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase, supabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Thin wrapper around the Supabase auth client. Mirrors the shape of the
  * legacy `frontend/src/contexts/AuthContext.tsx` so existing helpers are
  * drop-in compatible.
  *
- * Dev bypass: when `VITE_AUTH_BYPASS=true` (or Supabase is not configured),
+ * Dev bypass: when `VITE_AUTH_BYPASS=true`,
  * clicking "Continue with Google" in the UI immediately resolves to a
  * synthetic local user so the rest of the conversational flow (Phase 4)
  * can be exercised without real credentials.
@@ -35,8 +35,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const BYPASS_ENABLED =
-  (import.meta.env.VITE_AUTH_BYPASS as string | undefined) === 'true' ||
-  !supabaseConfigured;
+  (import.meta.env.VITE_AUTH_BYPASS as string | undefined) === 'true';
 
 const DEV_USER: User = {
   id: 'dev-bypass-user',
@@ -96,12 +95,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithOAuth = useCallback(async (provider: 'google' | 'github') => {
-    if (BYPASS_ENABLED || !supabase) {
+    if (BYPASS_ENABLED) {
       // Short delay so the UI transition feels deliberate.
       await new Promise((r) => setTimeout(r, 600));
       setUser(DEV_USER);
       setSession({ user: DEV_USER } as Session);
       return;
+    }
+    if (!supabase) {
+      throw new Error('Supabase auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, or enable VITE_AUTH_BYPASS=true for local bypass.');
     }
     await supabase.auth.signInWithOAuth({
       provider,

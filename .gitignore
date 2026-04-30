@@ -51,7 +51,8 @@ htmlcov/
 CLAUDE.md
 test_output.json
 .claude/settings.local.json
-backend/prompts/
+backend/prompts/*
+!backend/prompts/agent_refine_resume.md
 
 # Cloud Run local env files
 backend/.env.cloudrun

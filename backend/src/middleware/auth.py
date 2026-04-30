@@ -8,22 +8,29 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 logger = logging.getLogger(__name__)
 
-# Environment variables
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-
 # HTTP Bearer scheme for extracting tokens
 security = HTTPBearer(auto_error=False)
 
 
+def _dev_mode_enabled() -> bool:
+    return os.getenv("DEV_MODE", "false").lower() == "true"
+
+
 def _get_supabase_client():
-    """Get Supabase client lazily to avoid import errors if not configured."""
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+    """Get Supabase client lazily to avoid import errors if not configured.
+
+    Reads env vars at call time (not import time) so that python-dotenv
+    has a chance to populate them via server.py before auth runs.
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv(
+        "SUPABASE_SERVICE_ROLE_KEY"
+    )
+    if not supabase_url or not supabase_key:
         return None
     try:
         from supabase import create_client
-        return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        return create_client(supabase_url, supabase_key)
     except Exception as e:
         logger.warning(f"Failed to create Supabase client: {e}")
         return None
@@ -132,6 +139,9 @@ def get_user_id_from_request(request: Request) -> Optional[str]:
             except Exception as e:
                 logger.debug(f"Token validation failed: {e}")
     
+    if not _dev_mode_enabled():
+        return None
+
     # Fall back to X-Client-Id for backward compatibility
     client_id = request.headers.get("x-client-id") or request.headers.get("X-Client-Id")
     if client_id:

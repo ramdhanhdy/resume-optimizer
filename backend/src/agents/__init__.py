@@ -7,6 +7,7 @@ from .github_projects_agent import GitHubProjectsAgent
 from .validator import ValidatorAgent
 from .polish import PolishAgent
 from .profile_agent import ProfileAgent
+from .refinement import ResumeRefinementAgent
 
 __all__ = [
     "JobAnalyzerAgent",
@@ -16,6 +17,7 @@ __all__ = [
     "ValidatorAgent",
     "PolishAgent",
     "ProfileAgent",
+    "ResumeRefinementAgent",
 ]
 
 try:

@@ -25,13 +25,16 @@ interface AuthPillsProps {
 export function AuthPills({ providers, onPick, disabled }: AuthPillsProps) {
   const { signInWithOAuth, bypassMode } = useAuth();
   const [pending, setPending] = useState<'google' | 'email' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogle = async () => {
     setPending('google');
+    setError(null);
     try {
       await signInWithOAuth('google');
       onPick?.('google');
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed. Please try again.');
       setPending(null);
     }
     // In bypass mode the AuthContext flips `user` synchronously once the
@@ -75,6 +78,11 @@ export function AuthPills({ providers, onPick, disabled }: AuthPillsProps) {
       {bypassMode && (
         <span className="text-[11px] text-ink-400">
           Dev-bypass mode · no real account required
+        </span>
+      )}
+      {error && (
+        <span className="max-w-[320px] text-center text-[12px] text-red-500">
+          {error}
         </span>
       )}
     </motion.div>

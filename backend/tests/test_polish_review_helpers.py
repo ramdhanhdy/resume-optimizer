@@ -79,3 +79,43 @@ def test_build_polish_summary_points_falls_back_to_existing_review(monkeypatch):
     )
 
     assert summary_points == ["Kept existing insight"]
+
+
+def test_build_refinement_summary_points_uses_extracted_insights(monkeypatch):
+    async def fake_extract_insights(_insights_input, _agent_type, max_insights=4):
+        assert max_insights == 4
+        return [{"message": "Made the resume more concise"}]
+
+    monkeypatch.setattr(
+        server.insight_extractor, "extract_insights_async", fake_extract_insights
+    )
+
+    summary_points = asyncio.run(
+        server._build_refinement_summary_points(
+            "make it concise",
+            "updated resume",
+            existing_review={"summary_points": ["Old insight"]},
+        )
+    )
+
+    assert summary_points == ["Made the resume more concise"]
+
+
+def test_build_refinement_summary_points_falls_back_to_default(monkeypatch):
+    async def fake_extract_insights(_insights_input, _agent_type, max_insights=4):
+        assert max_insights == 4
+        return []
+
+    monkeypatch.setattr(
+        server.insight_extractor, "extract_insights_async", fake_extract_insights
+    )
+
+    summary_points = asyncio.run(
+        server._build_refinement_summary_points(
+            "make it concise",
+            "updated resume",
+            existing_review={"summary_points": []},
+        )
+    )
+
+    assert summary_points == ["Applied your requested refinement to the resume."]

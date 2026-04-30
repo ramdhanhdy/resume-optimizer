@@ -1,4 +1,4 @@
-import { supabase, supabaseConfigured } from './supabase';
+import { supabase } from './supabase';
 import type { ApplicationReview } from '@/types/review';
 
 // Empty string = same-origin (dev uses Vite's /api proxy). Only fall back
@@ -11,8 +11,7 @@ export const MOCK_STREAM =
   (import.meta.env.VITE_MOCK_STREAM as string | undefined) === 'true';
 
 const DEV_BYPASS_ENABLED =
-  (import.meta.env.VITE_AUTH_BYPASS as string | undefined) === 'true' ||
-  !supabaseConfigured;
+  (import.meta.env.VITE_AUTH_BYPASS as string | undefined) === 'true';
 
 function getDevClientId(): string {
   if (typeof window === 'undefined') return 'frontend-v2-dev';
@@ -128,24 +127,20 @@ export async function getApplicationReview(
 export interface RefineResumeInput {
   applicationId: number;
   instruction: string;
-  /** Current review payload — used by the stub to echo back unchanged. */
   current: ApplicationReview;
 }
 
-/**
- * Refine an already-optimized resume based on a free-form user instruction.
- *
- * TODO(backend): wire to `POST /api/applications/:id/refine` once the
- * endpoint exists. For now this is a visual-only stub that waits ~2.5s
- * and returns the existing review so the UI loop can be exercised.
- */
 export async function refineResume(
   input: RefineResumeInput,
 ): Promise<ApplicationReview> {
-  await new Promise((resolve) => window.setTimeout(resolve, 2500));
-  // Intentionally unmodified; the real endpoint will return a fresh
-  // ApplicationReview with an updated resume + summary_points.
-  return input.current;
+  const response = await request<ApplicationReviewResponse>(
+    `/api/applications/${input.applicationId}/refine`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ instruction: input.instruction }),
+    },
+  );
+  return response.review;
 }
 
 export async function fetchAuthenticatedBlob(
