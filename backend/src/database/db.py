@@ -813,6 +813,42 @@ class ApplicationDatabase:
             review["summary_points"] = []
         return review
 
+    def get_latest_completed_application_with_review(self) -> Optional[Dict[str, Any]]:
+        """Return the latest completed application review for the current user."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                ar.application_id,
+                ar.plain_text,
+                ar.markdown,
+                ar.filename,
+                ar.summary_points,
+                ar.created_at,
+                ar.updated_at,
+                a.status
+            FROM applications a
+            JOIN application_reviews ar
+              ON ar.application_id = a.id
+             AND ar.user_id = a.user_id
+            WHERE a.user_id = ?
+              AND a.status = 'completed'
+            ORDER BY a.updated_at DESC, ar.updated_at DESC
+            LIMIT 1
+            """,
+            (self.user_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        review = dict(row)
+        try:
+            review["summary_points"] = json.loads(review.get("summary_points") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            review["summary_points"] = []
+        return review
+
     def get_all_applications(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get all applications for the current user ordered by most recent.
 

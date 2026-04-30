@@ -56,6 +56,64 @@ def test_application_reviews_are_scoped_to_the_current_user(tmp_path):
         )
 
 
+def test_latest_completed_application_with_review_filters_and_orders(tmp_path):
+    db = ApplicationDatabase(db_path=str(tmp_path / "applications.db"), user_id="user-a")
+    owner_db = db.for_user("user-a")
+    other_db = db.for_user("user-b")
+
+    in_progress_id = owner_db.create_application("Acme", "Backend", "Build APIs", "resume")
+    completed_without_review_id = owner_db.create_application(
+        "Beta", "Platform", "Scale APIs", "resume"
+    )
+    older_completed_id = owner_db.create_application("Cobalt", "Data", "Build ETL", "resume")
+    latest_completed_id = owner_db.create_application("Delta", "ML", "Build AI", "resume")
+    other_completed_id = other_db.create_application("Other", "ML", "Build AI", "resume")
+
+    for application_id in (older_completed_id, latest_completed_id, other_completed_id):
+        (other_db if application_id == other_completed_id else owner_db).save_application_review(
+            application_id=application_id,
+            plain_text=f"plain {application_id}",
+            markdown=f"# review {application_id}",
+            filename=f"review-{application_id}.docx",
+            summary_points=[f"point {application_id}"],
+        )
+
+    owner_db.save_application_review(
+        application_id=in_progress_id,
+        plain_text="plain in-progress",
+        markdown="# in-progress",
+        filename="in-progress.docx",
+        summary_points=["skip"],
+    )
+    owner_db.update_application(completed_without_review_id, status="completed")
+    owner_db.update_application(older_completed_id, status="completed")
+    owner_db.update_application(latest_completed_id, status="completed")
+    other_db.update_application(other_completed_id, status="completed")
+
+    cursor = owner_db.conn.cursor()
+    cursor.execute(
+        "UPDATE applications SET updated_at = '2026-01-01 00:00:00' WHERE id = ?",
+        (older_completed_id,),
+    )
+    cursor.execute(
+        "UPDATE applications SET updated_at = '2026-01-02 00:00:00' WHERE id = ?",
+        (completed_without_review_id,),
+    )
+    cursor.execute(
+        "UPDATE applications SET updated_at = '2026-01-03 00:00:00' WHERE id = ?",
+        (latest_completed_id,),
+    )
+    owner_db.conn.commit()
+
+    review = owner_db.get_latest_completed_application_with_review()
+    assert review is not None
+    assert review["application_id"] == latest_completed_id
+    assert review["status"] == "completed"
+    assert review["summary_points"] == [f"point {latest_completed_id}"]
+
+    assert db.for_user("missing-user").get_latest_completed_application_with_review() is None
+
+
 def test_application_review_schema_upgrade_adds_owner_and_foreign_key(tmp_path):
     db_path = tmp_path / "legacy.db"
     conn = sqlite3.connect(db_path)

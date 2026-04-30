@@ -124,6 +124,21 @@ export async function getApplicationReview(
   return response.review;
 }
 
+export async function getLatestApplicationReview(): Promise<ApplicationReview | null> {
+  try {
+    const response = await request<ApplicationReviewResponse>(
+      '/api/applications/latest-review',
+      { method: 'GET' },
+    );
+    return response.review;
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 export interface RefineResumeInput {
   applicationId: number;
   instruction: string;

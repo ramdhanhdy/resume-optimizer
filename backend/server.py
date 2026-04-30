@@ -1189,6 +1189,23 @@ async def export_resume(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/applications/latest-review")
+async def get_latest_application_review(
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Return the latest completed canonical review payload for frontend restore."""
+    user_db = get_db_for_user(user_id)
+    latest_review = user_db.get_latest_completed_application_with_review()
+    if not latest_review:
+        raise HTTPException(status_code=404, detail="Review document not found")
+
+    review_payload = _build_review_payload(user_db, latest_review["application_id"])
+    return {
+        "success": True,
+        "review": review_payload,
+    }
+
+
 @app.get("/api/applications/{application_id}/review")
 async def get_application_review(
     application_id: int,

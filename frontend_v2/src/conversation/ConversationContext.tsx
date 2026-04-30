@@ -14,7 +14,10 @@ import type {
   UserMessage,
 } from './types';
 import type { ApplicationReview } from '@/types/review';
-import { refineResume as refineResumeApi } from '@/lib/api';
+import {
+  getLatestApplicationReview,
+  refineResume as refineResumeApi,
+} from '@/lib/api';
 import { findStep, initialScript } from './script';
 
 type Action =
@@ -23,6 +26,7 @@ type Action =
   | { type: 'PUSH_AGENT'; message: AgentMessage; stepId: string }
   | { type: 'PUSH_USER'; message: UserMessage }
   | { type: 'ADVANCE'; nextStepId: string | null; patch?: Record<string, unknown> }
+  | { type: 'RESTORE_REVIEW'; review: ApplicationReview; message: AgentMessage }
   | { type: 'COMPLETE_PROCESSING'; review: ApplicationReview; message: AgentMessage }
   | { type: 'REFINE_START'; instruction: string }
   | { type: 'REFINE_SUCCESS'; review: ApplicationReview; message: AgentMessage }
@@ -106,6 +110,19 @@ function reducer(state: ConversationState, action: Action): ConversationState {
         refineError: action.error,
       };
     }
+    case 'RESTORE_REVIEW': {
+      return {
+        ...initialState,
+        data: {
+          review: action.review,
+        },
+        messages: [action.message],
+        activeAgentMessageId: action.message.id,
+        currentStepId: 'reviewing',
+        phase: 'REVIEWING',
+        agentTyping: false,
+      };
+    }
     case 'COMPLETE_PROCESSING': {
       // Atomic transition from PROCESSING -> REVIEWING: merge the result
       // into data AND push the final agent message in one dispatch so
@@ -163,12 +180,41 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const bootedRef = useRef(false);
+  const skipRestoreRef = useRef(false);
 
-  // Boot the script once on mount, then emit the first agent message.
+  // Boot once on mount. If an authenticated user has a completed review,
+  // restore directly into review mode; otherwise start the normal script.
   useEffect(() => {
     if (bootedRef.current) return;
     bootedRef.current = true;
-    dispatch({ type: 'BOOT' });
+    let cancelled = false;
+
+    void (async () => {
+      if (!skipRestoreRef.current) {
+        try {
+          const review = await getLatestApplicationReview();
+          if (cancelled) return;
+          if (review) {
+            dispatch({
+              type: 'RESTORE_REVIEW',
+              review,
+              message: buildReviewRestoreMessage(review),
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn('Latest review restore failed; starting a new conversation.', err);
+        }
+      }
+
+      if (!cancelled) {
+        dispatch({ type: 'BOOT' });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Whenever currentStepId changes but the latest message isn't from that
@@ -244,6 +290,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const reset = useCallback(() => {
+    skipRestoreRef.current = true;
     bootedRef.current = false;
     dispatch({ type: 'RESET' });
     // Re-boot on the next tick so the BOOT effect reruns.
@@ -365,3 +412,19 @@ function labelForChoice(
 
 // Re-exported for convenience in feed/components.
 export type { Message };
+
+function buildReviewRestoreMessage(review: ApplicationReview): AgentMessage {
+  return {
+    id: makeId('agent'),
+    role: 'agent',
+    text: "Welcome back — here's your latest optimized resume.",
+    body: {
+      summaryPoints: review.summary_points ?? [],
+      closing:
+        'Want to keep tweaking, or grab the file?',
+    },
+    ui: { kind: 'review' },
+    stepId: 'reviewing',
+    createdAt: Date.now(),
+  };
+}

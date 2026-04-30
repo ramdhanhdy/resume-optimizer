@@ -42,6 +42,9 @@ class FakeQuery:
     def limit(self, _value):
         return self
 
+    def order(self, _column, desc=False):
+        return self
+
     def upsert(self, payload, on_conflict=None):
         self.action = "upsert"
         self.payload = payload
@@ -148,3 +151,45 @@ def test_get_application_review_normalizes_summary_points_and_status():
     assert review is not None
     assert review["status"] == "processing"
     assert review["summary_points"] == ["one", "two"]
+
+
+def test_get_latest_completed_application_with_review_returns_first_reviewed_app():
+    client = FakeClient(
+        responses={
+            (
+                "applications",
+                (
+                    ("eq", "user_id", "user-1"),
+                    ("eq", "status", "completed"),
+                    ("is", "deleted_at", "null"),
+                ),
+            ): [{"id": 43}, {"id": 42}],
+            (
+                "application_reviews",
+                (("eq", "application_id", 43), ("eq", "user_id", "user-1")),
+            ): [],
+            (
+                "application_reviews",
+                (("eq", "application_id", 42), ("eq", "user_id", "user-1")),
+            ): [
+                {
+                    "application_id": 42,
+                    "user_id": "user-1",
+                    "plain_text": "plain",
+                    "markdown": "# review",
+                    "filename": "review.docx",
+                    "summary_points": ["one"],
+                }
+            ],
+            (
+                "applications",
+                (("eq", "id", 42), ("eq", "user_id", "user-1"), ("is", "deleted_at", "null")),
+            ): [{"id": 42, "status": "completed"}],
+        }
+    )
+    db = make_db(client)
+
+    review = db.get_latest_completed_application_with_review()
+    assert review is not None
+    assert review["application_id"] == 42
+    assert review["status"] == "completed"

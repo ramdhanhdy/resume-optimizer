@@ -386,6 +386,20 @@ class SupabaseDatabase:
         review["summary_points"] = summary_points
         return review
 
+    def get_latest_completed_application_with_review(self) -> Optional[Dict[str, Any]]:
+        """Return the latest completed application review for this user, if any."""
+        applications = self.client.table("applications").select(
+            "id"
+        ).eq("user_id", self.user_id).eq("status", "completed").is_(
+            "deleted_at", "null"
+        ).order("updated_at", desc=True).limit(25).execute()
+
+        for application in applications.data or []:
+            review = self.get_application_review(application["id"])
+            if review:
+                return review
+        return None
+
     def _map_application_to_sqlite_format(self, app: Dict[str, Any]) -> Dict[str, Any]:
         """Map Supabase application fields to SQLite format for compatibility."""
         return {
