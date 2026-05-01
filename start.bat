@@ -15,10 +15,10 @@ if not exist "backend\.venv\" (
 )
 
 REM Check if frontend node_modules exists
-if not exist "frontend\node_modules\" (
+if not exist "frontend_v2\node_modules\" (
     echo Error: Frontend dependencies not installed.
     echo Please run:
-    echo   cd frontend
+    echo   cd frontend_v2
     echo   npm install
     pause
     exit /b 1
@@ -33,7 +33,7 @@ timeout /t 3 /nobreak > nul
 
 REM Start frontend in new window
 echo Starting frontend server...
-start "Resume Optimizer - Frontend" cmd /k "cd frontend && npm run dev"
+start "Resume Optimizer - Frontend" cmd /k "cd frontend_v2 && npm run dev"
 
 echo.
 echo Application is starting...
