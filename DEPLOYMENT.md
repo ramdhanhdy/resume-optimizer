@@ -32,7 +32,7 @@ endpoints, and export flows. All endpoints extract user identity from Supabase J
 ### Frontend
 
 - **Platform**: Vercel
-- **App**: React + Vite frontend under `frontend/`
+- **App**: React + Vite frontend under `frontend_v2/`
 - **Build**: `npm run build` (Vite)
 - **Auth**: Supabase JS SDK (`@supabase/supabase-js`) with `AuthProvider` context
 - **Integration**: Vercel rewrites `/api/*` to the backend service.
@@ -82,7 +82,7 @@ the backend and send it in a header or secure cookie when opening the SSE connec
 | `DEV_MODE` | Set to `true` to bypass rate limiting locally |
 | `MAX_FREE_RUNS` | Free generation cap (default: 5) |
 
-### Frontend (`frontend/.env.production`)
+### Frontend (`frontend_v2/.env.production`)
 
 | Variable | Description |
 |----------|-------------|
