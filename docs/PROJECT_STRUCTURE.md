@@ -92,7 +92,7 @@ resume-optimizer/
 │   ├── requirements.txt         # Legacy pip dependencies
 │   ├── runtime.txt              # Python version for Cloud Run
 │   └── server.py                # FastAPI application entry
-├── frontend/                     # React + Vite application
+├── frontend_v2/                     # React + Vite application
 │   ├── src/
 │   │   ├── components/           # ⚛️ React components
 │   │   │   ├── shared/           # Shared UI components
@@ -170,10 +170,10 @@ resume-optimizer/
 
 ## Frontend Highlights
 
-- The main React entry point is `frontend/src/App.tsx`.
+- The main React entry point is `frontend_v2/src/App.tsx`.
 - Primary screens: `InputScreen.tsx`, `ProcessingScreen.tsx`, `RevealScreen.tsx`.
-- The design system and theming live under `frontend/src/design-system/`.
-- API interactions go through `frontend/src/services/api.ts`.
+- The design system and theming live under `frontend_v2/src/design-system/`.
+- API interactions go through `frontend_v2/src/services/api.ts`.
 
 ## Documentation & Ops
 

@@ -45,7 +45,7 @@ resume-optimizer/
 │   ├── requirements.txt
 │   ├── railway.toml
 │   └── ...
-├── frontend/
+├── frontend_v2/
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── ...
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
 #### 3. Frontend Configuration
 
-**Create `frontend/railway.toml`:**
+**Create `frontend_v2/railway.toml`:**
 ```toml
 [build]
 builder = "NIXPACKS"
@@ -98,7 +98,7 @@ startCommand = "npm run preview -- --host 0.0.0.0 --port $PORT"
 PORT = "3000"
 ```
 
-**Update `frontend/package.json`:**
+**Update `frontend_v2/package.json`:**
 ```json
 {
   "scripts": {
@@ -110,7 +110,7 @@ PORT = "3000"
 }
 ```
 
-**Update `frontend/vite.config.ts`:**
+**Update `frontend_v2/vite.config.ts`:**
 ```typescript
 export default defineConfig({
   server: {
@@ -241,7 +241,7 @@ services:
 
 #### 2. Frontend (Static Site)
 
-**Create `frontend/render.yaml`:**
+**Create `frontend_v2/render.yaml`:**
 ```yaml
 services:
   - type: web
@@ -359,7 +359,7 @@ CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
 
 #### 2. Frontend Configuration
 
-**Create `frontend/fly.toml`:**
+**Create `frontend_v2/fly.toml`:**
 ```toml
 app = "resume-optimizer-frontend"
 primary_region = "sjc"
@@ -383,7 +383,7 @@ primary_region = "sjc"
     port = 443
 ```
 
-**Create `frontend/Dockerfile`:**
+**Create `frontend_v2/Dockerfile`:**
 ```dockerfile
 FROM node:18-alpine AS builder
 

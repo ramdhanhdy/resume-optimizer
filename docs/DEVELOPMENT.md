@@ -156,7 +156,7 @@ curl -X POST http://localhost:8000/api/analyze-job \
 ### Project Structure
 
 ```
-frontend/
+frontend_v2/
 ├── src/
 │   ├── components/           # React components
 │   │   ├── shared/           # Shared UI components
@@ -352,7 +352,7 @@ The frontend uses a comprehensive design system built on **shadcn/ui (2025)**.
 
 **CSS Variables** define the single source of truth:
 ```css
-/* frontend/src/index.css */
+/* frontend_v2/src/index.css */
 :root {
   --primary: 199 97% 42%;  /* #0274BD */
   --accent: 14 88% 63%;    /* #F57251 */
@@ -404,7 +404,7 @@ VITE_ACCENT_COLOR="#4CAF50"
 
 **Function call in app initialization:**
 ```tsx
-// frontend/src/index.tsx
+// frontend_v2/src/index.tsx
 import { applyBrandConfig } from '@/design-system/theme/brand-config';
 
 applyBrandConfig(); // Called on app startup
@@ -421,8 +421,8 @@ applyBrandConfig(); // Called on app startup
 
 ### Documentation
 
-- **Design System Guide**: [`frontend/DESIGN_SYSTEM.md`](./frontend/DESIGN_SYSTEM.md)
-- **Component Docs**: [`frontend/src/design-system/docs/README.md`](./frontend/src/design-system/docs/README.md)
+- **Design System Guide**: [`frontend_v2/DESIGN_SYSTEM.md`](./frontend_v2/DESIGN_SYSTEM.md)
+- **Component Docs**: [`frontend_v2/src/design-system/docs/README.md`](./frontend_v2/src/design-system/docs/README.md)
 - **shadcn/ui Docs**: https://ui.shadcn.com/
 
 ## Continuous Integration
@@ -510,7 +510,7 @@ repos:
 ## Further Reading
 
 - [Agent Development Guide](./AGENTS.md) - Complete agent architecture
-- [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system
+- [Design System Guide](./frontend_v2/DESIGN_SYSTEM.md) - Frontend design system
 - [Setup Guide](./docs/setup/SETUP.md) - Initial setup instructions
 - [API Reference](./docs/API_REFERENCE.md) - API documentation
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions

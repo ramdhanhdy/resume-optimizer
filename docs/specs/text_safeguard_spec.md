@@ -25,9 +25,9 @@ Implementation lives in:
 
 - `backend/src/services/text_safety_service.py`
 - `backend/server.py` (`/api/job-preview`, `/api/analyze-job`, pipeline start)
-- `frontend/src/services/api.ts` (`jobPreview`)
-- `frontend/src/components/InputScreen.tsx` (job URL preview + UI cues)
-- `frontend/src/App.tsx` (propagation to processing screen)
+- `frontend_v2/src/services/api.ts` (`jobPreview`)
+- `frontend_v2/src/components/InputScreen.tsx` (job URL preview + UI cues)
+- `frontend_v2/src/App.tsx` (propagation to processing screen)
 
 ---
 

@@ -240,12 +240,12 @@ app.add_middleware(
 }
 ```
 
-**Update `frontend/.env.production`:**
+**Update `frontend_v2/.env.production`:**
 ```env
 VITE_API_BASE_URL=https://your-backend.railway.app
 ```
 
-**Update API client (`frontend/src/services/api.ts`):**
+**Update API client (`frontend_v2/src/services/api.ts`):**
 ```typescript
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 

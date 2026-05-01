@@ -37,7 +37,7 @@ npm list tailwindcss
 ### 2. Check Current Configuration
 ```javascript
 // tailwind.config.js - Check if this exists and is being used
-// frontend/src/index.css - Check for @theme directive
+// frontend_v2/src/index.css - Check for @theme directive
 ```
 
 ### 3. Inspect Generated CSS
@@ -58,7 +58,7 @@ npm run build
 
 ### Step 1: Update CSS Configuration
 
-**File**: `frontend/src/index.css`
+**File**: `frontend_v2/src/index.css`
 
 **Replace old directives**:
 ```css
@@ -109,7 +109,7 @@ npm run build
 
 ### Step 2: Update Root Component
 
-**File**: `frontend/src/App.tsx`
+**File**: `frontend_v2/src/App.tsx`
 
 **Add layout classes**:
 ```tsx
@@ -120,7 +120,7 @@ npm run build
 
 ### Step 3: Verify Build Configuration
 
-**File**: `frontend/vite.config.ts`
+**File**: `frontend_v2/vite.config.ts`
 
 **Ensure Tailwind plugin is configured**:
 ```typescript
@@ -292,9 +292,9 @@ Escalate to development team if:
 
 ## Files Modified
 
-1. `frontend/src/index.css` - Added v4 theme configuration
-2. `frontend/src/App.tsx` - Added layout classes
-3. `frontend/vite.config.ts` - Verified PostCSS configuration
+1. `frontend_v2/src/index.css` - Added v4 theme configuration
+2. `frontend_v2/src/App.tsx` - Added layout classes
+3. `frontend_v2/vite.config.ts` - Verified PostCSS configuration
 
 ## Impact Assessment
 

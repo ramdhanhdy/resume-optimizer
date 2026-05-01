@@ -235,7 +235,7 @@ The goal:
 
 ## 7. They would add CI/CD
 
-Your frontend has scripts for `dev`, `build`, `preview`, and `lint`, but no test script in `frontend/package.json`. 
+Your frontend has scripts for `dev`, `build`, `preview`, and `lint`, but no test script in `frontend_v2/package.json`. 
 
 A serious repo should have GitHub Actions:
 

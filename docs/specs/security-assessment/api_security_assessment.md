@@ -2,7 +2,7 @@
 
 **Date:** 2025-11-14  
 **Assessed By:** Cascade (automated review)  
-**Scope:** FastAPI backend (`backend/`), React/Vite frontend (`frontend/`), and related specs under `docs/specs/`.
+**Scope:** FastAPI backend (`backend/`), React/Vite frontend (`frontend_v2/`), and related specs under `docs/specs/`.
 
 ---
 
@@ -11,7 +11,7 @@
 **In scope**
 
 - Backend FastAPI service (`backend/server.py`, `src/api/*`, `src/database/*`, `src/utils/*`, `src/streaming/*`, `src/middleware/*`, `src/services/*`, `src/routes/*`).
-- Frontend API client and identification (`frontend/src/services/api.ts`, `frontend/src/utils/clientId.ts`).
+- Frontend API client and identification (`frontend_v2/src/services/api.ts`, `frontend_v2/src/utils/clientId.ts`).
 - Architecture and security specs (`docs/specs/*`, especially error handling, authentication/metering, DOCX export safety).
 
 **Out of scope / not directly reviewed**
@@ -279,7 +279,7 @@ There is no global rate limiting (per IP or per backend instance) and no enforce
 **Evidence**
 
 - `backend/server.py`: `MAX_FREE_RUNS` and `DEV_MODE_ENABLED`; free‑run check in `start_pipeline`.
-- `frontend/src/utils/clientId.ts`: generation and storage of `clientId` in `localStorage`.
+- `frontend_v2/src/utils/clientId.ts`: generation and storage of `clientId` in `localStorage`.
 - `docs/specs/authentication-and-metering/authentication_and_metering_spec.md` and `supabase_auth_and_metering_spec.md` describe stronger per‑`uid` metering that is not yet implemented.
 
 **Recommendations** (short-term)

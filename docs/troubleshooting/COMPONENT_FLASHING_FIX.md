@@ -68,7 +68,7 @@ transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
 
 ### Step 2: Improve Auto-Advance Logic
 
-**File**: `frontend/src/components/InputScreen.tsx`
+**File**: `frontend_v2/src/components/InputScreen.tsx`
 
 **Update useEffect**:
 ```tsx
@@ -105,7 +105,7 @@ const handleContinue = () => {
 ### If Issues Persist
 
 #### Option A: Disable React.StrictMode (Temporary)
-**File**: `frontend/src/index.tsx`
+**File**: `frontend_v2/src/index.tsx`
 ```tsx
 // For debugging only - re-enable for production
 const root = ReactDOM.createRoot(rootElement);
@@ -167,10 +167,10 @@ Escalate to development team if:
 
 ## Files Modified
 
-1. `frontend/src/components/InputScreen.tsx` - Easing + auto-advance + validation
-2. `frontend/src/components/ProcessingScreen.tsx` - Easing fix
-3. `frontend/src/components/RevealScreen.tsx` - Easing fix
-4. `frontend/src/components/ExportModal.tsx` - Easing fix
+1. `frontend_v2/src/components/InputScreen.tsx` - Easing + auto-advance + validation
+2. `frontend_v2/src/components/ProcessingScreen.tsx` - Easing fix
+3. `frontend_v2/src/components/RevealScreen.tsx` - Easing fix
+4. `frontend_v2/src/components/ExportModal.tsx` - Easing fix
 
 ---
 

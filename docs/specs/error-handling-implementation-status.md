@@ -72,7 +72,7 @@
 
 ### Frontend Infrastructure
 
-#### 6. LocalStorage Adapter (`frontend/src/services/storage/LocalStorageAdapter.ts`)
+#### 6. LocalStorage Adapter (`frontend_v2/src/services/storage/LocalStorageAdapter.ts`)
 - **Status:** ✅ Complete
 - **Features:**
   - Session save/load with expiration
@@ -89,7 +89,7 @@
   }
   ```
 
-#### 7. IndexedDB Adapter (`frontend/src/services/storage/IndexedDBAdapter.ts`)
+#### 7. IndexedDB Adapter (`frontend_v2/src/services/storage/IndexedDBAdapter.ts`)
 - **Status:** ✅ Complete
 - **Features:**
   - File blob storage (up to 10MB+)
@@ -98,7 +98,7 @@
   - Async operations (non-blocking)
   - Database initialization with migrations
 
-#### 8. State Manager (`frontend/src/services/storage/StateManager.ts`)
+#### 8. State Manager (`frontend_v2/src/services/storage/StateManager.ts`)
 - **Status:** ✅ Complete
 - **Features:**
   - Singleton pattern for app-wide access
@@ -109,7 +109,7 @@
   - Suggested action generation based on error category
   - Automatic expiration (7 days)
 
-#### 9. Recovery Banner Component (`frontend/src/components/shared/RecoveryBanner.tsx`)
+#### 9. Recovery Banner Component (`frontend_v2/src/components/shared/RecoveryBanner.tsx`)
 - **Status:** ✅ Complete
 - **Features:**
   - Color-coded by error category (blue/yellow/red)
@@ -128,7 +128,7 @@
 ### High Priority (Core Functionality)
 
 #### 1. **InputScreen Integration**
-- **File:** `frontend/src/components/InputScreen.tsx`
+- **File:** `frontend_v2/src/components/InputScreen.tsx`
 - **Tasks:**
   - Add recovery check on component mount
   - Display RecoveryBanner if session found
@@ -204,7 +204,7 @@
 ### Medium Priority (Enhanced UX)
 
 #### 5. **Retry Coordinator**
-- **File:** Create `frontend/src/services/RetryCoordinator.ts`
+- **File:** Create `frontend_v2/src/services/RetryCoordinator.ts`
 - **Tasks:**
   - Automatic retry logic for TRANSIENT errors
   - Exponential backoff implementation
@@ -214,7 +214,7 @@
 - **Effort:** 2-3 hours
 
 #### 6. **Error Boundary**
-- **File:** Create `frontend/src/components/ErrorBoundary.tsx`
+- **File:** Create `frontend_v2/src/components/ErrorBoundary.tsx`
 - **Tasks:**
   - React error boundary wrapper
   - Catch React rendering errors
@@ -224,7 +224,7 @@
 - **Effort:** 1-2 hours
 
 #### 7. **Error Handling in API Client**
-- **File:** `frontend/src/services/api.ts`
+- **File:** `frontend_v2/src/services/api.ts`
 - **Tasks:**
   - Add axios interceptors
   - Detect network failures
@@ -467,7 +467,7 @@ return (
 - **Specification:** `docs/specs/error-handling-state-preservation.md`
 - **Database Schema:** `backend/src/database/migrations/002_add_error_recovery.sql`
 - **API Docs:** See recovery router for endpoint details
-- **Frontend Services:** `frontend/src/services/storage/`
+- **Frontend Services:** `frontend_v2/src/services/storage/`
 
 ---
 

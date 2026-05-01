@@ -135,7 +135,7 @@ npm run dev
   ```
   PORT=8001
   ```
-  Also update `frontend/.env.local`:
+  Also update `frontend_v2/.env.local`:
   ```
   VITE_API_URL=http://localhost:8001
   ```
@@ -157,12 +157,12 @@ npm run dev
 
 **Cannot connect to backend**
 - Solution: Ensure backend is running on http://localhost:8000
-- Check `frontend/.env.local` has correct VITE_API_URL
+- Check `frontend_v2/.env.local` has correct VITE_API_URL
 - Check browser console for CORS errors
 
 **Port 3000 already in use**
 - Vite will automatically try the next available port
-- Or specify in `frontend/vite.config.ts`:
+- Or specify in `frontend_v2/vite.config.ts`:
   ```typescript
   server: {
     port: 3001,

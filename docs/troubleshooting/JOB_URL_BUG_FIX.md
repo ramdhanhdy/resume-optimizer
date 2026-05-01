@@ -97,7 +97,7 @@ curl -X POST "http://localhost:8000/api/analyze-job" \
 
 ### Step 1: Update AppState Interface
 
-**File**: `frontend/src/App.tsx`
+**File**: `frontend_v2/src/App.tsx`
 
 **Add jobUrl field**:
 ```typescript
@@ -117,7 +117,7 @@ export interface AppState {
 
 ### Step 2: Fix Data Flow in handleStartProcessing
 
-**File**: `frontend/src/App.tsx`
+**File**: `frontend_v2/src/App.tsx`
 
 **Update function to store URL**:
 ```typescript
@@ -138,7 +138,7 @@ const handleStartProcessing = useCallback((data: {
 
 ### Step 3: Update ProcessingScreen Props
 
-**File**: `frontend/src/App.tsx`
+**File**: `frontend_v2/src/App.tsx`
 
 **Pass jobUrl to component**:
 ```typescript
@@ -155,7 +155,7 @@ const handleStartProcessing = useCallback((data: {
 
 ### Step 4: Update ProcessingScreen Component
 
-**File**: `frontend/src/components/ProcessingScreen.tsx`
+**File**: `frontend_v2/src/components/ProcessingScreen.tsx`
 
 **Add jobUrl to props**:
 ```typescript
@@ -286,12 +286,12 @@ Escalate to development team if:
 
 ## Files Modified
 
-1. `frontend/src/App.tsx`
+1. `frontend_v2/src/App.tsx`
    - AppState interface: Added `jobUrl?: string`
    - handleStartProcessing: Sets both `jobText` and `jobUrl`
    - ProcessingScreen props: Passes `jobUrl`
 
-2. `frontend/src/components/ProcessingScreen.tsx`
+2. `frontend_v2/src/components/ProcessingScreen.tsx`
    - Props interface: Added `jobUrl?: string`
    - Component signature: Accepts `jobUrl`
    - API call: Passes both `job_text` and `job_url`
