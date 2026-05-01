@@ -87,10 +87,12 @@ export interface CollectedData {
   resumeText?: string;
   jobInput?: string; // raw job description text or URL
   jobIsUrl?: boolean;
-  experienceLevel?: 'junior' | 'mid' | 'senior' | 'lead';
-  tonePreference?: 'concise' | 'balanced' | 'detailed';
+  additionalProfileFile?: { name: string; size: number; mime: string; file?: File };
+  additionalProfileText?: string;
+  saveResume?: boolean;
   linkedinUrl?: string;
   githubUsername?: string;
+  forceRefreshProfile?: boolean;
   /** Phase 5: canonical review payload returned by the backend. */
   review?: ApplicationReview;
   [key: string]: unknown;

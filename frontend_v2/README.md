@@ -37,9 +37,10 @@ Copy `.env.example` -> `.env.local` and set the relevant vars:
 - `VITE_AUTH_BYPASS=true` - skip Supabase, use a fake signed-in user
 - `VITE_MOCK_STREAM=true` - replay a scripted SSE timeline in-browser
 
-**Zero-setup demo:** leave all Supabase vars empty and set
-`VITE_MOCK_STREAM=true`. Dev-bypass kicks in automatically when Supabase
-creds are missing, so you can click through the full
+**Zero-setup demo:** leave all Supabase vars empty and set both
+`VITE_AUTH_BYPASS=true` and `VITE_MOCK_STREAM=true`. Missing Supabase
+credentials alone do **not** enable auth bypass, so the bypass flag is
+required to click through the full
 `gather -> auth -> processing -> reviewing` flow with no backend running.
 
 ## Architecture at a glance

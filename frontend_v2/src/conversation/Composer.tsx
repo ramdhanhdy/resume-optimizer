@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Mic, Plus } from 'lucide-react';
+import { ArrowUp, Plus } from 'lucide-react';
 import { useConversation } from './ConversationContext';
 import { ChoicePills } from './ChoicePills';
 import { AttachedFilePill, FileDropZone } from './FileDropZone';
@@ -111,10 +111,6 @@ export function Composer() {
               key={`auth-${activeAgent?.id}`}
               providers={ui.providers}
               disabled={disabled}
-              onPick={() => {
-                // Phase 1/2 placeholder — just advance the script.
-                submit({ text: 'Signed in', choiceValue: 'signed_in' });
-              }}
             />
           )}
 
@@ -222,17 +218,9 @@ export function Composer() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex shrink-0 items-center gap-1 pr-1 text-[13px] text-ink-500"
-            >
-              <span className="hidden select-none sm:inline">Fast</span>
-              <button
-                type="button"
-                aria-label="Voice input"
-                className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-ink-500 hover:bg-white/60 hover:text-ink-800"
-              >
-                <Mic className="h-4 w-4" strokeWidth={1.75} />
-              </button>
-            </motion.div>
+              className="h-8 w-8 shrink-0"
+              aria-hidden="true"
+            />
           )}
         </AnimatePresence>
       </motion.form>

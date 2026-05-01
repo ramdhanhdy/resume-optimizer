@@ -101,49 +101,53 @@ export const initialScript: ScriptStep[] = [
       const isUrl = /^https?:\/\//i.test(text);
       return {
         patch: { jobInput: text, jobIsUrl: isUrl },
-        nextStepId: 'ask_level',
+        nextStepId: 'ask_additional_context_choice',
       };
     },
   },
   {
-    id: 'ask_level',
+    id: 'ask_additional_context_choice',
     phase: 'GATHERING_INFO',
-    message: () => 'How should I pitch your experience level?',
+    message: () =>
+      'Any extra background I should consider? Add portfolio notes, project wins, LinkedIn/GitHub summary, or upload a supporting PDF. You can skip this.',
     ui: {
       kind: 'choices',
       choices: [
-        { value: 'junior', label: 'Junior', hint: '0–2 yrs' },
-        { value: 'mid', label: 'Mid-level', hint: '3–5 yrs' },
-        { value: 'senior', label: 'Senior', hint: '6–9 yrs' },
-        { value: 'lead', label: 'Lead / Staff', hint: '10+ yrs' },
+        { value: 'add_context', label: 'Add context' },
+        { value: 'skip', label: 'Skip' },
       ],
     },
     handle: (input) => ({
-      patch: {
-        experienceLevel: (input.choiceValue as CollectedData['experienceLevel']) ?? 'mid',
-      },
-      nextStepId: 'ask_tone',
+      nextStepId: input.choiceValue === 'add_context' ? 'ask_additional_context' : 'auth_gate',
     }),
   },
   {
-    id: 'ask_tone',
+    id: 'ask_additional_context',
     phase: 'GATHERING_INFO',
-    message: () => 'What tone should the final resume strike?',
+    message: () =>
+      'Share anything else that should inform your profile. Upload a supporting PDF/text file, paste notes, or do both.',
     ui: {
-      kind: 'choices',
-      choices: [
-        { value: 'concise', label: 'Concise', hint: 'punchy, action-led' },
-        { value: 'balanced', label: 'Balanced', hint: 'default' },
-        { value: 'detailed', label: 'Detailed', hint: 'richer context' },
-      ],
+      kind: 'file',
+      accept: '.pdf,.txt,.md',
+      placeholder: 'Paste portfolio notes, project wins, LinkedIn/GitHub summary…',
+      allowFreeText: true,
     },
-    handle: (input) => ({
-      patch: {
-        tonePreference: (input.choiceValue as CollectedData['tonePreference']) ?? 'balanced',
-      },
+    handle: (input) => {
+      const patch: Partial<CollectedData> = {};
+      if (input.file) {
+        patch.additionalProfileFile = {
+          name: input.file.name,
+          size: input.file.size,
+          mime: input.file.type,
+          file: input.file,
+        };
+      }
+      if (input.text && input.text.trim().length > 0) {
+        patch.additionalProfileText = input.text.trim();
+      }
       // End of Phase 1/2 gathering; AUTH_GATE/PROCESSING come in later phases.
-      nextStepId: 'auth_gate',
-    }),
+      return { patch, nextStepId: 'auth_gate' };
+    },
   },
   {
     id: 'auth_gate',

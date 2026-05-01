@@ -30,6 +30,6 @@ if (!supabaseConfigured) {
   // eslint-disable-next-line no-console
   console.info(
     '[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are not set. ' +
-      'Auth will fall back to dev-bypass mode if VITE_AUTH_BYPASS=true.',
+      'Auth will fall back to dev-bypass mode if VITE_AUTH_BYPASS=true.'
   );
 }

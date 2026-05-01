@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Briefcase, FileText, Sparkles, Target } from 'lucide-react';
+import { FileText, Sparkles, Target } from 'lucide-react';
 import type { CollectedData } from './types';
 import { cn } from '@/lib/cn';
 
@@ -56,30 +56,15 @@ function chipsFromData(data: CollectedData): Chip[] {
     });
   }
 
-  if (data.experienceLevel) {
-    const labels: Record<string, string> = {
-      junior: 'Junior',
-      mid: 'Mid-level',
-      senior: 'Senior',
-      lead: 'Lead / Staff',
-    };
+  if (data.additionalProfileFile || data.additionalProfileText) {
+    const textPreview = data.additionalProfileText?.slice(0, 60) ?? '';
     chips.push({
-      key: 'level',
-      icon: <Briefcase className="h-3.5 w-3.5" strokeWidth={1.75} />,
-      label: labels[data.experienceLevel] ?? data.experienceLevel,
-    });
-  }
-
-  if (data.tonePreference) {
-    const labels: Record<string, string> = {
-      concise: 'Concise',
-      balanced: 'Balanced',
-      detailed: 'Detailed',
-    };
-    chips.push({
-      key: 'tone',
+      key: 'additional-context',
       icon: <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />,
-      label: labels[data.tonePreference] ?? data.tonePreference,
+      label: 'Additional context',
+      full: data.additionalProfileFile
+        ? `${data.additionalProfileFile.name} · ${Math.round(data.additionalProfileFile.size / 1024)} kb`
+        : textPreview + ((data.additionalProfileText?.length ?? 0) > 60 ? '…' : ''),
     });
   }
 

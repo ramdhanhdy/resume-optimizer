@@ -74,11 +74,41 @@ export function ProcessingStream() {
           );
         }
 
+        const additionalProfileParts: string[] = [];
+        const pastedAdditionalProfileText = state.data.additionalProfileText?.trim();
+        if (pastedAdditionalProfileText) {
+          additionalProfileParts.push(pastedAdditionalProfileText);
+        }
+
+        if (state.data.additionalProfileFile?.file) {
+          try {
+            const extracted = await extractAdditionalProfileText(
+              state.data.additionalProfileFile.file,
+            );
+            if (extracted.trim()) {
+              additionalProfileParts.push(extracted.trim());
+            }
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Additional context upload failed.';
+            throw new Error(`${message} Re-attach the file and try again.`, {
+              cause: err,
+            });
+          }
+        }
+
+        const additionalProfileText = additionalProfileParts.join('\n\n');
+
         const response = await startPipeline({
           resume_text: resumeText,
           job_text: state.data.jobIsUrl ? undefined : state.data.jobInput,
           job_url: state.data.jobIsUrl ? state.data.jobInput : undefined,
           resume_filename: resumeFilename,
+          additional_profile_text: additionalProfileText || undefined,
+          save_resume: true,
+          linkedin_url: state.data.linkedinUrl,
+          github_username: state.data.githubUsername,
+          force_refresh_profile: state.data.forceRefreshProfile,
         });
         setJobId(response.job_id);
       } catch (err) {
@@ -254,6 +284,19 @@ export function ProcessingStream() {
       ) : null}
     </div>
   );
+}
+
+async function extractAdditionalProfileText(file: File): Promise<string> {
+  const lowerName = file.name.toLowerCase();
+  const isPlainText =
+    file.type.startsWith('text/') || lowerName.endsWith('.txt') || lowerName.endsWith('.md');
+
+  if (isPlainText) {
+    return file.text();
+  }
+
+  const uploaded = await uploadResume(file);
+  return uploaded.text;
 }
 
 /**

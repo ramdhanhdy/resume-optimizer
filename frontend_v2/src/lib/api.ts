@@ -90,6 +90,11 @@ export interface StartPipelineInput {
   job_text?: string;
   job_url?: string;
   resume_filename?: string;
+  additional_profile_text?: string;
+  save_resume?: boolean;
+  linkedin_url?: string;
+  github_username?: string;
+  force_refresh_profile?: boolean;
 }
 
 export interface StartPipelineResponse {

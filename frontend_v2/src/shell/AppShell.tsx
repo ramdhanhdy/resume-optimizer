@@ -8,6 +8,7 @@ import { AuthGateBridge } from '@/auth/AuthGateBridge';
 import { ProfileMenu } from './ProfileMenu';
 import { GeminiStar } from './GeminiStar';
 import { ResumeStage } from './ResumeStage';
+import { MOCK_STREAM } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 /**
@@ -24,7 +25,7 @@ import { cn } from '@/lib/cn';
  *   │                                                          │
  *   │              [ pill ]  [ pill ]  [ pill ]                │  ← choices
  *   │         ┌────────────────────────────────────┐           │
- *   │         │ +   Ask your co-pilot…   Fast  🎤 │           │  ← composer
+ *   │         │ +   Ask your co-pilot…         ↑ │           │  ← composer
  *   │         └────────────────────────────────────┘           │
  *   └──────────────────────────────────────────────────────────┘
  *
@@ -53,14 +54,20 @@ function ShellChrome() {
     <div className={cn('shell-gradient relative w-full overflow-hidden text-ink-900', isReviewing ? 'h-dvh' : 'min-h-dvh')}>
       {/* Top chrome: profile (right) + subtle brand star (center) */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4 sm:p-6">
-        <div className="w-20" aria-hidden="true" />
+        <div className="w-24 sm:w-28">
+          {MOCK_STREAM && (
+            <span className="glass rounded-full px-2.5 py-1 text-[12px] font-medium text-ink-500 ring-1 ring-white/70">
+              Demo mode
+            </span>
+          )}
+        </div>
         <div className="pointer-events-none">
           <GeminiStar
             className="h-5 w-5 opacity-80"
             animate={state.phase === 'PROCESSING'}
           />
         </div>
-        <div className="pointer-events-auto flex w-20 justify-end">
+        <div className="pointer-events-auto flex w-24 justify-end sm:w-28">
           <ProfileMenu
             user={
               user

@@ -14,6 +14,7 @@ import type {
   UserMessage,
 } from './types';
 import type { ApplicationReview } from '@/types/review';
+import { useAuth } from '@/auth/AuthContext';
 import {
   getLatestApplicationReview,
   refineResume as refineResumeApi,
@@ -179,22 +180,26 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const bootedRef = useRef(false);
   const skipRestoreRef = useRef(false);
 
   // Boot once on mount. If an authenticated user has a completed review,
   // restore directly into review mode; otherwise start the normal script.
   useEffect(() => {
+    if (authLoading) return;
     if (bootedRef.current) return;
     bootedRef.current = true;
     let cancelled = false;
+    let settled = false;
 
     void (async () => {
-      if (!skipRestoreRef.current) {
+      if (!skipRestoreRef.current && isAuthenticated) {
         try {
           const review = await getLatestApplicationReview();
           if (cancelled) return;
           if (review) {
+            settled = true;
             dispatch({
               type: 'RESTORE_REVIEW',
               review,
@@ -203,19 +208,24 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
           }
         } catch (err) {
+          if (cancelled) return;
           console.warn('Latest review restore failed; starting a new conversation.', err);
         }
       }
 
       if (!cancelled) {
+        settled = true;
         dispatch({ type: 'BOOT' });
       }
     })();
 
     return () => {
       cancelled = true;
+      if (!settled) {
+        bootedRef.current = false;
+      }
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   // Whenever currentStepId changes but the latest message isn't from that
   // step's agent prompt, emit it (with a short typing delay for polish).

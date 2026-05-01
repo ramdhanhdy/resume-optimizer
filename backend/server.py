@@ -446,6 +446,7 @@ class PipelineRequest(BaseModel):
     """Request to run full pipeline with streaming."""
     resume_text: str
     job_text: Optional[str] = None
+    additional_profile_text: Optional[str] = None
     job_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
@@ -1610,6 +1611,7 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         job_id=job_id,
         resume_text=request.resume_text,
         job_text=request.job_text,
+        additional_profile_text=request.additional_profile_text,
         job_url=request.job_url,
         linkedin_url=request.linkedin_url,
         github_username=request.github_username,
@@ -1631,6 +1633,7 @@ async def run_pipeline_with_streaming(
     job_id: str,
     resume_text: str,
     job_text: Optional[str] = None,
+    additional_profile_text: Optional[str] = None,
     job_url: Optional[str] = None,
     linkedin_url: Optional[str] = None,
     github_username: Optional[str] = None,
@@ -1662,10 +1665,13 @@ async def run_pipeline_with_streaming(
                 "job_url": job_url or "",
                 "linkedin_url": linkedin_url or "",
                 "github_username": github_username or "",
+                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
             },
             file_metadata={
                 "resume_length": len(resume_text),
                 "has_resume": bool(resume_text),
+                "additional_profile_text_length": len(additional_profile_text or ""),
+                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
             }
         )
         print(f"✅ Created recovery session: {session_id}")
@@ -1706,38 +1712,69 @@ async def run_pipeline_with_streaming(
         
         client = create_client()
         
-        # Step 0 (Optional): Build Profile Index from LinkedIn and/or GitHub
+        # Step 0 (Optional): Build Profile Index from resume, additional profile info,
+        # LinkedIn, and/or GitHub. Resume/additional context should be available to
+        # the optimizer even when no external profile sources are connected.
         profile_index = None
-        if linkedin_url or github_username:
-            print(f"🔗 Building profile index (LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})")
+        additional_profile_text_clean = (additional_profile_text or "").strip()
+        manual_profile_sections = []
+        if resume_text:
+            manual_profile_sections.append(("Resume (uploaded)", resume_text.strip()))
+        if additional_profile_text_clean:
+            manual_profile_sections.append(("Additional Profile Information", additional_profile_text_clean))
+        manual_profile_text = "\n\n".join(
+            f"## {label}\n{content}" for label, content in manual_profile_sections if content
+        )
+        has_profile_inputs = bool(manual_profile_text or linkedin_url or github_username)
+
+        if has_profile_inputs:
+            print(
+                "🔗 Building profile index "
+                f"(Resume: {bool(resume_text)}, Additional info: {bool(additional_profile_text_clean)}, "
+                f"LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})"
+            )
             await stream_manager.emit(InsightEvent.create(
                 job_id, "ins-profile", "system", "medium",
                 "Getting to know you better...", "profiling"
             ))
-            
+
             try:
                 from src.agents.profile_agent import ProfileAgent
                 from src.api import fetch_linkedin_profile_text, ScrapingDogError
                 from src.agents.github_projects_agent import fetch_github_repos
-                
+
                 loop = asyncio.get_event_loop()
                 profile_text = None
                 profile_repos = None
                 used_cache = False
-                
-                # Check for cached profile first (avoid re-scraping) unless force refresh
+
+                # Check for cached external profile text first (avoid re-scraping)
+                # unless force refresh. We still rebuild the index below so the
+                # current resume/additional info is included in this run's profile_index.
                 cached_profile = None
-                if not force_refresh_profile:
+                if not force_refresh_profile and (linkedin_url or github_username):
                     cached_profile = user_db.get_cached_profile(
                         linkedin_url=linkedin_url,
                         github_username=github_username
                     )
-                
-                if cached_profile and cached_profile.get("profile_index") and not force_refresh_profile:
-                    # Use cached profile index directly
-                    profile_index = cached_profile["profile_index"]
+
+                if cached_profile:
+                    cached_sources = cached_profile.get("sources") or []
+                    cached_includes_run_specific_context = any(
+                        source in {"resume:uploaded", "additional_profile_text"}
+                        for source in cached_sources
+                    )
+                    if cached_includes_run_specific_context:
+                        print(
+                            "⚠️ Cached profile includes run-specific resume/additional text; "
+                            "fetching fresh external profile data instead"
+                        )
+                        cached_profile = None
+
+                if cached_profile and cached_profile.get("profile_text") and not force_refresh_profile:
+                    profile_text = cached_profile.get("profile_text")
                     used_cache = True
-                    print(f"✅ Using cached profile (ID: {cached_profile.get('id')})")
+                    print(f"✅ Using cached external profile text (ID: {cached_profile.get('id')})")
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-cached", "system", "medium",
                         "Using your saved profile data", "profiling"
@@ -1765,7 +1802,7 @@ async def run_pipeline_with_streaming(
                                 job_id, "ins-linkedin-err", "system", "low",
                                 "Could not fetch LinkedIn profile - continuing without it", "profiling"
                             ))
-                    
+
                     # Fetch GitHub repos if provided
                     if github_username:
                         print(f"📥 Fetching GitHub repos for: {github_username}")
@@ -1790,54 +1827,65 @@ async def run_pipeline_with_streaming(
                             import traceback
                             traceback.print_exc()
                             profile_repos = None
-                    
-                    # Build profile index if we have any data
-                    if profile_text or profile_repos:
-                        print("🏗️ Building profile index...")
-                        profile_agent = ProfileAgent(client=client)
-                        profile_result = ""
-                        for chunk in profile_agent.index_profile(
-                            model=PROFILE_MODEL,
-                            profile_text=profile_text or "",
-                            profile_repos=profile_repos,
-                            temperature=PROFILE_TEMPERATURE
-                        ):
-                            profile_result += chunk
-                        profile_index = profile_result
-                        print(f"✅ Profile index built: {len(profile_index)} chars")
 
-                        # Save to cache for future runs
-                        if profile_index:
-                            try:
-                                profile_sources = []
-                                if linkedin_url:
-                                    profile_sources.append(f"linkedin:{linkedin_url}")
-                                if github_username:
-                                    profile_sources.append(f"github:{github_username}")
+                profile_text_sections = []
+                if manual_profile_text:
+                    profile_text_sections.append(manual_profile_text)
+                if profile_text:
+                    profile_text_sections.append(f"## LinkedIn / External Profile\n{profile_text.strip()}")
+                combined_profile_text = "\n\n".join(profile_text_sections)
 
-                                combined_profile_text = profile_text or ""
-                                if profile_repos:
-                                    combined_profile_text = (
-                                        (combined_profile_text + "\n\n" if combined_profile_text else "")
-                                        + "GitHub repositories:\n"
-                                        + json.dumps(profile_repos, ensure_ascii=False)
-                                    )
+                # Build profile index if we have any data
+                if combined_profile_text or profile_repos:
+                    print("🏗️ Building profile index...")
+                    profile_agent = ProfileAgent(client=client)
+                    profile_result = ""
+                    for chunk in profile_agent.index_profile(
+                        model=PROFILE_MODEL,
+                        profile_text=combined_profile_text,
+                        profile_repos=profile_repos,
+                        temperature=PROFILE_TEMPERATURE
+                    ):
+                        profile_result += chunk
+                    profile_index = profile_result
+                    print(f"✅ Profile index built: {len(profile_index)} chars")
 
-                                saved_profile_id = user_db.save_profile(
-                                    sources=profile_sources,
-                                    profile_text=combined_profile_text,
-                                    profile_index=profile_index,
-                                    linkedin_url=linkedin_url,
-                                    github_username=github_username,
+                    # Save to cache for future runs only when an index was produced.
+                    if profile_index:
+                        try:
+                            profile_sources = []
+                            if resume_text:
+                                profile_sources.append("resume:uploaded")
+                            if additional_profile_text_clean:
+                                profile_sources.append("additional_profile_text")
+                            if linkedin_url:
+                                profile_sources.append(f"linkedin:{linkedin_url}")
+                            if github_username:
+                                profile_sources.append(f"github:{github_username}")
+
+                            persisted_profile_text = combined_profile_text
+                            if profile_repos:
+                                persisted_profile_text = (
+                                    (persisted_profile_text + "\n\n" if persisted_profile_text else "")
+                                    + "## GitHub repositories\n"
+                                    + json.dumps(profile_repos, ensure_ascii=False)
                                 )
-                                print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
-                            except Exception as persist_err:
-                                print(f"⚠️ Failed to cache profile: {persist_err}")
+
+                            saved_profile_id = user_db.save_profile(
+                                sources=profile_sources,
+                                profile_text=persisted_profile_text,
+                                profile_index=profile_index,
+                                linkedin_url=linkedin_url,
+                                github_username=github_username,
+                            )
+                            print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
+                        except Exception as persist_err:
+                            print(f"⚠️ Failed to cache profile: {persist_err}")
 
                 if profile_index:
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-done", "system", "high",
-                        "Profile index ready - will enhance optimization" + (" (cached)" if used_cache else ""), "profiling"
+                        "Profile index ready - will enhance optimization" + (" (cached profile text)" if used_cache else ""), "profiling"
                     ))
                 else:
                     print("⚠️ No profile data available")
