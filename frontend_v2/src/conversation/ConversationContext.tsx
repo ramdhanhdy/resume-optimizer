@@ -162,6 +162,10 @@ export interface ConversationApi {
    */
   completeProcessing: (review: ApplicationReview) => void;
   /**
+   * Directly restore a previous application review (used when loading from history).
+   */
+  loadReview: (review: ApplicationReview) => void;
+  /**
    * Phase 5 refinement: user submitted a free-form tweak instruction
    * from the composer. Locks the composer, shows the refining UI, then
    * replaces the review payload with the refined version on success.
@@ -384,6 +388,14 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     [],
   );
 
+  const loadReview = useCallback<ConversationApi['loadReview']>((review) => {
+    dispatch({
+      type: 'RESTORE_REVIEW',
+      review,
+      message: buildReviewRestoreMessage(review),
+    });
+  }, []);
+
   const activeAgent = useMemo<AgentMessage | undefined>(() => {
     if (!state.activeAgentMessageId) return undefined;
     const found = state.messages.find(
@@ -394,8 +406,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [state.activeAgentMessageId, state.messages]);
 
   const value = useMemo<ConversationApi>(
-    () => ({ state, activeAgent, submit, completeProcessing, refine, reset }),
-    [state, activeAgent, submit, completeProcessing, refine, reset],
+    () => ({ state, activeAgent, submit, completeProcessing, loadReview, refine, reset }),
+    [state, activeAgent, submit, completeProcessing, loadReview, refine, reset],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

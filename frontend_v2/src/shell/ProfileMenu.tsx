@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LogOut, User } from 'lucide-react';
+import { ChevronDown, LogOut, User, History, Settings } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 import { cn } from '@/lib/cn';
 
@@ -7,13 +7,15 @@ interface ProfileMenuProps {
   /** Null when signed out. */
   user?: { email?: string; name?: string } | null;
   className?: string;
+  onOpenHistory?: () => void;
+  onOpenSettings?: () => void;
 }
 
 /**
  * Minimal, semi-transparent profile menu anchored top-right.
  * Shows account status and exposes real sign-out when authenticated.
  */
-export function ProfileMenu({ user, className }: ProfileMenuProps) {
+export function ProfileMenu({ user, className, onOpenHistory, onOpenSettings }: ProfileMenuProps) {
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -43,6 +45,11 @@ export function ProfileMenu({ user, className }: ProfileMenuProps) {
 
   const handleSignOut = async () => {
     await signOut();
+    setOpen(false);
+  };
+
+  const handleAction = (action?: () => void) => {
+    action?.();
     setOpen(false);
   };
 
@@ -84,10 +91,10 @@ export function ProfileMenu({ user, className }: ProfileMenuProps) {
           role="menu"
           className={cn(
             'glass absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl p-1.5 text-[13px]',
-            'soft-shadow-lg ring-1 ring-white/70',
+            'soft-shadow-lg ring-1 ring-white/70 flex flex-col',
           )}
         >
-          <div className="px-3 py-2 text-ink-500">
+          <div className="px-3 py-2 text-ink-500 mb-1 border-b border-ink-200/50">
             <div className="font-medium text-ink-800">
               {signedIn ? 'Signed in' : 'Not signed in'}
             </div>
@@ -99,18 +106,48 @@ export function ProfileMenu({ user, className }: ProfileMenuProps) {
           </div>
 
           {signedIn && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={handleSignOut}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-ink-700 transition',
-                'hover:bg-white/70 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-sky-300/60',
-              )}
-            >
-              <LogOut className="h-4 w-4" strokeWidth={2} />
-              Sign out
-            </button>
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleAction(onOpenHistory)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-ink-700 transition',
+                  'hover:bg-white/70 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-sky-300/60',
+                )}
+              >
+                <History className="h-4 w-4" strokeWidth={2} />
+                History
+              </button>
+              
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleAction(onOpenSettings)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-ink-700 transition',
+                  'hover:bg-white/70 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-sky-300/60',
+                )}
+              >
+                <Settings className="h-4 w-4" strokeWidth={2} />
+                Settings
+              </button>
+
+              <div className="my-1 h-px w-full bg-ink-200/50" />
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleSignOut}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-ink-700 transition',
+                  'hover:bg-white/70 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300/60',
+                )}
+              >
+                <LogOut className="h-4 w-4" strokeWidth={2} />
+                Sign out
+              </button>
+            </>
           )}
         </div>
       )}

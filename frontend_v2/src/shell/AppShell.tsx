@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConversationProvider, useConversation } from '@/conversation/ConversationContext';
 import { ConversationFeed } from '@/conversation/ConversationFeed';
@@ -8,6 +9,8 @@ import { AuthGateBridge } from '@/auth/AuthGateBridge';
 import { ProfileMenu } from './ProfileMenu';
 import { GeminiStar } from './GeminiStar';
 import { ResumeStage } from './ResumeStage';
+import { HistoryDrawer } from './drawers/HistoryDrawer';
+import { PreferencesDrawer } from './drawers/PreferencesDrawer';
 import { MOCK_STREAM } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -50,6 +53,8 @@ function ShellChrome() {
   const { user, bypassMode } = useAuth();
   const isReviewing = state.phase === 'REVIEWING';
 
+  const [activeDrawer, setActiveDrawer] = useState<'history' | 'settings' | null>(null);
+
   return (
     <div className={cn('shell-gradient relative w-full overflow-hidden text-ink-900', isReviewing ? 'h-dvh' : 'min-h-dvh')}>
       {/* Top chrome: profile (right) + subtle brand star (center) */}
@@ -84,6 +89,8 @@ function ShellChrome() {
                   }
                 : null
             }
+            onOpenHistory={() => setActiveDrawer('history')}
+            onOpenSettings={() => setActiveDrawer('settings')}
           />
         </div>
       </header>
@@ -181,6 +188,16 @@ function ShellChrome() {
           </div>
         </div>
       )}
+
+      {/* Drawers */}
+      <HistoryDrawer
+        isOpen={activeDrawer === 'history'}
+        onClose={() => setActiveDrawer(null)}
+      />
+      <PreferencesDrawer
+        isOpen={activeDrawer === 'settings'}
+        onClose={() => setActiveDrawer(null)}
+      />
     </div>
   );
 }

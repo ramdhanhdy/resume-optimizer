@@ -199,3 +199,56 @@ export async function fetchAuthenticatedBlob(
     filename,
   };
 }
+
+import type {
+  ListApplicationsResponse,
+  UserPreferencesResponse,
+  ListResumesResponse,
+  GetResumeResponse,
+  SaveResumeResponse,
+} from '@/types/api';
+
+export async function listApplications(): Promise<ListApplicationsResponse> {
+  return request<ListApplicationsResponse>('/api/applications', { method: 'GET' });
+}
+
+export async function getUserPreferences(): Promise<UserPreferencesResponse> {
+  return request<UserPreferencesResponse>('/api/user/preferences', { method: 'GET' });
+}
+
+export async function updateUserPreferences(params: {
+  default_linkedin_url?: string;
+  default_github_username?: string;
+  default_resume_id?: number;
+}): Promise<UserPreferencesResponse> {
+  return request<UserPreferencesResponse>('/api/user/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function listSavedResumes(): Promise<ListResumesResponse> {
+  return request<ListResumesResponse>('/api/user/resumes', { method: 'GET' });
+}
+
+export async function getSavedResume(resumeId: number): Promise<GetResumeResponse> {
+  return request<GetResumeResponse>(`/api/user/resumes/${resumeId}`, { method: 'GET' });
+}
+
+export async function saveResume(params: {
+  label: string;
+  resume_text: string;
+  filename?: string;
+  content_hash?: string;
+  is_default?: boolean;
+}): Promise<SaveResumeResponse> {
+  return request<SaveResumeResponse>('/api/user/resumes', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteSavedResume(resumeId: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/api/user/resumes/${resumeId}`, { method: 'DELETE' });
+}
+
