@@ -5,6 +5,7 @@
 
 # Python
 backend/venv/
+backend/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
@@ -42,49 +43,18 @@ dist/
 # Test coverage
 .coverage
 htmlcov/
+
+# Local / temp
 CLAUDE.md
 test_output.json
 .claude/settings.local.json
-.gitignore
-backend/app_67_fixed.py
-.gitignore
-backend/minimal_fix_67.py
-backend/auto_fix_app65.py
-.gitignore
-backend/fix_app_67.py
-backend/fix_app65_direct.py
-backend/fix_app65_polish.py
-backend/fix_docx_table_formatting.py
-docs/specs/authentication_and_metering_spec.md
-backend/exports/HumanResocia_AIEngineer_Dejitare/MuhammadHidayat_Resume_AIEngineer.docx
-backend/exports/Avinity_Analytics_AI_Engineer_Automation/resume.docx
-docs/specs/experimentation-tracking/EXECUTIVE_SUMMARY.md
-docs/specs/experimentation-tracking/implementation-checklist.md
-docs/specs/experimentation-tracking/mlflow-vs-wandb-assessment.md
-docs/specs/experimentation-tracking/README.md
-docs/specs/llm-provider-parameters/complete-implementation.md
-docs/specs/llm-provider-parameters/implementation-summary.md
-docs/specs/llm-provider-parameters/phase3-model-centric-pricing.md
-docs/specs/llm-provider-parameters/README.md
-docs/specs/authentication-and-metering/authentication_and_metering_spec.md
+backend/prompts/*
+!backend/prompts/agent_refine_resume.md
+
+# Cloud Run local env files
 backend/.env.cloudrun
-backend/.env.cloudrun
-AGENTS.md
-.env.cloudrun
-# Ignore local prompt files
-backend/prompts/
-n#Ignore cloud run config 
-backend/.env.clodurun
-evals/framework/__pycache__/__init__.cpython-311.pyc
-evals/framework/__pycache__/analyzer.cpython-311.pyc
-evals/framework/__pycache__/collector.cpython-311.pyc
-evals/framework/__pycache__/config_resume.cpython-311.pyc
-evals/framework/__pycache__/config.cpython-311.pyc
-evals/framework/__pycache__/runner.cpython-311.pyc
-evals/framework/__pycache__/schemas.cpython-311.pyc
-evals/ui/__pycache__/__init__.cpython-311.pyc
-evals/ui/__pycache__/judge_ui.cpython-311.pyc
-evals/ui/__pycache__/new_eval.cpython-311.pyc
-evals/db/__pycache__/__init__.cpython-311.pyc
-evals/db/__pycache__/eval_db.cpython-311.pyc
-evals/data/resume_evals.db
+
+# Evals
+evals/**/__pycache__/
+evals/**/*.pyc
+evals/data/*.db

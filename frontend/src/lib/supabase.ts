@@ -1,25 +1,35 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+/**
+ * Supabase client — initialized lazily from env vars. When the env vars are
+ * missing (e.g. you're running frontend locally without creds), the
+ * client is `null` and consumers must fall back to the dev bypass path.
+ *
+ *   VITE_SUPABASE_URL
+ *   VITE_SUPABASE_PUBLISHABLE_KEY   (preferred, modern)
+ *   VITE_SUPABASE_ANON_KEY          (legacy fallback)
+ */
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseKey =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined);
 
-// Prefer new publishable key format (sb_publishable_...), fall back to legacy anon key
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables:', { 
-    supabaseUrl, 
-    hasPublishableKey: !!import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY 
-  });
-  throw new Error('Missing Supabase environment variables. Set VITE_SUPABASE_PUBLISHABLE_KEY (preferred) or VITE_SUPABASE_ANON_KEY (legacy)');
+export const supabase: SupabaseClient | null = supabaseConfigured
+  ? createClient(supabaseUrl!, supabaseKey!, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null;
+
+if (!supabaseConfigured) {
+  // eslint-disable-next-line no-console
+  console.info(
+    '[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are not set. ' +
+      'Auth will fall back to dev-bypass mode if VITE_AUTH_BYPASS=true.'
+  );
 }
-
-console.log('Initializing Supabase client with URL:', supabaseUrl);
-
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});

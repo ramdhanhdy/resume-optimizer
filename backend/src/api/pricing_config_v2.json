@@ -273,6 +273,7 @@
         "openai/gpt-4-turbo",
         "openai/gpt-4o",
         "openai/gpt-5",
+        "openai/gpt-5.5",
         "qwen/qwen3-max",
         "meta-llama/llama-3.3-70b-instruct",
         "x-ai/grok-4-fast",
@@ -294,7 +295,8 @@
         "openai/gpt-4o",
         "openai/gpt-5",
         "gpt-4o",
-        "gpt-5.1"
+        "gpt-5.1",
+        "gpt-5.5"
       ]
     },
     
@@ -385,6 +387,8 @@
     "claude-haiku": "anthropic/claude-haiku-4.5",
     "gpt5": "openai/gpt-5",
     "gpt-5.1": "openai/gpt-5",
+    "gpt-5.5": "openai/gpt-5",
+    "openai/gpt-5.5": "openai/gpt-5",
     "gpt-4o": "openai/gpt-4o",
     "gemini-flash": "gemini-2.5-flash",
     "gemini-pro": "gemini-2.5-pro"

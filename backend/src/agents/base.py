@@ -35,8 +35,11 @@ class BaseAgent:
     def _load_prompt(self, prompt_file: str) -> str:
         """Load system prompt from markdown file."""
         prompt_path = Path(prompt_file)
+        if not prompt_path.is_absolute():
+            backend_root = Path(__file__).resolve().parents[2]
+            prompt_path = backend_root / prompt_path
         if not prompt_path.exists():
-            raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
 
         return prompt_path.read_text(encoding="utf-8")
 

@@ -1,6 +1,6 @@
 """FastAPI server for Resume Optimizer backend."""
 
-from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -22,6 +22,7 @@ from src.agents import (
     ValidatorAgent,
     PolishAgent,
     GitHubProjectsAgent,
+    ResumeRefinementAgent,
 )
 from src.api import fetch_job_posting_text, ExaContentError
 from src.database import ApplicationDatabase, get_database
@@ -46,7 +47,8 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
-from src.services.docx_safety_service import classify_docx_code_safety, is_label_safe
+from src.app.services.review_document import build_review_document, serialize_review_payload
+from src.app.services.export import generate_docx_from_plain_text
 from src.services.text_safety_service import check_job_posting
 
 load_dotenv()
@@ -63,6 +65,7 @@ VALIDATOR_MODEL = os.getenv("VALIDATOR_MODEL") or DEFAULT_MODEL
 PROFILE_MODEL = os.getenv("PROFILE_MODEL") or DEFAULT_MODEL
 INSIGHT_MODEL = os.getenv("INSIGHT_MODEL") or DEFAULT_MODEL
 POLISH_MODEL = os.getenv("POLISH_MODEL") or "openrouter::anthropic/claude-sonnet-4.5"
+REFINE_MODEL = os.getenv("REFINE_MODEL") or POLISH_MODEL
 
 # Per-agent temperature settings
 ANALYZER_TEMPERATURE = float(os.getenv("ANALYZER_TEMPERATURE", "0.3"))
@@ -71,6 +74,7 @@ IMPLEMENTER_TEMPERATURE = float(os.getenv("IMPLEMENTER_TEMPERATURE", "0.1"))
 VALIDATOR_TEMPERATURE = float(os.getenv("VALIDATOR_TEMPERATURE", "0.2"))
 PROFILE_TEMPERATURE = float(os.getenv("PROFILE_TEMPERATURE", "0.1"))
 POLISH_TEMPERATURE = float(os.getenv("POLISH_TEMPERATURE", "0.8"))
+REFINE_TEMPERATURE = float(os.getenv("REFINE_TEMPERATURE", str(POLISH_TEMPERATURE)))
 
 app = FastAPI(title="Resume Optimizer API", version="1.0.0")
 
@@ -128,14 +132,16 @@ async def require_user_data_user_id(
     request: Request,
     auth_user_id: Optional[str] = Depends(get_current_user_id),
 ) -> str:
-    """Require real auth in Supabase mode; allow fallback IDs only in SQLite mode."""
-    if USE_SUPABASE_DB:
-        if not auth_user_id:
-            raise HTTPException(status_code=401, detail="Authentication required")
+    """Require real auth for persisted user data, with fallback IDs only in local dev."""
+    if auth_user_id:
         return auth_user_id
 
-    return get_user_id_from_request(request)
+    if DEV_MODE_ENABLED:
+        fallback_user_id = get_user_id_from_request(request)
+        if fallback_user_id is not None:
+            return fallback_user_id
 
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
     """Normalize empty strings to None for persisted user preference fields."""
@@ -143,6 +149,84 @@ def _normalized_optional_text(value: Optional[str]) -> Optional[str]:
         return None
     value = value.strip()
     return value or None
+
+
+def _review_docx_url(application_id: int) -> str:
+    return f"/api/export/{application_id}?format=docx"
+
+
+def _build_review_payload(user_db, application_id: int) -> dict:
+    review_document = user_db.get_application_review(application_id)
+    if not review_document:
+        raise HTTPException(status_code=404, detail="Review document not found")
+
+    return serialize_review_payload(
+        review_document,
+        docx_url=_review_docx_url(application_id),
+    )
+
+
+def _resolve_review_source_filename(
+    *,
+    request_resume_filename: Optional[str],
+    application_data: Dict[str, Any],
+    existing_review: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """Resolve the best available source filename for review exports."""
+    return (
+        _normalized_optional_text(request_resume_filename)
+        or _normalized_optional_text(application_data.get("resume_filename"))
+        or _normalized_optional_text(application_data.get("original_resume_filename"))
+        or _normalized_optional_text((existing_review or {}).get("filename"))
+    )
+
+
+async def _build_polish_summary_points(
+    optimization_report: str,
+    validation_report: str,
+    *,
+    existing_review: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Build summary points for /api/polish using the same extractor as the pipeline."""
+    polish_insights_input = f"Optimization Strategy Applied:\n{optimization_report}\n\nValidation Polish Applied:\n{validation_report}"
+    extracted_insights = await insight_extractor.extract_insights_async(
+        polish_insights_input, "polish", max_insights=4
+    )
+    summary_points = [
+        insight["message"]
+        for insight in extracted_insights
+        if isinstance(insight, dict) and insight.get("message")
+    ]
+    if summary_points:
+        return summary_points
+
+    review_points = (existing_review or {}).get("summary_points") or []
+    return [point for point in review_points if isinstance(point, str) and point.strip()]
+
+
+async def _build_refinement_summary_points(
+    instruction: str,
+    refined_resume: str,
+    *,
+    existing_review: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    insights_input = f"User refinement instruction:\n{instruction}\n\nUpdated resume:\n{refined_resume}"
+    extracted_insights = await insight_extractor.extract_insights_async(
+        insights_input, "polish", max_insights=4
+    )
+    summary_points = [
+        insight["message"]
+        for insight in extracted_insights
+        if isinstance(insight, dict) and insight.get("message")
+    ]
+    if summary_points:
+        return summary_points
+
+    review_points = (existing_review or {}).get("summary_points") or []
+    fallback_points = [point for point in review_points if isinstance(point, str) and point.strip()]
+    if fallback_points:
+        return fallback_points
+    return ["Applied your requested refinement to the resume."]
 
 
 # Store in app state for access in routes
@@ -351,12 +435,18 @@ class ValidationRequest(BaseModel):
 class PolishRequest(BaseModel):
     application_id: int
     output_format: str = "html"
+    resume_filename: Optional[str] = None
+
+
+class RefineResumeRequest(BaseModel):
+    instruction: str
 
 
 class PipelineRequest(BaseModel):
     """Request to run full pipeline with streaming."""
     resume_text: str
     job_text: Optional[str] = None
+    additional_profile_text: Optional[str] = None
     job_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     github_username: Optional[str] = None
@@ -977,9 +1067,13 @@ async def polish_resume(request: PolishRequest, http_request: Request):
         validation_report = _latest_agent_output_text(
             request.application_id, "Validator", user_db=user_db
         )
+        optimization_report = _latest_agent_output_text(
+            request.application_id, "Resume Optimizer", user_db=user_db
+        )
+        existing_review = user_db.get_application_review(request.application_id)
 
         # Run Polish Agent
-        agent = PolishAgent(client=client, output_format="docx")
+        agent = PolishAgent(client=client, output_format="review")
         polish_result = ""
         polish_metadata: Dict[str, Any] = {}
 
@@ -998,6 +1092,23 @@ async def polish_resume(request: PolishRequest, http_request: Request):
 
         # Extract final resume
         final_resume = extract_optimized_resume(polish_result)
+        summary_points = await _build_polish_summary_points(
+            optimization_report,
+            validation_report,
+            existing_review=existing_review,
+        )
+        source_filename = _resolve_review_source_filename(
+            request_resume_filename=request.resume_filename,
+            application_data=app_data,
+            existing_review=existing_review,
+        )
+        review_document = build_review_document(
+            application_id=request.application_id,
+            status=app_data.get("status") or "completed",
+            resume_text=final_resume,
+            summary_points=summary_points,
+            source_filename=source_filename,
+        )
 
         # Update database and persist agent output
         user_db.update_application(
@@ -1005,6 +1116,14 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             optimized_resume_text=final_resume,
             model_used=POLISH_MODEL,
         )
+        user_db.save_application_review(
+            application_id=request.application_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
+        user_db.update_application(request.application_id, status="completed")
         user_db.save_agent_output(
             application_id=request.application_id,
             agent_number=5,
@@ -1023,69 +1142,33 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             "success": True,
             "application_id": request.application_id,
             "final_resume": final_resume,
-            "notes": polish_result
+            "notes": polish_result,
+            "review": _build_review_payload(user_db, request.application_id),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/export/{application_id}")
-async def export_resume(application_id: int, http_request: Request, format: str = "docx"):
-    """Export final resume in requested format by executing LLM-generated DOCX code."""
-    from src.middleware.auth import get_user_id_from_request
-    user_id = get_user_id_from_request(http_request)
+async def export_resume(
+    application_id: int,
+    export_format: str = Query("docx", alias="format"),
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Export final resume in requested format from the canonical review document."""
     user_db = get_db_for_user(user_id)
     try:
-        # Get application data
-        app_data = user_db.get_application(application_id)
-        if not app_data:
-            raise HTTPException(status_code=404, detail="Application not found")
-        
-        final_resume = app_data.get("optimized_resume_text")
-        if not final_resume:
-            raise HTTPException(status_code=400, detail="No resume to export")
+        review_document = user_db.get_application_review(application_id)
+        if not review_document:
+            raise HTTPException(status_code=404, detail="Review document not found")
         
         # Generate export file
-        if format == "docx":
-            from src.utils import execute_docx_code, html_to_docx
+        if export_format == "docx":
             from fastapi.responses import Response
-            import io
-            
-            # Detect if content is HTML or Python code
-            content_lower = final_resume.strip().lower()
-            is_html = (
-                content_lower.startswith("<!doctype") or 
-                content_lower.startswith("<html") or
-                "<html" in content_lower[:500]
-            )
-            
-            print(f"📝 Generating DOCX for application {application_id}")
-            print(f"Content type: {'HTML' if is_html else 'Python code'}")
-            
-            # Generate DOCX based on content type
-            if is_html:
-                print("  → Converting HTML to DOCX")
-                docx_bytes = html_to_docx(final_resume)
-            else:
-                print("  → Executing Python code to generate DOCX")
-                safeguard_result = None
-                try:
-                    safeguard_result = await classify_docx_code_safety(final_resume)
-                except Exception as exc:
-                    print(f"⚠️ DOCX safeguard failed, continuing with sandbox only: {exc}")
-
-                if safeguard_result is not None and not is_label_safe(safeguard_result):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Generated DOCX template was flagged as unsafe and cannot be executed.",
-                    )
-
-                docx_bytes = execute_docx_code(final_resume)
-            
-            # Create safe filename
-            job_title = app_data.get('job_title', 'resume').replace(' ', '_').replace('/', '_')
-            company_name = app_data.get('company_name', 'company').replace(' ', '_').replace('/', '_')
-            filename = f"resume_{job_title}_{company_name}.docx"
+            docx_bytes = generate_docx_from_plain_text(review_document["plain_text"])
+            filename = review_document.get("filename") or "optimized-resume.docx"
             
             # Return as streaming response
             return Response(
@@ -1097,26 +1180,171 @@ async def export_resume(application_id: int, http_request: Request, format: str 
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported format")
-            
-    except ValueError as e:
-        # Handle code execution errors specifically
-        print(f"❌ DOCX code execution failed: {str(e)}")
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Failed to generate DOCX from code: {str(e)}"
-        )
-    except SyntaxError as e:
-        # Handle Python syntax errors in generated code
-        print(f"❌ DOCX code has syntax error: {str(e)}")
-        print(f"   Line {e.lineno}: {e.text}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Generated code has syntax error on line {e.lineno}: {str(e)}"
-        )
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Unexpected error during DOCX export: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(
+            "Unexpected error during resume export for application_id=%s",
+            application_id,
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/applications/latest-review")
+async def get_latest_application_review(
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Return the latest completed canonical review payload for frontend restore."""
+    user_db = get_db_for_user(user_id)
+    latest_review = user_db.get_latest_completed_application_with_review()
+    if not latest_review:
+        raise HTTPException(status_code=404, detail="Review document not found")
+
+    review_payload = _build_review_payload(user_db, latest_review["application_id"])
+    return {
+        "success": True,
+        "review": review_payload,
+    }
+
+
+@app.get("/api/applications/{application_id}/review")
+async def get_application_review(
+    application_id: int,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    """Return the canonical review payload for frontend."""
+    user_db = get_db_for_user(user_id)
+    review_payload = _build_review_payload(user_db, application_id)
+    return {
+        "success": True,
+        "review": review_payload,
+    }
+
+
+@app.post("/api/applications/{application_id}/refine")
+async def refine_application_resume(
+    application_id: int,
+    request: RefineResumeRequest,
+    user_id: str = Depends(require_user_data_user_id),
+):
+    instruction = request.instruction.strip()
+    if not instruction:
+        raise HTTPException(status_code=400, detail="Instruction is required")
+
+    user_db = get_db_for_user(user_id)
+    try:
+        app_data = user_db.get_application(application_id)
+        if not app_data:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        existing_review = user_db.get_application_review(application_id)
+        if not existing_review:
+            raise HTTPException(status_code=404, detail="Review document not found")
+
+        current_resume = (
+            existing_review.get("plain_text")
+            or app_data.get("optimized_resume_text")
+            or ""
+        ).strip()
+        if not current_resume:
+            raise HTTPException(status_code=400, detail="Current resume is empty")
+
+        job_context_parts = [
+            str(app_data.get("company_name") or "").strip(),
+            str(app_data.get("job_title") or "").strip(),
+            str(app_data.get("job_posting_text") or "").strip(),
+        ]
+        job_context = "\n\n".join(part for part in job_context_parts if part)
+        if not job_context:
+            job_context = "No job context is available."
+
+        validation_report = _latest_agent_output_text(
+            application_id, "Validator", user_db=user_db
+        )
+
+        client = create_client()
+        agent = ResumeRefinementAgent(client=client)
+        refined_result = ""
+        refine_metadata: Dict[str, Any] = {}
+
+        gen = agent.refine_resume(
+            current_resume=current_resume,
+            instruction=instruction,
+            job_context=job_context,
+            validation_report=validation_report or "No validation context is available.",
+            model=REFINE_MODEL,
+            temperature=REFINE_TEMPERATURE,
+        )
+        try:
+            while True:
+                chunk = next(gen)
+                refined_result += chunk
+        except StopIteration as exc:
+            refine_metadata = exc.value or {}
+
+        refined_resume = extract_optimized_resume(refined_result).strip()
+        if not refined_resume:
+            raise HTTPException(status_code=500, detail="Refinement returned an empty resume")
+
+        summary_points = await _build_refinement_summary_points(
+            instruction,
+            refined_resume,
+            existing_review=existing_review,
+        )
+        source_filename = _resolve_review_source_filename(
+            request_resume_filename=None,
+            application_data=app_data,
+            existing_review=existing_review,
+        )
+        review_document = build_review_document(
+            application_id=application_id,
+            status="completed",
+            resume_text=refined_resume,
+            summary_points=summary_points,
+            source_filename=source_filename,
+        )
+
+        user_db.update_application(
+            application_id,
+            optimized_resume_text=refined_resume,
+            model_used=REFINE_MODEL,
+            status="completed",
+        )
+        user_db.save_application_review(
+            application_id=application_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
+        user_db.save_agent_output(
+            application_id=application_id,
+            agent_number=6,
+            agent_name="Resume Refinement Agent",
+            input_data={
+                "instruction": instruction,
+                "current_resume": current_resume,
+                "job_context": job_context,
+                "validation_report": validation_report,
+            },
+            output_data={"text": refined_result},
+            cost=refine_metadata.get("cost", 0.0),
+            input_tokens=refine_metadata.get("input_tokens", 0),
+            output_tokens=refine_metadata.get("output_tokens", 0),
+        )
+
+        return {
+            "success": True,
+            "application_id": application_id,
+            "review": _build_review_payload(user_db, application_id),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Unexpected error during resume refinement for application_id=%s",
+            application_id,
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1315,6 +1543,8 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
 
     # Get user ID from JWT token or fall back to client ID
     user_id = get_user_id_from_request(http_request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     run_count = run_store.count_runs_for_client(user_id)
     if DEV_MODE_ENABLED:
@@ -1381,12 +1611,14 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         job_id=job_id,
         resume_text=request.resume_text,
         job_text=request.job_text,
+        additional_profile_text=request.additional_profile_text,
         job_url=request.job_url,
         linkedin_url=request.linkedin_url,
         github_username=request.github_username,
         github_token=request.github_token,
         user_id=user_id,
         force_refresh_profile=request.force_refresh_profile,
+        resume_filename=request.resume_filename,
     ))
 
     return {
@@ -1401,12 +1633,14 @@ async def run_pipeline_with_streaming(
     job_id: str,
     resume_text: str,
     job_text: Optional[str] = None,
+    additional_profile_text: Optional[str] = None,
     job_url: Optional[str] = None,
     linkedin_url: Optional[str] = None,
     github_username: Optional[str] = None,
     github_token: Optional[str] = None,
     user_id: Optional[str] = None,
     force_refresh_profile: bool = False,
+    resume_filename: Optional[str] = None,
 ):
     """Run the full pipeline and emit streaming events.
     
@@ -1431,10 +1665,13 @@ async def run_pipeline_with_streaming(
                 "job_url": job_url or "",
                 "linkedin_url": linkedin_url or "",
                 "github_username": github_username or "",
+                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
             },
             file_metadata={
                 "resume_length": len(resume_text),
                 "has_resume": bool(resume_text),
+                "additional_profile_text_length": len(additional_profile_text or ""),
+                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
             }
         )
         print(f"✅ Created recovery session: {session_id}")
@@ -1475,38 +1712,69 @@ async def run_pipeline_with_streaming(
         
         client = create_client()
         
-        # Step 0 (Optional): Build Profile Index from LinkedIn and/or GitHub
+        # Step 0 (Optional): Build Profile Index from resume, additional profile info,
+        # LinkedIn, and/or GitHub. Resume/additional context should be available to
+        # the optimizer even when no external profile sources are connected.
         profile_index = None
-        if linkedin_url or github_username:
-            print(f"🔗 Building profile index (LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})")
+        additional_profile_text_clean = (additional_profile_text or "").strip()
+        manual_profile_sections = []
+        if resume_text:
+            manual_profile_sections.append(("Resume (uploaded)", resume_text.strip()))
+        if additional_profile_text_clean:
+            manual_profile_sections.append(("Additional Profile Information", additional_profile_text_clean))
+        manual_profile_text = "\n\n".join(
+            f"## {label}\n{content}" for label, content in manual_profile_sections if content
+        )
+        has_profile_inputs = bool(manual_profile_text or linkedin_url or github_username)
+
+        if has_profile_inputs:
+            print(
+                "🔗 Building profile index "
+                f"(Resume: {bool(resume_text)}, Additional info: {bool(additional_profile_text_clean)}, "
+                f"LinkedIn: {bool(linkedin_url)}, GitHub: {bool(github_username)})"
+            )
             await stream_manager.emit(InsightEvent.create(
                 job_id, "ins-profile", "system", "medium",
                 "Getting to know you better...", "profiling"
             ))
-            
+
             try:
                 from src.agents.profile_agent import ProfileAgent
                 from src.api import fetch_linkedin_profile_text, ScrapingDogError
                 from src.agents.github_projects_agent import fetch_github_repos
-                
+
                 loop = asyncio.get_event_loop()
                 profile_text = None
                 profile_repos = None
                 used_cache = False
-                
-                # Check for cached profile first (avoid re-scraping) unless force refresh
+
+                # Check for cached external profile text first (avoid re-scraping)
+                # unless force refresh. We still rebuild the index below so the
+                # current resume/additional info is included in this run's profile_index.
                 cached_profile = None
-                if not force_refresh_profile:
+                if not force_refresh_profile and (linkedin_url or github_username):
                     cached_profile = user_db.get_cached_profile(
                         linkedin_url=linkedin_url,
                         github_username=github_username
                     )
-                
-                if cached_profile and cached_profile.get("profile_index") and not force_refresh_profile:
-                    # Use cached profile index directly
-                    profile_index = cached_profile["profile_index"]
+
+                if cached_profile:
+                    cached_sources = cached_profile.get("sources") or []
+                    cached_includes_run_specific_context = any(
+                        source in {"resume:uploaded", "additional_profile_text"}
+                        for source in cached_sources
+                    )
+                    if cached_includes_run_specific_context:
+                        print(
+                            "⚠️ Cached profile includes run-specific resume/additional text; "
+                            "fetching fresh external profile data instead"
+                        )
+                        cached_profile = None
+
+                if cached_profile and cached_profile.get("profile_text") and not force_refresh_profile:
+                    profile_text = cached_profile.get("profile_text")
                     used_cache = True
-                    print(f"✅ Using cached profile (ID: {cached_profile.get('id')})")
+                    print(f"✅ Using cached external profile text (ID: {cached_profile.get('id')})")
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-cached", "system", "medium",
                         "Using your saved profile data", "profiling"
@@ -1534,7 +1802,7 @@ async def run_pipeline_with_streaming(
                                 job_id, "ins-linkedin-err", "system", "low",
                                 "Could not fetch LinkedIn profile - continuing without it", "profiling"
                             ))
-                    
+
                     # Fetch GitHub repos if provided
                     if github_username:
                         print(f"📥 Fetching GitHub repos for: {github_username}")
@@ -1559,54 +1827,65 @@ async def run_pipeline_with_streaming(
                             import traceback
                             traceback.print_exc()
                             profile_repos = None
-                    
-                    # Build profile index if we have any data
-                    if profile_text or profile_repos:
-                        print("🏗️ Building profile index...")
-                        profile_agent = ProfileAgent(client=client)
-                        profile_result = ""
-                        for chunk in profile_agent.index_profile(
-                            model=PROFILE_MODEL,
-                            profile_text=profile_text or "",
-                            profile_repos=profile_repos,
-                            temperature=PROFILE_TEMPERATURE
-                        ):
-                            profile_result += chunk
-                        profile_index = profile_result
-                        print(f"✅ Profile index built: {len(profile_index)} chars")
 
-                        # Save to cache for future runs
-                        if profile_index:
-                            try:
-                                profile_sources = []
-                                if linkedin_url:
-                                    profile_sources.append(f"linkedin:{linkedin_url}")
-                                if github_username:
-                                    profile_sources.append(f"github:{github_username}")
+                profile_text_sections = []
+                if manual_profile_text:
+                    profile_text_sections.append(manual_profile_text)
+                if profile_text:
+                    profile_text_sections.append(f"## LinkedIn / External Profile\n{profile_text.strip()}")
+                combined_profile_text = "\n\n".join(profile_text_sections)
 
-                                combined_profile_text = profile_text or ""
-                                if profile_repos:
-                                    combined_profile_text = (
-                                        (combined_profile_text + "\n\n" if combined_profile_text else "")
-                                        + "GitHub repositories:\n"
-                                        + json.dumps(profile_repos, ensure_ascii=False)
-                                    )
+                # Build profile index if we have any data
+                if combined_profile_text or profile_repos:
+                    print("🏗️ Building profile index...")
+                    profile_agent = ProfileAgent(client=client)
+                    profile_result = ""
+                    for chunk in profile_agent.index_profile(
+                        model=PROFILE_MODEL,
+                        profile_text=combined_profile_text,
+                        profile_repos=profile_repos,
+                        temperature=PROFILE_TEMPERATURE
+                    ):
+                        profile_result += chunk
+                    profile_index = profile_result
+                    print(f"✅ Profile index built: {len(profile_index)} chars")
 
-                                saved_profile_id = user_db.save_profile(
-                                    sources=profile_sources,
-                                    profile_text=combined_profile_text,
-                                    profile_index=profile_index,
-                                    linkedin_url=linkedin_url,
-                                    github_username=github_username,
+                    # Save to cache for future runs only when an index was produced.
+                    if profile_index:
+                        try:
+                            profile_sources = []
+                            if resume_text:
+                                profile_sources.append("resume:uploaded")
+                            if additional_profile_text_clean:
+                                profile_sources.append("additional_profile_text")
+                            if linkedin_url:
+                                profile_sources.append(f"linkedin:{linkedin_url}")
+                            if github_username:
+                                profile_sources.append(f"github:{github_username}")
+
+                            persisted_profile_text = combined_profile_text
+                            if profile_repos:
+                                persisted_profile_text = (
+                                    (persisted_profile_text + "\n\n" if persisted_profile_text else "")
+                                    + "## GitHub repositories\n"
+                                    + json.dumps(profile_repos, ensure_ascii=False)
                                 )
-                                print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
-                            except Exception as persist_err:
-                                print(f"⚠️ Failed to cache profile: {persist_err}")
+
+                            saved_profile_id = user_db.save_profile(
+                                sources=profile_sources,
+                                profile_text=persisted_profile_text,
+                                profile_index=profile_index,
+                                linkedin_url=linkedin_url,
+                                github_username=github_username,
+                            )
+                            print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
+                        except Exception as persist_err:
+                            print(f"⚠️ Failed to cache profile: {persist_err}")
 
                 if profile_index:
                     await stream_manager.emit(InsightEvent.create(
                         job_id, "ins-profile-done", "system", "high",
-                        "Profile index ready - will enhance optimization" + (" (cached)" if used_cache else ""), "profiling"
+                        "Profile index ready - will enhance optimization" + (" (cached profile text)" if used_cache else ""), "profiling"
                     ))
                 else:
                     print("⚠️ No profile data available")
@@ -1932,7 +2211,7 @@ async def run_pipeline_with_streaming(
             "Final polish and formatting...", "polishing"
         ))
         
-        agent5 = PolishAgent(client=client, output_format="docx")
+        agent5 = PolishAgent(client=client, output_format="review")
         
         # Run agent with chunk emission
         polish_result, polish_metadata = await loop.run_in_executor(
@@ -1954,8 +2233,9 @@ async def run_pipeline_with_streaming(
         
         # Extract insights
         print("🔍 Extracting insights from polish...")
+        polish_insights_input = f"Optimization Strategy Applied:\n{optimization_result}\n\nValidation Polish Applied:\n{validation_result}"
         extracted_insights = await insight_extractor.extract_insights_async(
-            polish_result, "polish", max_insights=3
+            polish_insights_input, "polish", max_insights=4
         )
         for idx, insight in enumerate(extracted_insights):
             await stream_manager.emit(InsightEvent.create(
@@ -1964,7 +2244,25 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
+        summary_points = [
+            insight["message"] for insight in extracted_insights
+        ] if extracted_insights else []
+        review_document = build_review_document(
+            application_id=app_id,
+            status="completed",
+            resume_text=final_resume,
+            summary_points=summary_points,
+            source_filename=resume_filename,
+        )
+
         user_db.update_application(app_id, optimized_resume_text=final_resume)
+        user_db.save_application_review(
+            application_id=app_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=5,
@@ -2009,7 +2307,12 @@ async def run_pipeline_with_streaming(
             run_store.update_status(job_id, status="completed")
 
         await stream_manager.emit(JobStatusEvent.create(job_id, "completed"))
-        await stream_manager.emit(DoneEvent(job_id=job_id))
+        # Build the result payload with the canonical review endpoint metadata.
+        done_payload: dict = {
+            "application_id": app_id,
+            "review_url": f"/api/applications/{app_id}/review" if app_id is not None else None,
+        }
+        await stream_manager.emit(DoneEvent(job_id=job_id, payload=done_payload))
 
         print(f"🎉 Pipeline complete for job_id: {job_id}, app_id: {app_id}")
         
