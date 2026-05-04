@@ -1,8 +1,8 @@
 # Design System Implementation Progress
 
-> **Canonical location**: This file supersedes `frontend_v2/IMPLEMENTATION_PROGRESS.md`.
+> **Canonical location**: This file supersedes `frontend/IMPLEMENTATION_PROGRESS.md`.
 
-(Original content copied from `frontend_v2/IMPLEMENTATION_PROGRESS.md`.)
+(Original content copied from `frontend/IMPLEMENTATION_PROGRESS.md`.)
 
 ## 📊 Overall Status: Phase 2 - Component Refactoring (In Progress)
 

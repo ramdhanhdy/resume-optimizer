@@ -152,7 +152,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 ## Project Structure
 
 - **backend/** – FastAPI server, agents, streaming, database, and deployment config.
-- **frontend_v2/** – React/Vite app, design system, UI components, and API client.
+- **frontend/** – React/Vite app, design system, UI components, and API client.
 - **docs/** – Documentation (setup, API reference, specs, architecture, troubleshooting).
 - **AGENTS.md** – High-level agent development and architecture guide.
 - **DEPLOYMENT.md** – Deployment guide and notes.
@@ -170,7 +170,7 @@ For a detailed tree and file-level description, see **[Project Structure](./docs
 - [API Reference](./docs/API_REFERENCE.md) - Complete API documentation
 - [Development Guide](./docs/DEVELOPMENT.md) - Development workflows and tools
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Design System Guide](./frontend_v2/DESIGN_SYSTEM.md) - Frontend design system documentation
+- [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system documentation
 - [Agent Development Guide](./AGENTS.md) - Complete project overview for AI agents
 - [Development Roadmap](./docs/development_roadmap.md) - High-level upcoming features and integrations
 

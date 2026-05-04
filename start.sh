@@ -15,10 +15,10 @@ if [ ! -d "backend/.venv" ]; then
 fi
 
 # Check if frontend node_modules exists
-if [ ! -d "frontend_v2/node_modules" ]; then
+if [ ! -d "frontend/node_modules" ]; then
     echo "Error: Frontend dependencies not installed."
     echo "Please run:"
-    echo "  cd frontend_v2"
+    echo "  cd frontend"
     echo "  npm install"
     exit 1
 fi
@@ -35,7 +35,7 @@ sleep 3
 
 # Start frontend in background
 echo "Starting frontend server..."
-cd frontend_v2
+cd frontend
 npm run dev &
 FRONTEND_PID=$!
 cd ..

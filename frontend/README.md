@@ -22,7 +22,7 @@ materialize only when the agent asks for them.
 ## Quick start
 
 ```bash
-cd frontend_v2
+cd frontend
 npm install
 npm run dev
 ```

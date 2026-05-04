@@ -130,7 +130,7 @@ railway domain
 
 ### 2.1 Prepare Frontend
 
-**Create `frontend_v2/railway.toml`:**
+**Create `frontend/railway.toml`:**
 ```toml
 [build]
 builder = "NIXPACKS"
@@ -145,7 +145,7 @@ healthcheckTimeout = 30
 PORT = "3000"
 ```
 
-**Update `frontend_v2/package.json`:**
+**Update `frontend/package.json`:**
 ```json
 {
   "scripts": {
@@ -157,7 +157,7 @@ PORT = "3000"
 }
 ```
 
-**Update `frontend_v2/vite.config.ts`:**
+**Update `frontend/vite.config.ts`:**
 ```typescript
 export default defineConfig({
   server: {
@@ -171,7 +171,7 @@ export default defineConfig({
 });
 ```
 
-**Create `frontend_v2/.env.production`:**
+**Create `frontend/.env.production`:**
 ```env
 VITE_API_BASE_URL=https://your-backend.railway.app
 ```

@@ -1212,7 +1212,7 @@ async def get_application_review(
     application_id: int,
     user_id: str = Depends(require_user_data_user_id),
 ):
-    """Return the canonical review payload for frontend_v2."""
+    """Return the canonical review payload for frontend."""
     user_db = get_db_for_user(user_id)
     review_payload = _build_review_payload(user_db, application_id)
     return {

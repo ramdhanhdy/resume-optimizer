@@ -144,8 +144,8 @@ The backend automatically adds padding to force buffer flushes in Cloud Run.
 **Solutions**:
 - Never use hardcoded hex colors (e.g., `text-[#0274BD]`)
 - Always use Tailwind utilities that reference CSS variables (e.g., `text-primary`)
-- Check CSS variables are defined in `frontend_v2/src/index.css`
-- Verify `applyBrandConfig()` is called in `frontend_v2/src/index.tsx`
+- Check CSS variables are defined in `frontend/src/index.css`
+- Verify `applyBrandConfig()` is called in `frontend/src/index.tsx`
 
 **Correct usage**:
 ```tsx

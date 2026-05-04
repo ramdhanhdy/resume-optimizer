@@ -1,8 +1,8 @@
 # UI Refactoring Project Complete
 
-> **Canonical location**: This file supersedes `frontend_v2/REFACTORING_COMPLETE.md`.
+> **Canonical location**: This file supersedes `frontend/REFACTORING_COMPLETE.md`.
 
-(Original content copied from `frontend_v2/REFACTORING_COMPLETE.md`.)
+(Original content copied from `frontend/REFACTORING_COMPLETE.md`.)
 
 ## 🎉 UI Refactoring Project Complete!
 

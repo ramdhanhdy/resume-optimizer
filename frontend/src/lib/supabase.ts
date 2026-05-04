@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Supabase client — initialized lazily from env vars. When the env vars are
- * missing (e.g. you're running frontend_v2 locally without creds), the
+ * missing (e.g. you're running frontend locally without creds), the
  * client is `null` and consumers must fall back to the dev bypass path.
  *
  *   VITE_SUPABASE_URL

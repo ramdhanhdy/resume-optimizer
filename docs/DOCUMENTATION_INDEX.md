@@ -262,7 +262,7 @@ cd frontend && npm run build
 
 ### Environment Configuration
 - Backend: `backend/.env`
-- Frontend: `frontend_v2/.env.local`
+- Frontend: `frontend/.env.local`
 - Required: OpenRouter API key, Exa API key
 - Optional: Gemini API key
 

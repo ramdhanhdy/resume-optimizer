@@ -19,7 +19,7 @@ InputScreen → ProcessingScreen → RevealScreen
 
 ### Core Components
 
-#### 1. InputScreen (`frontend_v2/src/components/InputScreen.tsx`)
+#### 1. InputScreen (`frontend/src/components/InputScreen.tsx`)
 
 **Purpose**: Handle resume upload and job posting input
 
@@ -63,7 +63,7 @@ useEffect(() => {
 }, [isReady, isLoading, resumeText]);
 ```
 
-#### 2. ProcessingScreen (`frontend_v2/src/components/ProcessingScreen.tsx`)
+#### 2. ProcessingScreen (`frontend/src/components/ProcessingScreen.tsx`)
 
 **Purpose**: Display real-time processing progress and insights
 
@@ -108,7 +108,7 @@ const { state, isComplete, isFailed, isConnected } = useProcessingJob(jobId);
 - Insights cards animate in with staggered timing
 - Connection status indicator for streaming health
 
-#### 3. RevealScreen (`frontend_v2/src/components/RevealScreen.tsx`)
+#### 3. RevealScreen (`frontend/src/components/RevealScreen.tsx`)
 
 **Purpose**: Display before/after comparison and export options
 
@@ -140,7 +140,7 @@ interface RevealScreenProps {
 - Improvement recommendations
 - Fact-check validation results
 
-#### 4. ExportModal (`frontend_v2/src/components/ExportModal.tsx`)
+#### 4. ExportModal (`frontend/src/components/ExportModal.tsx`)
 
 **Purpose**: Handle resume export in multiple formats
 

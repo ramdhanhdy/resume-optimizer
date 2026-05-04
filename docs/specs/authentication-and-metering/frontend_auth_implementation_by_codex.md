@@ -16,7 +16,7 @@ Implement first-class Supabase authentication in the React/Vite frontend so ever
 - Replacing the design system with Supabase UI components.
 
 ## Dependencies and Config
-- Add `@supabase/supabase-js@^2` to `frontend_v2/package.json`.
+- Add `@supabase/supabase-js@^2` to `frontend/package.json`.
 - Environment (add to `.env.example` and `.env.production` as needed):
   - `VITE_SUPABASE_URL=<project-url>`
   - `VITE_SUPABASE_ANON_KEY=<anon-key>`
@@ -26,10 +26,10 @@ Implement first-class Supabase authentication in the React/Vite frontend so ever
     - `VITE_SUPABASE_AUTH_FLOW=magic_link|password` (default: password).
 
 ## Architecture and Data Flow
-- **Supabase client** (`frontend_v2/src/lib/supabaseClient.ts`):
+- **Supabase client** (`frontend/src/lib/supabaseClient.ts`):
   - Create a singleton with `createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'resumeoptimizer.supabase.auth' } })`.
   - Export helpers to fetch the latest session/access token.
-- **Auth state container** (`frontend_v2/src/hooks/useSupabaseAuth.ts` + `AuthProvider` in `frontend_v2/src/components/auth/AuthProvider.tsx`):
+- **Auth state container** (`frontend/src/hooks/useSupabaseAuth.ts` + `AuthProvider` in `frontend/src/components/auth/AuthProvider.tsx`):
   - Holds `{ user, session, status: 'idle'|'loading'|'authenticated'|'unauthenticated', error }`.
   - Subscribes to `supabase.auth.onAuthStateChange` to react to sign-in/out and token refresh.
   - Exposes actions: `signInWithPassword`, `signUpWithPassword`, `sendMagicLink`, `signInWithOAuth(provider)`, `signOut`, `resetPassword`.
@@ -109,4 +109,4 @@ Implement first-class Supabase authentication in the React/Vite frontend so ever
 3. Extend `ApiClient` and `useProcessingJob` to consume access tokens.
 4. Implement auth modal/menu and gate generation/history actions.
 5. Wire magic link/password reset callback handling.
-6. QA per testing plan; document env setup in `frontend_v2/README` or `.env.example`.
+6. QA per testing plan; document env setup in `frontend/README` or `.env.example`.

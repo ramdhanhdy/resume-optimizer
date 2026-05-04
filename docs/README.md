@@ -171,7 +171,7 @@ Each document includes:
 ### External Documentation
 - **Main Project README**: [../README.md](../README.md)
 - **Backend README**: [../backend/README.md](../backend/README.md)
-- **Frontend Source**: `../frontend_v2/src/`
+- **Frontend Source**: `../frontend/src/`
 
 ### Related Projects
 - **JobHunt Agent**: Original backend prototype

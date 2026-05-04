@@ -1,4 +1,4 @@
--- Migration 003: Canonical application review documents for frontend_v2
+-- Migration 003: Canonical application review documents for frontend
 
 create table if not exists public.application_reviews (
   application_id bigint primary key references public.applications(id) on delete cascade,

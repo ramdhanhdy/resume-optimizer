@@ -1,8 +1,8 @@
 # Component Refactoring Summary
 
-> **Canonical location**: This file supersedes `frontend_v2/REFACTORING_SUMMARY.md`.
+> **Canonical location**: This file supersedes `frontend/REFACTORING_SUMMARY.md`.
 
-(Original content copied from `frontend_v2/REFACTORING_SUMMARY.md`.)
+(Original content copied from `frontend/REFACTORING_SUMMARY.md`.)
 
 ## 🎉 Project Complete! All 8/8 Components Refactored (100%)
 

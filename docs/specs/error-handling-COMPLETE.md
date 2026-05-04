@@ -89,7 +89,7 @@ The comprehensive error handling and state preservation system has been **fully 
 ### **Frontend Components (100%)**
 
 #### 7. LocalStorage Adapter ✅
-- **File:** `frontend_v2/src/services/storage/LocalStorageAdapter.ts`
+- **File:** `frontend/src/services/storage/LocalStorageAdapter.ts`
 - **Status:** Production ready
 - **Features:**
   - Session save/load with schema versioning
@@ -99,7 +99,7 @@ The comprehensive error handling and state preservation system has been **fully 
   - Bulk cleanup
 
 #### 8. IndexedDB Adapter ✅
-- **File:** `frontend_v2/src/services/storage/IndexedDBAdapter.ts`
+- **File:** `frontend/src/services/storage/IndexedDBAdapter.ts`
 - **Status:** Production ready
 - **Features:**
   - File blob storage (handles 10MB+ files)
@@ -109,7 +109,7 @@ The comprehensive error handling and state preservation system has been **fully 
   - Database initialization
 
 #### 9. State Manager ✅
-- **File:** `frontend_v2/src/services/storage/StateManager.ts`
+- **File:** `frontend/src/services/storage/StateManager.ts`
 - **Status:** Production ready
 - **Features:**
   - Singleton pattern for app-wide access
@@ -121,7 +121,7 @@ The comprehensive error handling and state preservation system has been **fully 
   - Suggested action generation
 
 #### 10. Recovery Banner Component ✅
-- **File:** `frontend_v2/src/components/shared/RecoveryBanner.tsx`
+- **File:** `frontend/src/components/shared/RecoveryBanner.tsx`
 - **Status:** Production ready
 - **Features:**
   - Color-coded by error category (blue/yellow/red)
@@ -134,7 +134,7 @@ The comprehensive error handling and state preservation system has been **fully 
   - File size formatting
 
 #### 11. InputScreen Integration ✅
-- **File:** `frontend_v2/src/components/InputScreen.tsx`
+- **File:** `frontend/src/components/InputScreen.tsx`
 - **Status:** Production ready
 - **Features:**
   - Recovery session check on mount
@@ -146,7 +146,7 @@ The comprehensive error handling and state preservation system has been **fully 
   - State cleanup on fresh start
 
 #### 12. Error Boundary Component ✅
-- **File:** `frontend_v2/src/components/ErrorBoundary.tsx`
+- **File:** `frontend/src/components/ErrorBoundary.tsx`
 - **Status:** Production ready
 - **Features:**
   - React error catching
