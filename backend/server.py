@@ -11,6 +11,7 @@ import json
 import asyncio
 import time
 import functools
+import hashlib
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
@@ -47,6 +48,7 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
+from src.app.services.provenance import write_agent_provenance
 from src.app.services.review_document import build_review_document, serialize_review_payload
 from src.app.services.export import generate_docx_from_plain_text
 from src.services.text_safety_service import check_job_posting
@@ -1650,6 +1652,9 @@ async def run_pipeline_with_streaming(
     insight_listener_task = None
     session_id = None
     app_id: Optional[int] = None
+    # Provenance tracking — populated during Step 0, backfilled with app_id after Agent 1
+    _provenance_snapshot_id: Optional[int] = None
+    _provenance_evidence_ids: List[int] = []
     
     # Get database instance for this user (Supabase if enabled, else SQLite)
     user_db = get_db_for_user(user_id)
@@ -1852,6 +1857,8 @@ async def run_pipeline_with_streaming(
 
                     # Save to cache for future runs only when an index was produced.
                     if profile_index:
+                        # --- Legacy profile cache (compatibility) ---
+                        saved_profile_id = None
                         try:
                             profile_sources = []
                             if resume_text:
@@ -1881,6 +1888,81 @@ async def run_pipeline_with_streaming(
                             print(f"✅ Cached profile for future runs (ID: {saved_profile_id})")
                         except Exception as persist_err:
                             print(f"⚠️ Failed to cache profile: {persist_err}")
+
+                        # --- Provenance: evidence_items + profile_snapshot (Supabase only) ---
+                        # NOTE: application_id is not available at Step 0 — it is created
+                        # after Agent 1 completes.  Rows are written with application_id=None
+                        # and back-filled via link_*_to_application() once app_id is known.
+                        if hasattr(user_db, 'save_evidence_item'):
+                            try:
+                                if resume_text:
+                                    _eid = user_db.save_evidence_item(
+                                        source_type='resume_upload',
+                                        source_label='Uploaded resume',
+                                        content_excerpt=resume_text[:500],
+                                        content_hash=hashlib.sha256(resume_text.encode()).hexdigest(),
+                                    )
+                                    _provenance_evidence_ids.append(_eid)
+
+                                if additional_profile_text_clean:
+                                    _eid = user_db.save_evidence_item(
+                                        source_type='additional_profile_text',
+                                        source_label='Additional profile information',
+                                        content_excerpt=additional_profile_text_clean[:500],
+                                        content_hash=hashlib.sha256(additional_profile_text_clean.encode()).hexdigest(),
+                                    )
+                                    _provenance_evidence_ids.append(_eid)
+
+                                if linkedin_url:
+                                    _eid = user_db.save_evidence_item(
+                                        source_type='linkedin_profile',
+                                        source_uri=linkedin_url,
+                                        source_label='LinkedIn profile',
+                                        content_excerpt=profile_text[:500] if profile_text else None,
+                                        content_hash=hashlib.sha256(profile_text.encode()).hexdigest() if profile_text else None,
+                                    )
+                                    _provenance_evidence_ids.append(_eid)
+
+                                if profile_repos:
+                                    for _repo in profile_repos:
+                                        _excerpt_parts = []
+                                        if _repo.get('description'):
+                                            _excerpt_parts.append(_repo['description'])
+                                        if _repo.get('topics'):
+                                            _excerpt_parts.append('Topics: ' + ', '.join(_repo['topics']))
+                                        _eid = user_db.save_evidence_item(
+                                            source_type='github_repo',
+                                            source_uri=_repo.get('url'),
+                                            source_label=_repo.get('name'),
+                                            content_excerpt='; '.join(_excerpt_parts)[:500] if _excerpt_parts else None,
+                                            metadata={
+                                                'name': _repo.get('name'),
+                                                'topics': _repo.get('topics', []),
+                                                'primary_lang': _repo.get('primary_lang'),
+                                                'stars': _repo.get('stars', 0),
+                                                'last_push_days': _repo.get('last_push_days'),
+                                            },
+                                        )
+                                        _provenance_evidence_ids.append(_eid)
+
+                                _profile_text_hash = (
+                                    hashlib.sha256(combined_profile_text.encode()).hexdigest()
+                                    if combined_profile_text else None
+                                )
+                                _provenance_snapshot_id = user_db.create_profile_snapshot(
+                                    profile_index=profile_index,
+                                    legacy_profile_id=saved_profile_id,
+                                    builder_model=PROFILE_MODEL,
+                                    prompt_name='profile_agent.md',
+                                    profile_text_hash=_profile_text_hash,
+                                )
+                                print(
+                                    f"✅ Provenance: profile_snapshot={_provenance_snapshot_id}, "
+                                    f"{len(_provenance_evidence_ids)} evidence item(s) "
+                                    f"(application_id pending backfill after Agent 1)"
+                                )
+                            except Exception as _prov_err:
+                                print(f"⚠️ Provenance persistence failed (non-fatal): {_prov_err}")
 
                 if profile_index:
                     await stream_manager.emit(InsightEvent.create(
@@ -1948,13 +2030,36 @@ async def run_pipeline_with_streaming(
             job_url=job_url,
         )
         run_store.update_status(job_id, application_id=app_id)
-        
+
+        # Back-fill application_id on provenance records created during Step 0
+        if _provenance_snapshot_id is not None and hasattr(user_db, 'link_profile_snapshot_to_application'):
+            try:
+                user_db.link_profile_snapshot_to_application(_provenance_snapshot_id, app_id)
+                if _provenance_evidence_ids:
+                    user_db.link_evidence_items_to_application(_provenance_evidence_ids, app_id)
+                print(
+                    f"✅ Provenance backfill: application_id={app_id} linked to "
+                    f"profile_snapshot={_provenance_snapshot_id} and "
+                    f"{len(_provenance_evidence_ids)} evidence item(s)"
+                )
+            except Exception as _bf_err:
+                print(f"⚠️ Provenance application_id backfill failed (non-fatal): {_bf_err}")
+
         # Emit application_id as metric for frontend
         await stream_manager.emit(MetricUpdateEvent.create(
             job_id, "application_id", app_id, ""
         ))
         print(f"✅ Emitted application_id metric: {app_id}")
         
+        _step_id_1 = write_agent_provenance(
+            user_db,
+            app_id=app_id, job_id=job_id,
+            agent_number=1, agent_name="Job Analyzer",
+            model_str=ANALYZER_MODEL,
+            input_data={"job_posting": job_text_final},
+            output_data={"text": analysis_result},
+            metadata=analysis_metadata,
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=1,
@@ -1964,6 +2069,7 @@ async def run_pipeline_with_streaming(
             cost=analysis_metadata.get("cost", 0.0),
             input_tokens=analysis_metadata.get("input_tokens", 0),
             output_tokens=analysis_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_1,
         )
 
         # Save checkpoint for recovery
@@ -2017,6 +2123,15 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
+        _step_id_2 = write_agent_provenance(
+            user_db,
+            app_id=app_id, job_id=job_id,
+            agent_number=2, agent_name="Resume Optimizer",
+            model_str=OPTIMIZER_MODEL,
+            input_data={"resume_text": resume_text, "job_analysis": analysis_result},
+            output_data={"text": optimization_result},
+            metadata=optimization_metadata,
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=2,
@@ -2026,6 +2141,7 @@ async def run_pipeline_with_streaming(
             cost=optimization_metadata.get("cost", 0.0),
             input_tokens=optimization_metadata.get("input_tokens", 0),
             output_tokens=optimization_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_2,
         )
 
         # Save checkpoint for recovery
@@ -2083,6 +2199,15 @@ async def run_pipeline_with_streaming(
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
         user_db.update_application(app_id, optimized_resume_text=optimized_resume)
+        _step_id_3 = write_agent_provenance(
+            user_db,
+            app_id=app_id, job_id=job_id,
+            agent_number=3, agent_name="Optimizer Implementer",
+            model_str=IMPLEMENTER_MODEL,
+            input_data={"resume_text": resume_text, "optimization_report": optimization_result},
+            output_data={"text": implementation_result},
+            metadata=implementation_metadata,
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=3,
@@ -2092,6 +2217,7 @@ async def run_pipeline_with_streaming(
             cost=implementation_metadata.get("cost", 0.0),
             input_tokens=implementation_metadata.get("input_tokens", 0),
             output_tokens=implementation_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_3,
         )
 
         # Save checkpoint for recovery
@@ -2181,6 +2307,15 @@ async def run_pipeline_with_streaming(
             ))
         print(f"✅ Extracted {len(extracted_insights)} insights")
         
+        _step_id_4 = write_agent_provenance(
+            user_db,
+            app_id=app_id, job_id=job_id,
+            agent_number=4, agent_name="Validator",
+            model_str=VALIDATOR_MODEL,
+            input_data={"optimized_resume": optimized_resume, "job_posting": job_text_final},
+            output_data={"text": validation_result},
+            metadata=validation_metadata,
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=4,
@@ -2190,6 +2325,7 @@ async def run_pipeline_with_streaming(
             cost=validation_metadata.get("cost", 0.0),
             input_tokens=validation_metadata.get("input_tokens", 0),
             output_tokens=validation_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_4,
         )
 
         # Save checkpoint for recovery
@@ -2263,6 +2399,15 @@ async def run_pipeline_with_streaming(
             filename=review_document["filename"],
             summary_points=review_document["summary_points"],
         )
+        _step_id_5 = write_agent_provenance(
+            user_db,
+            app_id=app_id, job_id=job_id,
+            agent_number=5, agent_name="Polish Agent",
+            model_str=POLISH_MODEL,
+            input_data={"optimized_resume": optimized_resume, "validation_report": validation_result},
+            output_data={"text": polish_result},
+            metadata=polish_metadata,
+        )
         user_db.save_agent_output(
             application_id=app_id,
             agent_number=5,
@@ -2272,6 +2417,7 @@ async def run_pipeline_with_streaming(
             cost=polish_metadata.get("cost", 0.0),
             input_tokens=polish_metadata.get("input_tokens", 0),
             output_tokens=polish_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_5,
         )
 
         # Save checkpoint for recovery

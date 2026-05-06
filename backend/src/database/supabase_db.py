@@ -221,6 +221,7 @@ class SupabaseDatabase:
         model_provider: Optional[str] = None,
         model_name: Optional[str] = None,
         execution_time_ms: Optional[int] = None,
+        agent_step_id: Optional[int] = None,
     ):
         """Save agent execution output.
 
@@ -236,6 +237,7 @@ class SupabaseDatabase:
             model_provider: Model provider (e.g., "gemini", "openrouter")
             model_name: Model name (e.g., "gemini-2.5-flash")
             execution_time_ms: Execution time in milliseconds
+            agent_step_id: FK to agent_steps.id for provenance linkage (nullable).
         """
         # Use upsert to handle re-runs of the same agent
         self.client.table("agent_outputs").upsert({
@@ -251,6 +253,7 @@ class SupabaseDatabase:
             "model_provider": model_provider,
             "model_name": model_name,
             "execution_time_ms": execution_time_ms,
+            "agent_step_id": agent_step_id,
         }, on_conflict="application_id,agent_number").execute()
         
         # Update application totals
@@ -1018,6 +1021,452 @@ class SupabaseDatabase:
         if not result.data:
             raise RuntimeError("Failed to upsert user preferences")
         return result.data[0]
+
+    # --- Provenance API ---
+
+    def create_profile_snapshot(
+        self,
+        *,
+        profile_index: Any,
+        legacy_profile_id: Optional[int] = None,
+        application_id: Optional[int] = None,
+        pipeline_run_id: Optional[int] = None,
+        source_fingerprint: Optional[str] = None,
+        profile_text_hash: Optional[str] = None,
+        builder_model: Optional[str] = None,
+        prompt_name: Optional[str] = None,
+        prompt_hash: Optional[str] = None,
+    ) -> int:
+        """Insert an immutable profile index snapshot.
+
+        Args:
+            profile_index: Agent-produced profile index (dict or JSON string).
+            legacy_profile_id: Optional FK to profiles.id for cache compatibility.
+            application_id: Optional FK to applications.id.
+            pipeline_run_id: Optional FK to pipeline_runs.id.
+            source_fingerprint: Hash of the raw input sources used to build the index.
+            profile_text_hash: Hash of the raw profile text.
+            builder_model: Model that produced the index.
+            prompt_name: Prompt file used (e.g. 'profile_agent.md').
+            prompt_hash: Hash of the prompt file content.
+
+        Returns:
+            profile_snapshots row ID.
+        """
+        pi_value = profile_index
+        if isinstance(profile_index, str):
+            try:
+                pi_value = json.loads(profile_index)
+            except (json.JSONDecodeError, TypeError):
+                pi_value = profile_index
+
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "profile_index": pi_value,
+        }
+        if legacy_profile_id is not None:
+            data["legacy_profile_id"] = legacy_profile_id
+        if application_id is not None:
+            data["application_id"] = application_id
+        if pipeline_run_id is not None:
+            data["pipeline_run_id"] = pipeline_run_id
+        if source_fingerprint is not None:
+            data["source_fingerprint"] = source_fingerprint
+        if profile_text_hash is not None:
+            data["profile_text_hash"] = profile_text_hash
+        if builder_model is not None:
+            data["builder_model"] = builder_model
+        if prompt_name is not None:
+            data["prompt_name"] = prompt_name
+        if prompt_hash is not None:
+            data["prompt_hash"] = prompt_hash
+
+        result = self.client.table("profile_snapshots").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert profile_snapshot")
+        return result.data[0]["id"]
+
+    def save_evidence_item(
+        self,
+        *,
+        source_type: str,
+        application_id: Optional[int] = None,
+        profile_snapshot_id: Optional[int] = None,
+        source_uri: Optional[str] = None,
+        source_label: Optional[str] = None,
+        content_excerpt: Optional[str] = None,
+        content_hash: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """Insert a first-class source evidence item.
+
+        Args:
+            source_type: One of 'resume_upload', 'additional_profile_text',
+                'linkedin_profile', 'github_repo', 'github_readme',
+                'job_posting', 'manual_note'.
+            application_id: Optional FK to applications.id.
+            profile_snapshot_id: Optional FK to profile_snapshots.id.
+            source_uri: URL or path identifying the source.
+            source_label: Human-readable label for the source.
+            content_excerpt: Short text excerpt from the source.
+            content_hash: Hash of the full source content.
+            metadata: Arbitrary JSON metadata (repo stats, parser version, etc.).
+
+        Returns:
+            evidence_items row ID.
+        """
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "source_type": source_type,
+        }
+        if application_id is not None:
+            data["application_id"] = application_id
+        if profile_snapshot_id is not None:
+            data["profile_snapshot_id"] = profile_snapshot_id
+        if source_uri is not None:
+            data["source_uri"] = source_uri
+        if source_label is not None:
+            data["source_label"] = source_label
+        if content_excerpt is not None:
+            data["content_excerpt"] = content_excerpt
+        if content_hash is not None:
+            data["content_hash"] = content_hash
+        if metadata is not None:
+            data["metadata"] = metadata
+
+        result = self.client.table("evidence_items").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert evidence_item")
+        return result.data[0]["id"]
+
+    def save_agent_step(
+        self,
+        *,
+        application_id: int,
+        agent_number: int,
+        agent_name: str,
+        pipeline_run_id: Optional[int] = None,
+        job_id: Optional[str] = None,
+        attempt_number: int = 1,
+        status: str = "completed",
+        input_hash: Optional[str] = None,
+        output_hash: Optional[str] = None,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        model_provider: Optional[str] = None,
+        model_name: Optional[str] = None,
+        prompt_name: Optional[str] = None,
+        prompt_hash: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cost_usd: float = 0.0,
+        started_at: Optional[datetime] = None,
+        completed_at: Optional[datetime] = None,
+    ) -> int:
+        """Insert an immutable agent execution step record.
+
+        Always inserts a new row — no upsert — to preserve full attempt history.
+
+        Args:
+            application_id: FK to applications.id.
+            agent_number: Agent number in the pipeline (0–5).
+            agent_name: Human-readable agent name.
+            pipeline_run_id: Optional FK to pipeline_runs.id.
+            job_id: Optional job UUID matching pipeline_runs.job_id.
+            attempt_number: Retry attempt number (default 1).
+            status: One of 'queued','running','completed','failed','cancelled'.
+            input_hash: Hash of input_data for dedup/comparison.
+            output_hash: Hash of output_data for dedup/comparison.
+            input_data: Agent input payload.
+            output_data: Agent output payload.
+            model_provider: e.g. 'gemini', 'openrouter'.
+            model_name: e.g. 'gemini-2.5-flash'.
+            prompt_name: Prompt file name.
+            prompt_hash: Hash of the prompt file content.
+            params: Model/agent configuration parameters.
+            input_tokens: Tokens consumed by the prompt.
+            output_tokens: Tokens produced by the completion.
+            cost_usd: Estimated cost in USD.
+            started_at: When the agent started execution.
+            completed_at: When the agent finished execution.
+
+        Returns:
+            agent_steps row ID.
+        """
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "application_id": application_id,
+            "agent_number": agent_number,
+            "agent_name": agent_name,
+            "attempt_number": attempt_number,
+            "status": status,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost_usd,
+            "params": params or {},
+        }
+        if pipeline_run_id is not None:
+            data["pipeline_run_id"] = pipeline_run_id
+        if job_id is not None:
+            data["job_id"] = job_id
+        if input_hash is not None:
+            data["input_hash"] = input_hash
+        if output_hash is not None:
+            data["output_hash"] = output_hash
+        if input_data is not None:
+            data["input_data"] = input_data
+        if output_data is not None:
+            data["output_data"] = output_data
+        if model_provider is not None:
+            data["model_provider"] = model_provider
+        if model_name is not None:
+            data["model_name"] = model_name
+        if prompt_name is not None:
+            data["prompt_name"] = prompt_name
+        if prompt_hash is not None:
+            data["prompt_hash"] = prompt_hash
+        if started_at is not None:
+            data["started_at"] = started_at.isoformat()
+        if completed_at is not None:
+            data["completed_at"] = completed_at.isoformat()
+
+        result = self.client.table("agent_steps").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert agent_step")
+        return result.data[0]["id"]
+
+    def save_resume_artifact(
+        self,
+        *,
+        application_id: int,
+        artifact_type: str,
+        content_hash: str,
+        pipeline_run_id: Optional[int] = None,
+        agent_step_id: Optional[int] = None,
+        parent_artifact_id: Optional[int] = None,
+        plain_text: Optional[str] = None,
+        markdown: Optional[str] = None,
+        html: Optional[str] = None,
+        filename: Optional[str] = None,
+        summary_points: Optional[List] = None,
+        is_current: bool = True,
+    ) -> int:
+        """Insert an immutable resume or review artifact.
+
+        If is_current is True, any prior artifacts for the same application_id
+        and artifact_type are marked is_current=False before inserting.
+
+        Args:
+            application_id: FK to applications.id.
+            artifact_type: One of 'optimized_resume','final_review','refinement','export'.
+            content_hash: Hash of the artifact text content.
+            pipeline_run_id: Optional FK to pipeline_runs.id.
+            agent_step_id: Optional FK to agent_steps.id.
+            parent_artifact_id: Optional FK to resume_artifacts.id (for refinements).
+            plain_text: Plain-text representation of the artifact.
+            markdown: Markdown representation.
+            html: HTML representation.
+            filename: Suggested download filename.
+            summary_points: Optional list of summary bullet points.
+            is_current: Mark as the current artifact for this application/type.
+
+        Returns:
+            resume_artifacts row ID.
+        """
+        if is_current:
+            self.client.table("resume_artifacts").update(
+                {"is_current": False}
+            ).eq("application_id", application_id).eq(
+                "artifact_type", artifact_type
+            ).eq("user_id", self.user_id).eq("is_current", True).execute()
+
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "application_id": application_id,
+            "artifact_type": artifact_type,
+            "content_hash": content_hash,
+            "is_current": is_current,
+            "summary_points": summary_points or [],
+        }
+        if pipeline_run_id is not None:
+            data["pipeline_run_id"] = pipeline_run_id
+        if agent_step_id is not None:
+            data["agent_step_id"] = agent_step_id
+        if parent_artifact_id is not None:
+            data["parent_artifact_id"] = parent_artifact_id
+        if plain_text is not None:
+            data["plain_text"] = plain_text
+        if markdown is not None:
+            data["markdown"] = markdown
+        if html is not None:
+            data["html"] = html
+        if filename is not None:
+            data["filename"] = filename
+
+        result = self.client.table("resume_artifacts").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert resume_artifact")
+        return result.data[0]["id"]
+
+    def save_validation_finding(
+        self,
+        *,
+        application_id: int,
+        finding_type: str,
+        agent_step_id: Optional[int] = None,
+        resume_artifact_id: Optional[int] = None,
+        evidence_item_id: Optional[int] = None,
+        claim: Optional[str] = None,
+        verdict: Optional[str] = None,
+        confidence: Optional[float] = None,
+        explanation: Optional[str] = None,
+    ) -> int:
+        """Insert a first-class validation finding.
+
+        Args:
+            application_id: FK to applications.id.
+            finding_type: One of 'red_flag','recommendation','strength',
+                'claim_check','ats_check'.
+            agent_step_id: Optional FK to agent_steps.id.
+            resume_artifact_id: Optional FK to resume_artifacts.id.
+            evidence_item_id: Optional FK to evidence_items.id.
+            claim: The claim or text being validated.
+            verdict: One of 'pass','fail','warning','unknown'.
+            confidence: Confidence score 0–100.
+            explanation: Human-readable explanation of the finding.
+
+        Returns:
+            validation_findings row ID.
+        """
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "application_id": application_id,
+            "finding_type": finding_type,
+        }
+        if agent_step_id is not None:
+            data["agent_step_id"] = agent_step_id
+        if resume_artifact_id is not None:
+            data["resume_artifact_id"] = resume_artifact_id
+        if evidence_item_id is not None:
+            data["evidence_item_id"] = evidence_item_id
+        if claim is not None:
+            data["claim"] = claim
+        if verdict is not None:
+            data["verdict"] = verdict
+        if confidence is not None:
+            data["confidence"] = confidence
+        if explanation is not None:
+            data["explanation"] = explanation
+
+        result = self.client.table("validation_findings").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert validation_finding")
+        return result.data[0]["id"]
+
+    def save_model_invocation(
+        self,
+        *,
+        provider: str,
+        model_name: str,
+        application_id: Optional[int] = None,
+        pipeline_run_id: Optional[int] = None,
+        agent_step_id: Optional[int] = None,
+        prompt_name: Optional[str] = None,
+        prompt_hash: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cost_usd: float = 0.0,
+        pricing_version: Optional[str] = None,
+        latency_ms: Optional[int] = None,
+        status: str = "success",
+        error_message: Optional[str] = None,
+    ) -> int:
+        """Insert a request-level model invocation record.
+
+        Args:
+            provider: Model provider name (e.g. 'gemini', 'openrouter').
+            model_name: Model identifier (e.g. 'gemini-2.5-flash').
+            application_id: Optional FK to applications.id.
+            pipeline_run_id: Optional FK to pipeline_runs.id.
+            agent_step_id: Optional FK to agent_steps.id.
+            prompt_name: Prompt file name.
+            prompt_hash: Hash of the prompt file content.
+            params: Model parameters (temperature, max_tokens, etc.).
+            input_tokens: Tokens consumed by the prompt.
+            output_tokens: Tokens produced by the completion.
+            cost_usd: Estimated cost in USD.
+            pricing_version: Pricing table version used for cost calculation.
+            latency_ms: Round-trip latency in milliseconds.
+            status: One of 'success','error','cancelled'.
+            error_message: Error detail if status is 'error'.
+
+        Returns:
+            model_invocations row ID.
+        """
+        data: Dict[str, Any] = {
+            "user_id": self.user_id,
+            "provider": provider,
+            "model_name": model_name,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost_usd,
+            "status": status,
+            "params": params or {},
+        }
+        if application_id is not None:
+            data["application_id"] = application_id
+        if pipeline_run_id is not None:
+            data["pipeline_run_id"] = pipeline_run_id
+        if agent_step_id is not None:
+            data["agent_step_id"] = agent_step_id
+        if prompt_name is not None:
+            data["prompt_name"] = prompt_name
+        if prompt_hash is not None:
+            data["prompt_hash"] = prompt_hash
+        if pricing_version is not None:
+            data["pricing_version"] = pricing_version
+        if latency_ms is not None:
+            data["latency_ms"] = latency_ms
+        if error_message is not None:
+            data["error_message"] = error_message
+
+        result = self.client.table("model_invocations").insert(data).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to insert model_invocation")
+        return result.data[0]["id"]
+
+    def link_profile_snapshot_to_application(
+        self, snapshot_id: int, application_id: int
+    ) -> None:
+        """Back-fill application_id on a profile_snapshot created before app_id was known.
+
+        Step 0 profile building runs before create_application(), so snapshots are
+        initially written with application_id=None.  Call this once app_id is available.
+        """
+        self.client.table("profile_snapshots").update(
+            {"application_id": application_id}
+        ).eq("id", snapshot_id).eq("user_id", self.user_id).execute()
+
+    def link_evidence_items_to_application(
+        self, evidence_ids: List[int], application_id: int
+    ) -> None:
+        """Back-fill application_id on evidence_items created before app_id was known.
+
+        Mirrors link_profile_snapshot_to_application for evidence rows.
+        Each update is user-scoped (user_id guard) for safety.
+        """
+        for eid in evidence_ids:
+            self.client.table("evidence_items").update(
+                {"application_id": application_id}
+            ).eq("id", eid).eq("user_id", self.user_id).execute()
 
     def close(self):
         """Close database connection (no-op for Supabase)."""
