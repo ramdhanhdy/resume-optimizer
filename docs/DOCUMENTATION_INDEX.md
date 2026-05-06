@@ -120,6 +120,11 @@ docs/
 - Model capabilities and limitations
 - Cost tracking and optimization
 
+#### [Database Schema Review](specs/database/schema_review_2026-05-04.md)
+- Current database schema assessment
+- Source/derived/output separation review
+- LLM provenance, versioning, analytics, and migration recommendations
+
 #### [Text Safeguard Specification](specs/text_safeguard_spec.md)
 - gpt-oss-safeguard-20b integration for text inputs
 - Job posting domain policy and `/api/job-preview`
