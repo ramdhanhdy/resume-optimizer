@@ -277,3 +277,126 @@ def test_write_agent_provenance_returns_none_on_error(capsys):
     captured = capsys.readouterr()
     assert "Provenance write failed" in captured.out
     assert "non-fatal" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# write_final_review_artifact
+# ---------------------------------------------------------------------------
+
+from src.app.services.provenance import write_final_review_artifact
+
+
+_REVIEW_PLAIN = "John Doe\nSenior Engineer\n\nEXPERIENCE\nBuilt scalable systems."
+_REVIEW_MARKDOWN = "# John Doe\n## Senior Engineer\n\n## Experience\nBuilt scalable systems."
+
+
+def test_write_final_review_artifact_returns_int_id():
+    db = make_db()
+    artifact_id = write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+    )
+    assert isinstance(artifact_id, int)
+    assert artifact_id >= 1
+
+
+def test_write_final_review_artifact_inserts_final_review_type():
+    db = make_db()
+    write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+    )
+    insert = db.client.inserts[0]
+    assert insert["table"] == "resume_artifacts"
+    assert insert["payload"]["artifact_type"] == "final_review"
+    assert insert["payload"]["is_current"] is True
+
+
+def test_write_final_review_artifact_computes_content_hash():
+    import hashlib
+    db = make_db()
+    write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+    )
+    expected = hashlib.sha256((_REVIEW_PLAIN + "\n" + _REVIEW_MARKDOWN).encode()).hexdigest()
+    payload = db.client.inserts[0]["payload"]
+    assert payload["content_hash"] == expected
+
+
+def test_write_final_review_artifact_marks_prior_as_not_current():
+    db = make_db()
+    write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+    )
+    assert len(db.client.updates) == 1
+    upd = db.client.updates[0]
+    assert upd["table"] == "resume_artifacts"
+    assert upd["payload"] == {"is_current": False}
+    filter_cols = {f[1] for f in upd["filters"]}
+    assert "application_id" in filter_cols
+    assert "artifact_type" in filter_cols
+
+
+def test_write_final_review_artifact_passes_agent_step_id():
+    db = make_db()
+    write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+        agent_step_id=77,
+    )
+    payload = db.client.inserts[0]["payload"]
+    assert payload["agent_step_id"] == 77
+
+
+def test_write_final_review_artifact_passes_filename_and_summary():
+    db = make_db()
+    write_final_review_artifact(
+        db,
+        app_id=10,
+        plain_text=_REVIEW_PLAIN,
+        markdown=_REVIEW_MARKDOWN,
+        filename="resume.docx",
+        summary_points=["Strong Python skills", "Led 3 teams"],
+    )
+    payload = db.client.inserts[0]["payload"]
+    assert payload["filename"] == "resume.docx"
+    assert payload["summary_points"] == ["Strong Python skills", "Led 3 teams"]
+
+
+def test_write_final_review_artifact_returns_none_for_unsupported_db():
+    result = write_final_review_artifact(
+        _NoProvenanceDb(),
+        app_id=1,
+        plain_text="x",
+        markdown="x",
+    )
+    assert result is None
+
+
+def test_write_final_review_artifact_returns_none_on_error(capsys):
+    class _ArtifactErrorDb:
+        def save_resume_artifact(self, **_kwargs):
+            raise RuntimeError("write failed")
+
+    result = write_final_review_artifact(
+        _ArtifactErrorDb(),
+        app_id=1,
+        plain_text="x",
+        markdown="x",
+    )
+    assert result is None
+    captured = capsys.readouterr()
+    assert "Artifact persistence failed" in captured.out
+    assert "non-fatal" in captured.out

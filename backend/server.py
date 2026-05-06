@@ -48,7 +48,7 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
-from src.app.services.provenance import write_agent_provenance
+from src.app.services.provenance import write_agent_provenance, write_final_review_artifact
 from src.app.services.review_document import build_review_document, serialize_review_payload
 from src.app.services.export import generate_docx_from_plain_text
 from src.services.text_safety_service import check_job_posting
@@ -1118,12 +1118,21 @@ async def polish_resume(request: PolishRequest, http_request: Request):
             optimized_resume_text=final_resume,
             model_used=POLISH_MODEL,
         )
+        _polish_artifact_id = write_final_review_artifact(
+            user_db,
+            app_id=request.application_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+        )
         user_db.save_application_review(
             application_id=request.application_id,
             plain_text=review_document["plain_text"],
             markdown=review_document["markdown"],
             filename=review_document["filename"],
             summary_points=review_document["summary_points"],
+            current_artifact_id=_polish_artifact_id,
         )
         user_db.update_application(request.application_id, status="completed")
         user_db.save_agent_output(
@@ -2392,13 +2401,6 @@ async def run_pipeline_with_streaming(
         )
 
         user_db.update_application(app_id, optimized_resume_text=final_resume)
-        user_db.save_application_review(
-            application_id=app_id,
-            plain_text=review_document["plain_text"],
-            markdown=review_document["markdown"],
-            filename=review_document["filename"],
-            summary_points=review_document["summary_points"],
-        )
         _step_id_5 = write_agent_provenance(
             user_db,
             app_id=app_id, job_id=job_id,
@@ -2407,6 +2409,23 @@ async def run_pipeline_with_streaming(
             input_data={"optimized_resume": optimized_resume, "validation_report": validation_result},
             output_data={"text": polish_result},
             metadata=polish_metadata,
+        )
+        _artifact_id_5 = write_final_review_artifact(
+            user_db,
+            app_id=app_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+            agent_step_id=_step_id_5,
+        )
+        user_db.save_application_review(
+            application_id=app_id,
+            plain_text=review_document["plain_text"],
+            markdown=review_document["markdown"],
+            filename=review_document["filename"],
+            summary_points=review_document["summary_points"],
+            current_artifact_id=_artifact_id_5,
         )
         user_db.save_agent_output(
             application_id=app_id,

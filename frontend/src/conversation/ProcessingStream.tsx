@@ -7,6 +7,7 @@ import { useConversation } from './ConversationContext';
 import { useTypewriter } from './useTypewriter';
 import {
   getApplicationReview,
+  getUserPreferences,
   startPipeline,
   uploadResume,
   MOCK_STREAM,
@@ -99,6 +100,24 @@ export function ProcessingStream() {
 
         const additionalProfileText = additionalProfileParts.join('\n\n');
 
+        // Resolve profile evidence: conversational input takes priority;
+        // saved Settings defaults fill in any gaps.
+        let resolvedLinkedinUrl = state.data.linkedinUrl;
+        let resolvedGithubUsername = state.data.githubUsername;
+        if (!resolvedLinkedinUrl || !resolvedGithubUsername) {
+          try {
+            const prefs = await getUserPreferences();
+            if (!resolvedLinkedinUrl && prefs.preferences?.default_linkedin_url) {
+              resolvedLinkedinUrl = prefs.preferences.default_linkedin_url;
+            }
+            if (!resolvedGithubUsername && prefs.preferences?.default_github_username) {
+              resolvedGithubUsername = prefs.preferences.default_github_username;
+            }
+          } catch {
+            // Non-fatal — proceed without preference defaults.
+          }
+        }
+
         const response = await startPipeline({
           resume_text: resumeText,
           job_text: state.data.jobIsUrl ? undefined : state.data.jobInput,
@@ -106,8 +125,8 @@ export function ProcessingStream() {
           resume_filename: resumeFilename,
           additional_profile_text: additionalProfileText || undefined,
           save_resume: true,
-          linkedin_url: state.data.linkedinUrl,
-          github_username: state.data.githubUsername,
+          linkedin_url: resolvedLinkedinUrl || undefined,
+          github_username: resolvedGithubUsername || undefined,
           force_refresh_profile: state.data.forceRefreshProfile,
         });
         setJobId(response.job_id);

@@ -1,6 +1,7 @@
-"""Pipeline provenance helpers for agent_step and model_invocation writes."""
+"""Pipeline provenance helpers for agent_step, model_invocation, and artifact writes."""
 
-from typing import Any, Dict, Optional, Tuple
+import hashlib
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def parse_model_string(model_str: str) -> Tuple[str, str]:
@@ -92,4 +93,57 @@ def write_agent_provenance(
         return step_id
     except Exception as exc:
         print(f"⚠️ Provenance write failed for {agent_name} (non-fatal): {exc}")
+        return None
+
+
+def write_final_review_artifact(
+    user_db,
+    *,
+    app_id: int,
+    plain_text: str,
+    markdown: str,
+    filename: Optional[str] = None,
+    summary_points: Optional[List[str]] = None,
+    agent_step_id: Optional[int] = None,
+) -> Optional[int]:
+    """Insert a resume_artifacts row with artifact_type='final_review'.
+
+    Marks any prior 'final_review' artifact for the same application as
+    is_current=False before inserting the new row (handled inside
+    save_resume_artifact).
+
+    Always non-fatal: logs a warning on error and returns None.
+    Skipped silently when user_db does not support save_resume_artifact.
+
+    Args:
+        user_db: Database adapter instance.
+        app_id: applications.id FK.
+        plain_text: Normalized plain-text review content.
+        markdown: Markdown representation of the review.
+        filename: Suggested download filename.
+        summary_points: Optional list of summary bullet points.
+        agent_step_id: FK to agent_steps.id for the Polish Agent step.
+
+    Returns:
+        resume_artifacts row ID on success, None on failure or when unsupported.
+    """
+    if not hasattr(user_db, "save_resume_artifact"):
+        return None
+    try:
+        content_hash = hashlib.sha256(
+            ((plain_text or "") + "\n" + (markdown or "")).encode()
+        ).hexdigest()
+        return user_db.save_resume_artifact(
+            application_id=app_id,
+            artifact_type="final_review",
+            content_hash=content_hash,
+            plain_text=plain_text or None,
+            markdown=markdown or None,
+            filename=filename,
+            summary_points=list(summary_points or []),
+            agent_step_id=agent_step_id,
+            is_current=True,
+        )
+    except Exception as exc:
+        print(f"⚠️ Artifact persistence failed for final_review (non-fatal): {exc}")
         return None

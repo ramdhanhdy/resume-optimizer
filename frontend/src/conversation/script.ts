@@ -101,8 +101,27 @@ export const initialScript: ScriptStep[] = [
       const isUrl = /^https?:\/\//i.test(text);
       return {
         patch: { jobInput: text, jobIsUrl: isUrl },
-        nextStepId: 'ask_additional_context_choice',
+        nextStepId: 'ask_profile_evidence',
       };
+    },
+  },
+  {
+    id: 'ask_profile_evidence',
+    phase: 'GATHERING_INFO',
+    message: () =>
+      'Want me to use profile evidence too? Add a LinkedIn URL or GitHub username, or skip.',
+    ui: {
+      kind: 'choices',
+      choices: [{ value: 'skip', label: 'Skip for now' }],
+      allowFreeText: true,
+      placeholder: 'github: username  or  linkedin: https://linkedin.com/in/…',
+    },
+    handle: (input) => {
+      if (input.choiceValue === 'skip' || /^skip$/i.test(input.text.trim())) {
+        return { nextStepId: 'ask_additional_context_choice' };
+      }
+      const patch = parseProfileEvidenceInput(input.text);
+      return { patch, nextStepId: 'ask_additional_context_choice' };
     },
   },
   {
@@ -189,4 +208,26 @@ export const initialScript: ScriptStep[] = [
 export function findStep(id: string | undefined): ScriptStep | undefined {
   if (!id) return undefined;
   return initialScript.find((s) => s.id === id);
+}
+
+/**
+ * Parse a freeform profile-evidence message into CollectedData fields.
+ *
+ * Accepts any combination of:
+ *   linkedin: https://linkedin.com/in/username
+ *   github: username
+ *   (both on the same line or separate lines)
+ *
+ * Exported for unit-testing outside React.
+ */
+export function parseProfileEvidenceInput(text: string): Partial<CollectedData> {
+  const patch: Partial<CollectedData> = {};
+
+  const linkedinMatch = /linkedin:\s*(https?:\/\/\S+)/i.exec(text);
+  if (linkedinMatch) patch.linkedinUrl = linkedinMatch[1].trim();
+
+  const githubMatch = /github:\s*(\S+)/i.exec(text);
+  if (githubMatch) patch.githubUsername = githubMatch[1].trim();
+
+  return patch;
 }

@@ -339,6 +339,7 @@ class SupabaseDatabase:
         markdown: str,
         filename: str,
         summary_points: List[str],
+        current_artifact_id: Optional[int] = None,
     ) -> None:
         """Insert or update the canonical review document for an application."""
         application_check = self.client.table("applications").select("id").eq(
@@ -347,15 +348,18 @@ class SupabaseDatabase:
         if not application_check.data:
             raise ValueError("Application not found or not owned by the current user.")
 
+        upsert_data: Dict[str, Any] = {
+            "application_id": application_id,
+            "user_id": self.user_id,
+            "plain_text": plain_text,
+            "markdown": markdown,
+            "filename": filename,
+            "summary_points": summary_points or [],
+        }
+        if current_artifact_id is not None:
+            upsert_data["current_artifact_id"] = current_artifact_id
         self.client.table("application_reviews").upsert(
-            {
-                "application_id": application_id,
-                "user_id": self.user_id,
-                "plain_text": plain_text,
-                "markdown": markdown,
-                "filename": filename,
-                "summary_points": summary_points or [],
-            },
+            upsert_data,
             on_conflict="application_id",
         ).execute()
 
