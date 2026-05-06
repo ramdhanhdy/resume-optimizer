@@ -48,7 +48,7 @@ from src.services.recovery_service import RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
-from src.app.services.provenance import write_agent_provenance, write_final_review_artifact
+from src.app.services.provenance import write_agent_provenance, write_final_review_artifact, write_validation_findings
 from src.app.services.review_document import build_review_document, serialize_review_payload
 from src.app.services.export import generate_docx_from_plain_text
 from src.services.text_safety_service import check_job_posting
@@ -2268,9 +2268,15 @@ async def run_pipeline_with_streaming(
         await stream_manager.emit(StepProgressEvent.create(job_id, "validating", 100))
         
         # Parse validation scores from the result
-        from src.app.services.validation_parser import extract_validation_artifacts
+        from src.app.services.validation_parser import extract_validation_artifacts, extract_validation_strengths
+        _val_red_flags: list = []
+        _val_recommendations: list = []
+        _val_strengths: list = []
         try:
             parsed_scores, red_flags, recommendations = extract_validation_artifacts(validation_result)
+            _val_red_flags = red_flags
+            _val_recommendations = recommendations
+            _val_strengths = extract_validation_strengths(validation_result)
             
             # Save validation scores to database
             user_db.save_validation_scores(
@@ -2334,6 +2340,14 @@ async def run_pipeline_with_streaming(
             cost=validation_metadata.get("cost", 0.0),
             input_tokens=validation_metadata.get("input_tokens", 0),
             output_tokens=validation_metadata.get("output_tokens", 0),
+            agent_step_id=_step_id_4,
+        )
+        write_validation_findings(
+            user_db,
+            app_id=app_id,
+            red_flags=_val_red_flags,
+            recommendations=_val_recommendations,
+            strengths=_val_strengths,
             agent_step_id=_step_id_4,
         )
 

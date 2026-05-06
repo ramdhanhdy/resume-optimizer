@@ -37,6 +37,15 @@ _RECOMMENDATION_SECTION_KEYWORDS: Sequence[str] = (
     "polish opportunity",
 )
 
+_STRENGTH_SECTION_KEYWORDS: Sequence[str] = (
+    "strength",
+    "strong point",
+    "positive",
+    "what works",
+    "well done",
+    "highlight",
+)
+
 _BULLET_PATTERN = re.compile(r"^\s*(?:[-*•]+|\d+[\.\)])\s*(.+)$")
 _FABRICATION_PATTERN = re.compile(r"\bFABRICATION RISK[:\-]\s*(.+)", re.IGNORECASE)
 
@@ -221,6 +230,15 @@ def _extract_recommendations(text: str) -> List[str]:
     )
     extracted = [match[0].strip() for match in fallback_matches]
     return _dedupe_preserve_order(extracted)
+
+
+def _extract_strengths(text: str) -> List[str]:
+    return _extract_section_items(text, _STRENGTH_SECTION_KEYWORDS)
+
+
+def extract_validation_strengths(text: str) -> List[str]:
+    """Extract strength/positive items from validator output text."""
+    return _extract_strengths(text)
 
 
 def extract_validation_artifacts(

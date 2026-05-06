@@ -147,3 +147,72 @@ def write_final_review_artifact(
     except Exception as exc:
         print(f"⚠️ Artifact persistence failed for final_review (non-fatal): {exc}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# Validation findings
+# ---------------------------------------------------------------------------
+
+_FINDING_VERDICT: Dict[str, str] = {
+    "red_flag": "fail",
+    "recommendation": "warning",
+    "strength": "pass",
+}
+
+
+def write_validation_findings(
+    user_db,
+    *,
+    app_id: int,
+    red_flags: Optional[List[str]] = None,
+    recommendations: Optional[List[str]] = None,
+    strengths: Optional[List[str]] = None,
+    agent_step_id: Optional[int] = None,
+    resume_artifact_id: Optional[int] = None,
+) -> int:
+    """Persist validation finding rows for a completed validator step.
+
+    One row is written per item in red_flags, recommendations, and strengths.
+    Each write is individually non-fatal: a failure for one item is logged but
+    does not abort the remaining items or the wider pipeline.
+
+    Silently returns 0 when user_db does not support save_validation_finding.
+
+    Args:
+        user_db: Database adapter instance.
+        app_id: applications.id FK.
+        red_flags: List of red-flag descriptions.
+        recommendations: List of recommendation descriptions.
+        strengths: List of strength descriptions.
+        agent_step_id: FK to the validator agent_steps row.
+        resume_artifact_id: FK to a resume_artifacts row (optional).
+
+    Returns:
+        Total count of successfully persisted findings.
+    """
+    if not hasattr(user_db, "save_validation_finding"):
+        return 0
+
+    findings: List[Tuple[str, str]] = [
+        *[("red_flag", item) for item in (red_flags or [])],
+        *[("recommendation", item) for item in (recommendations or [])],
+        *[("strength", item) for item in (strengths or [])],
+    ]
+
+    count = 0
+    for finding_type, claim in findings:
+        if not claim or not claim.strip():
+            continue
+        try:
+            user_db.save_validation_finding(
+                application_id=app_id,
+                finding_type=finding_type,
+                claim=claim.strip(),
+                verdict=_FINDING_VERDICT.get(finding_type, "unknown"),
+                agent_step_id=agent_step_id,
+                resume_artifact_id=resume_artifact_id,
+            )
+            count += 1
+        except Exception as exc:
+            print(f"⚠️ Validation finding persistence failed ({finding_type}, non-fatal): {exc}")
+    return count

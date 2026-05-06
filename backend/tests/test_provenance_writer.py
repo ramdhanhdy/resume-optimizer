@@ -1,4 +1,4 @@
-"""Unit tests for src/app/services/provenance.py (write_agent_provenance, parse_model_string)."""
+"""Unit tests for src/app/services/provenance.py."""
 
 from pathlib import Path
 import sys
@@ -399,4 +399,134 @@ def test_write_final_review_artifact_returns_none_on_error(capsys):
     assert result is None
     captured = capsys.readouterr()
     assert "Artifact persistence failed" in captured.out
+    assert "non-fatal" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# write_validation_findings
+# ---------------------------------------------------------------------------
+
+from src.app.services.provenance import write_validation_findings
+
+
+def test_write_validation_findings_persists_red_flags():
+    db = make_db()
+    count = write_validation_findings(
+        db,
+        app_id=5,
+        red_flags=["Claimed AWS certification not verifiable"],
+    )
+    assert count == 1
+    ins = db.client.inserts[0]
+    assert ins["table"] == "validation_findings"
+    assert ins["payload"]["finding_type"] == "red_flag"
+    assert ins["payload"]["claim"] == "Claimed AWS certification not verifiable"
+    assert ins["payload"]["verdict"] == "fail"
+
+
+def test_write_validation_findings_persists_recommendations():
+    db = make_db()
+    count = write_validation_findings(
+        db,
+        app_id=5,
+        recommendations=["Add quantified impact for each bullet"],
+    )
+    assert count == 1
+    payload = db.client.inserts[0]["payload"]
+    assert payload["finding_type"] == "recommendation"
+    assert payload["verdict"] == "warning"
+    assert payload["claim"] == "Add quantified impact for each bullet"
+
+
+def test_write_validation_findings_persists_strengths():
+    db = make_db()
+    count = write_validation_findings(
+        db,
+        app_id=5,
+        strengths=["Strong Python skills demonstrated with measurable outcomes"],
+    )
+    assert count == 1
+    payload = db.client.inserts[0]["payload"]
+    assert payload["finding_type"] == "strength"
+    assert payload["verdict"] == "pass"
+
+
+def test_write_validation_findings_all_types_combined():
+    db = make_db()
+    count = write_validation_findings(
+        db,
+        app_id=5,
+        red_flags=["Flag A"],
+        recommendations=["Rec A", "Rec B"],
+        strengths=["Strength A"],
+    )
+    assert count == 4
+    assert len(db.client.inserts) == 4
+    types = [ins["payload"]["finding_type"] for ins in db.client.inserts]
+    assert types.count("red_flag") == 1
+    assert types.count("recommendation") == 2
+    assert types.count("strength") == 1
+
+
+def test_write_validation_findings_links_agent_step_id():
+    db = make_db()
+    write_validation_findings(
+        db,
+        app_id=5,
+        red_flags=["Flag"],
+        agent_step_id=42,
+    )
+    assert db.client.inserts[0]["payload"]["agent_step_id"] == 42
+
+
+def test_write_validation_findings_omits_agent_step_id_when_none():
+    db = make_db()
+    write_validation_findings(db, app_id=5, red_flags=["Flag"])
+    assert "agent_step_id" not in db.client.inserts[0]["payload"]
+
+
+def test_write_validation_findings_empty_lists_safe():
+    db = make_db()
+    count = write_validation_findings(db, app_id=5)
+    assert count == 0
+    assert db.client.inserts == []
+
+
+def test_write_validation_findings_skips_blank_items():
+    db = make_db()
+    count = write_validation_findings(
+        db,
+        app_id=5,
+        red_flags=["", "  ", "Real flag"],
+    )
+    assert count == 1
+    assert db.client.inserts[0]["payload"]["claim"] == "Real flag"
+
+
+def test_write_validation_findings_returns_zero_for_unsupported_db():
+    count = write_validation_findings(
+        _NoProvenanceDb(),
+        app_id=1,
+        red_flags=["Flag"],
+    )
+    assert count == 0
+
+
+def test_write_validation_findings_non_fatal_on_single_error(capsys):
+    class _PartialErrorDb:
+        _call = 0
+
+        def save_validation_finding(self, **_kwargs):
+            self._call += 1
+            if self._call == 1:
+                raise RuntimeError("db gone")
+            return 1
+
+    count = write_validation_findings(
+        _PartialErrorDb(),
+        app_id=1,
+        red_flags=["Flag A", "Flag B"],
+    )
+    assert count == 1
+    captured = capsys.readouterr()
     assert "non-fatal" in captured.out
