@@ -2,6 +2,18 @@
 
 A full-stack AI-powered resume optimization application that uses a deterministic sequential multi-agent system to analyze job requirements and tailor resumes with ethical accuracy while maintaining professional authenticity.
 
+Resume Optimizer is an evidence-aware multi-agent AI pipeline for tailoring resumes to job opportunities, with provenance tracking for evidence, agent steps, model invocations, generated artifacts, and validation findings.
+
+**Read the technical case study:** [docs/case-study/resume-optimizer.md](./docs/case-study/resume-optimizer.md)
+
+## What makes it different
+
+- **Evidence-aware profile inputs:** Resume, additional context, LinkedIn, and GitHub.
+- **Multi-agent tailoring and validation pipeline:** Sequential agents analyze, optimize, implement, validate, and polish each resume.
+- **Provenance records for agent steps and model calls:** Additive records improve auditability without replacing existing UI/API behavior.
+- **Versioned final resume artifacts:** Generated review/resume artifacts can be preserved with content hashes.
+- **Queryable validation findings:** Red flags, recommendations, and strengths are stored to help reduce unsupported claims.
+
 ## 🤖 Agent System Architecture
 
 ### Sequential Multi-Agent Pipeline
