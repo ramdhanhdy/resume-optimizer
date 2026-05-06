@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Plus } from 'lucide-react';
 import { ConversationProvider, useConversation } from '@/conversation/ConversationContext';
 import { ConversationFeed } from '@/conversation/ConversationFeed';
 import { Composer } from '@/conversation/Composer';
@@ -49,7 +50,7 @@ export function AppShell() {
 function ShellChrome() {
   // Phase drives layout variations. Phases 1/2 keep a single centered column;
   // Phase 5 (REVIEWING) will split to feed-left / stage-right.
-  const { state } = useConversation();
+  const { state, reset } = useConversation();
   const { user, bypassMode } = useAuth();
   const isReviewing = state.phase === 'REVIEWING';
 
@@ -59,11 +60,27 @@ function ShellChrome() {
     <div className={cn('shell-gradient relative w-full overflow-hidden text-ink-900', isReviewing ? 'h-dvh' : 'min-h-dvh')}>
       {/* Top chrome: profile (right) + subtle brand star (center) */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4 sm:p-6">
-        <div className="w-24 sm:w-28">
-          {MOCK_STREAM && (
-            <span className="glass rounded-full px-2.5 py-1 text-[12px] font-medium text-ink-500 ring-1 ring-white/70">
-              Demo mode
-            </span>
+        <div className={cn('flex items-center', isReviewing ? 'w-auto' : 'w-24 sm:w-28')}>
+          {isReviewing ? (
+            <button
+              type="button"
+              onClick={reset}
+              className={cn(
+                'pointer-events-auto glass rounded-full px-2.5 py-1 text-[13px] text-ink-600',
+                'flex items-center gap-1.5 ring-1 ring-white/70 transition',
+                'hover:bg-white/70 hover:text-ink-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70',
+              )}
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
+              <span className="hidden sm:inline whitespace-nowrap">Tailor another resume</span>
+              <span className="sm:hidden">Start fresh</span>
+            </button>
+          ) : (
+            MOCK_STREAM && (
+              <span className="glass rounded-full px-2.5 py-1 text-[12px] font-medium text-ink-500 ring-1 ring-white/70">
+                Demo mode
+              </span>
+            )
           )}
         </div>
         <div className="pointer-events-none">
