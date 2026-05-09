@@ -166,7 +166,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - **backend/** – FastAPI server, agents, streaming, database, and deployment config.
 - **frontend/** – React/Vite app, design system, UI components, and API client.
 - **docs/** – Canonical documentation only: setup, API reference, user guide, architecture, provenance/product notes, and troubleshooting.
-- **AGENTS.md** – High-level agent development and architecture guide.
+- **docs/architecture/** – Agent and pipeline architecture notes.
 - **DEPLOYMENT.md** – Deployment guide and notes.
 - **start.sh / start.bat** – Convenience scripts for running backend and frontend together.
 
@@ -182,7 +182,7 @@ For navigation, start with **[Documentation Index](./docs/DOCUMENTATION_INDEX.md
 - [API Reference](./docs/API_REFERENCE.md) - Complete API documentation
 - [Development Guide](./docs/DEVELOPMENT.md) - Development workflows and tools
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Agent Development Guide](./AGENTS.md) - Complete project overview for AI agents
+- [Agent Architecture](./docs/architecture/AGENTS_DESIGN_PATTERN.md) - Multi-agent pipeline architecture
 - [Product Positioning](./docs/specs/product_positioning_2026-05-05.md) - Current product direction
 
 ### Development Roadmap 

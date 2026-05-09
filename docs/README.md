@@ -9,6 +9,7 @@ This directory is intentionally small. Documentation should help future work, no
 - [`API_REFERENCE.md`](API_REFERENCE.md) — API endpoints and payloads.
 - [`USER_GUIDE.md`](USER_GUIDE.md) — user-facing product flow.
 - [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — current known operational/debugging issues.
+- [`deployment_railway_runbook_2026-05-09.md`](deployment_railway_runbook_2026-05-09.md) — Railway-first deployment runbook for the next production launch.
 - [`architecture/AGENTS_DESIGN_PATTERN.md`](architecture/AGENTS_DESIGN_PATTERN.md) — current multi-agent pipeline architecture.
 - [`specs/database/minimum_viable_provenance_plan.md`](specs/database/minimum_viable_provenance_plan.md) — durable provenance design decision and implementation plan.
 - [`specs/product_positioning_2026-05-05.md`](specs/product_positioning_2026-05-05.md) — product positioning notes.

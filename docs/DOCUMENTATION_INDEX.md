@@ -24,6 +24,7 @@ This index lists the canonical documentation set after pruning agent-generated p
 ## Operations
 
 - [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — current debugging and recovery notes.
+- [`deployment_railway_runbook_2026-05-09.md`](deployment_railway_runbook_2026-05-09.md) — Railway-first deployment runbook for the next production launch.
 
 ## What was removed
 

@@ -2,6 +2,8 @@
 
 This document describes the **current deployment architecture** for Resume Optimizer. It is now the canonical deployment note after pruning older duplicate deployment specs.
 
+For the current next-week launch plan, see `docs/deployment_railway_runbook_2026-05-09.md`.
+
 ---
 
 ## 1. Current Production Architecture
