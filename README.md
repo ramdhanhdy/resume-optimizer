@@ -165,12 +165,12 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 
 - **backend/** – FastAPI server, agents, streaming, database, and deployment config.
 - **frontend/** – React/Vite app, design system, UI components, and API client.
-- **docs/** – Documentation (setup, API reference, specs, architecture, troubleshooting).
+- **docs/** – Canonical documentation only: setup, API reference, user guide, architecture, provenance/product notes, and troubleshooting.
 - **AGENTS.md** – High-level agent development and architecture guide.
 - **DEPLOYMENT.md** – Deployment guide and notes.
 - **start.sh / start.bat** – Convenience scripts for running backend and frontend together.
 
-For a detailed tree and file-level description, see **[Project Structure](./docs/PROJECT_STRUCTURE.md)**.
+For navigation, start with **[Documentation Index](./docs/DOCUMENTATION_INDEX.md)**.
 
 ## Documentation
 
@@ -182,9 +182,8 @@ For a detailed tree and file-level description, see **[Project Structure](./docs
 - [API Reference](./docs/API_REFERENCE.md) - Complete API documentation
 - [Development Guide](./docs/DEVELOPMENT.md) - Development workflows and tools
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system documentation
 - [Agent Development Guide](./AGENTS.md) - Complete project overview for AI agents
-- [Development Roadmap](./docs/development_roadmap.md) - High-level upcoming features and integrations
+- [Product Positioning](./docs/specs/product_positioning_2026-05-05.md) - Current product direction
 
 ### Development Roadmap 
 
@@ -195,7 +194,7 @@ Planned directions for the product include:
 - **Canva MCP integration (planned)** to open optimized resumes in Canva for visual editing once the MCP stabilizes.
 - **Security & access hardening** around Cloud Run + Vercel OIDC, CORS, and API surface.
 
-See [Development Roadmap](./docs/development_roadmap.md) for more detailed information.
+See [Product Positioning](./docs/specs/product_positioning_2026-05-05.md) and the [Minimum Viable Provenance Plan](./docs/specs/database/minimum_viable_provenance_plan.md) for the current product-quality direction.
 
 ## Quick Start
 
@@ -220,9 +219,10 @@ cp .env.example .env
 **Frontend:**
 ```bash
 cd frontend
-npm ci
 cp .env.example .env.local
 ```
+
+Use the existing Windows-built `node_modules` for local development. Do not reinstall frontend packages unless you are intentionally refreshing dependencies.
 
 ### Running the Application
 

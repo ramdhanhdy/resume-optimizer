@@ -63,11 +63,11 @@ The current revamp changed two major product/architecture assumptions:
 
 Supabase is already configured, but recent schema review found that the current database model has important design issues for an auditable AI pipeline product.
 
-Relevant schema critique:
+Canonical schema/provenance follow-up:
 
-- `docs/specs/database/schema_review_2026-05-04.md`
-- `docs/designing_optimal_schema.md`
-- `docs/revamp_readme.md`
+- `docs/specs/database/minimum_viable_provenance_plan.md`
+
+Older schema-review and README-revamp notes were removed during documentation pruning so this repo has one durable provenance handoff instead of several overlapping agent drafts.
 
 ## PM diagnosis
 

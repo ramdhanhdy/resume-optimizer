@@ -421,8 +421,7 @@ applyBrandConfig(); // Called on app startup
 
 ### Documentation
 
-- **Design System Guide**: [`frontend/DESIGN_SYSTEM.md`](./frontend/DESIGN_SYSTEM.md)
-- **Component Docs**: [`frontend/src/design-system/docs/README.md`](./frontend/src/design-system/docs/README.md)
+- **Local frontend reference**: use the current source under `../frontend/src/` as canonical; older generated design-system docs were removed during docs pruning.
 - **shadcn/ui Docs**: https://ui.shadcn.com/
 
 ## Continuous Integration
@@ -509,8 +508,7 @@ repos:
 
 ## Further Reading
 
-- [Agent Development Guide](./AGENTS.md) - Complete agent architecture
-- [Design System Guide](./frontend/DESIGN_SYSTEM.md) - Frontend design system
-- [Setup Guide](./docs/setup/SETUP.md) - Initial setup instructions
-- [API Reference](./docs/API_REFERENCE.md) - API documentation
-- [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Agent architecture](architecture/AGENTS_DESIGN_PATTERN.md) - Multi-agent pipeline architecture
+- [Setup Guide](SETUP.md) - Initial setup instructions
+- [API Reference](API_REFERENCE.md) - API documentation
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions

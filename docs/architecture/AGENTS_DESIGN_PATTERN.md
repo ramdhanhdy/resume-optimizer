@@ -71,4 +71,4 @@ Not currently used: Parallel, Coordinator/Hierarchical, Loop/Iterative refinemen
 
 ---
 
-**Related:** [Integration Summary](../integrations/INTEGRATION_SUMMARY.md)
+**Related:** [API Reference](../API_REFERENCE.md), [Minimum Viable Provenance Plan](../specs/database/minimum_viable_provenance_plan.md)

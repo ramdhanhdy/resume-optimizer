@@ -1,7 +1,6 @@
 # Deployment 
 
-This document describes the **current deployment architecture** for Resume Optimizer and
-points to the detailed deployment specifications under `docs/specs/deployment/`.
+This document describes the **current deployment architecture** for Resume Optimizer. It is now the canonical deployment note after pruning older duplicate deployment specs.
 
 ---
 
@@ -93,24 +92,11 @@ the backend and send it in a header or secure cookie when opening the SSE connec
 
 ---
 
-## 4. Detailed Deployment Specifications
+## 4. Deployment documentation policy
 
-All step-by-step commands, alternative hosting options, and cost comparisons live under
-`docs/specs/deployment/`:
+Older duplicate deployment specs were removed during documentation pruning. Keep deployment guidance in this file unless a new doc has a clear long-term owner and is actively maintained.
 
-- `docs/specs/deployment/README.md` – overview of deployment options and recommendations.
-- `docs/specs/deployment/quick_deployment_guide.md` – fast path to production
-  (e.g. Vercel + Railway).
-- `docs/specs/deployment/backend_cloudrun_deployment_guide.md` – Cloud Run backend
-  deployment details (legacy).
-- `docs/specs/deployment/vercel_deployment_specification.md` – Vercel-specific
-  considerations.
-- `docs/specs/supabase_auth_and_metering_spec.md` – Supabase auth, database, and
-  metering specification.
-- `docs/specs/database/supabase_schema_v2.md` – Full PostgreSQL schema documentation.
-
-Consult those documents when you need concrete commands or when changing the deployment
-topology.
+For schema/provenance direction, see `docs/specs/database/minimum_viable_provenance_plan.md`.
 
 ---
 

@@ -8,9 +8,8 @@
 **Related docs:**
 
 - `docs/specs/product_positioning_2026-05-05.md`
-- `docs/specs/database/schema_review_2026-05-04.md`
-- `docs/designing_optimal_schema.md`
-- `docs/revamp_readme.md`
+
+Older schema-review and README-revamp notes were removed during documentation pruning. This plan is the canonical durable schema/provenance handoff.
 
 ## Goal
 
