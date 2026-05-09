@@ -19,7 +19,7 @@ import type { AgentUI } from './types';
  * stays stable.
  */
 export function Composer() {
-  const { state, activeAgent, submit, refine } = useConversation();
+  const { state, activeAgent, submit, refine, reset } = useConversation();
   const [value, setValue] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -123,7 +123,7 @@ export function Composer() {
               transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}
               className="flex w-full flex-col items-start gap-3"
             >
-              <ReviewActions review={state.data.review} />
+              <ReviewActions review={state.data.review} onReset={reset} />
               {state.refineError && (
                 <p className="text-[13px] text-red-500">{state.refineError}</p>
               )}

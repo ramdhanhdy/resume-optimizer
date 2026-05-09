@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Download, Sparkles } from 'lucide-react';
+import { Download, Plus, Sparkles } from 'lucide-react';
 import { useCallback } from 'react';
 import type { ApplicationReview } from '@/types/review';
 import { fetchAuthenticatedBlob } from '@/lib/api';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 
 interface ReviewActionsProps {
   review?: ApplicationReview;
+  onReset?: () => void;
 }
 
 /**
@@ -17,7 +18,7 @@ interface ReviewActionsProps {
  *
  *   [ ⬇ Download .docx ]    ← primary, sky-glow
  */
-export function ReviewActions({ review }: ReviewActionsProps) {
+export function ReviewActions({ review, onReset }: ReviewActionsProps) {
   const downloadPlainText = useCallback((reviewPayload: ApplicationReview) => {
     const blob = new Blob([reviewPayload.resume.plain_text], {
       type: 'text/plain;charset=utf-8',
@@ -65,8 +66,14 @@ export function ReviewActions({ review }: ReviewActionsProps) {
       >
         <PrimaryPill onClick={handleDownload} disabled={!review}>
           <Download className="h-4 w-4" strokeWidth={2} />
-          <span>Download {review?.resume.filename?.split('.').pop() ?? 'docx'}</span>
+          <span className="truncate max-w-[18ch]">Download {review?.resume.filename?.split('.').pop() ?? 'docx'}</span>
         </PrimaryPill>
+        {onReset && (
+          <GhostPill onClick={onReset}>
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <span>Tailor another</span>
+          </GhostPill>
+        )}
       </motion.div>
     </div>
   );
@@ -106,6 +113,31 @@ function PrimaryPill({
         strokeWidth={2.25}
         aria-hidden="true"
       />
+      {children}
+    </motion.button>
+  );
+}
+
+function GhostPill({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.97 }}
+      className={cn(
+        'relative inline-flex items-center gap-2 rounded-full px-4 py-2',
+        'text-[14px] font-medium text-ink-600',
+        'bg-white/70 ring-1 ring-ink-200/70 transition',
+        'hover:bg-white hover:text-ink-800',
+      )}
+    >
       {children}
     </motion.button>
   );

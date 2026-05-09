@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
 import { ConversationProvider, useConversation } from '@/conversation/ConversationContext';
 import { ConversationFeed } from '@/conversation/ConversationFeed';
 import { Composer } from '@/conversation/Composer';
@@ -10,6 +9,7 @@ import { AuthGateBridge } from '@/auth/AuthGateBridge';
 import { ProfileMenu } from './ProfileMenu';
 import { GeminiStar } from './GeminiStar';
 import { ResumeStage } from './ResumeStage';
+import { ReviewMobileTabs } from './ReviewMobileTabs';
 import { HistoryDrawer } from './drawers/HistoryDrawer';
 import { PreferencesDrawer } from './drawers/PreferencesDrawer';
 import { MOCK_STREAM } from '@/lib/api';
@@ -50,7 +50,7 @@ export function AppShell() {
 function ShellChrome() {
   // Phase drives layout variations. Phases 1/2 keep a single centered column;
   // Phase 5 (REVIEWING) will split to feed-left / stage-right.
-  const { state, reset } = useConversation();
+  const { state } = useConversation();
   const { user, bypassMode } = useAuth();
   const isReviewing = state.phase === 'REVIEWING';
 
@@ -61,26 +61,10 @@ function ShellChrome() {
       {/* Top chrome: profile (right) + subtle brand star (center) */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4 sm:p-6">
         <div className={cn('flex items-center', isReviewing ? 'w-auto' : 'w-24 sm:w-28')}>
-          {isReviewing ? (
-            <button
-              type="button"
-              onClick={reset}
-              className={cn(
-                'pointer-events-auto glass rounded-full px-2.5 py-1 text-[13px] text-ink-600',
-                'flex items-center gap-1.5 ring-1 ring-white/70 transition',
-                'hover:bg-white/70 hover:text-ink-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70',
-              )}
-            >
-              <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-              <span className="hidden sm:inline whitespace-nowrap">Tailor another resume</span>
-              <span className="sm:hidden">Start fresh</span>
-            </button>
-          ) : (
-            MOCK_STREAM && (
-              <span className="glass rounded-full px-2.5 py-1 text-[12px] font-medium text-ink-500 ring-1 ring-white/70">
-                Demo mode
-              </span>
-            )
+          {!isReviewing && MOCK_STREAM && (
+            <span className="glass rounded-full px-2.5 py-1 text-[12px] font-medium text-ink-500 ring-1 ring-white/70">
+              Demo mode
+            </span>
           )}
         </div>
         <div className="pointer-events-none">
@@ -157,20 +141,46 @@ function ShellChrome() {
             className={cn(
               'flex w-full flex-1',
               isReviewing
-                ? 'min-h-0 items-start justify-start overflow-y-auto pb-6'
+                ? 'hidden lg:flex min-h-0 items-start justify-start overflow-y-auto pb-6'
                 : 'items-center justify-center',
             )}
           >
             <ConversationFeed />
           </div>
 
-          {/* In-column composer — only mounts in reviewing mode. */}
+          {/* Mobile reviewing: tabbed layout replaces the stacked column. */}
+          {isReviewing && (
+            <div className="lg:hidden flex h-full flex-col overflow-hidden">
+              <ReviewMobileTabs
+                summaryPanel={
+                  <>
+                    <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                      <ConversationFeed />
+                    </div>
+                    <div className="shrink-0 pb-2 pt-2">
+                      <Composer />
+                    </div>
+                  </>
+                }
+                previewPanel={
+                  state.data.review ? (
+                    <ResumeStage
+                      resume={state.data.review.resume}
+                      refining={state.refining}
+                    />
+                  ) : null
+                }
+              />
+            </div>
+          )}
+
+          {/* Desktop reviewing composer */}
           {isReviewing && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.55, ease: [0.2, 0.7, 0.2, 1] }}
-              className="shrink-0 z-20 w-full pb-4 pt-2"
+              className="hidden lg:block shrink-0 z-20 w-full pb-4 pt-2"
             >
               <Composer />
             </motion.div>
@@ -186,7 +196,7 @@ function ShellChrome() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4 }}
-              className="relative flex h-full flex-col overflow-hidden pt-28 sm:pt-36"
+              className="hidden lg:flex relative h-full flex-col overflow-hidden pt-28 sm:pt-36"
             >
               <ResumeStage
                 resume={state.data.review.resume}

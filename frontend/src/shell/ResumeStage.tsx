@@ -25,7 +25,7 @@ export function ResumeStage({ resume, refining }: ResumeStageProps) {
       initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{ duration: 0.7, delay: 0.2, ease: [0.2, 0.7, 0.2, 1] }}
-      className="relative flex-1 min-h-0 overflow-y-auto px-4 pb-16 sm:px-8"
+      className="relative flex-1 min-h-0 overflow-y-auto px-3 pb-8 sm:px-8 sm:pb-16"
       aria-label="Optimized resume preview"
       aria-busy={refining ? 'true' : undefined}
     >
@@ -71,7 +71,7 @@ export function ResumeStage({ resume, refining }: ResumeStageProps) {
           }}
         />
 
-        <div className="relative px-10 py-12">
+        <div className="relative px-5 py-8 sm:px-10 sm:py-12">
           <pre
             className={cn(
               'whitespace-pre-wrap break-words font-serif text-[13.5px] leading-[1.65] text-ink-800',
