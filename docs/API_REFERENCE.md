@@ -553,7 +553,8 @@ Simple health check endpoint.
 ```json
 {
   "status": "healthy",
-  "timestamp": 1234567890
+  "timestamp": 1234567890,
+  "database": "supabase"
 }
 ```
 

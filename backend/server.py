@@ -519,6 +519,16 @@ async def root():
     return {"message": "Resume Optimizer API", "version": "1.0.0"}
 
 
+@app.get("/api/health")
+async def health_check():
+    """Lightweight healthcheck for deployment readiness probes."""
+    return {
+        "status": "healthy",
+        "timestamp": int(time.time()),
+        "database": "supabase" if USE_SUPABASE_DB else "sqlite",
+    }
+
+
 @app.post("/api/upload-resume")
 async def upload_resume(file: UploadFile = File(...)):
     """Handle resume file upload with PDF extraction via Gemini."""
@@ -2682,4 +2692,8 @@ async def stream_job_events(job_id: str, request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+    )
