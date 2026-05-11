@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import logging
 
-from ..database.db import ApplicationDatabase
+from ..middleware.auth import get_user_id_from_request
 from ..services.recovery_service import RecoveryService
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,14 @@ class RetryRequest(BaseModel):
     """Retry request payload."""
     sessionId: str
     formData: Optional[Dict[str, Any]] = None
+
+
+def _get_recovery_service(request: Request) -> RecoveryService:
+    service_getter = getattr(request.app.state, "get_recovery_service_for_user", None)
+    if service_getter:
+        user_id = get_user_id_from_request(request)
+        return service_getter(user_id)
+    return request.app.state.recovery_service
 
 
 @router.post("/optimize-retry")
@@ -34,9 +42,7 @@ async def optimize_retry(
         Recovery response with application ID
     """
     try:
-        # Get database and recovery service from app state
-        db: ApplicationDatabase = request.app.state.db
-        recovery_service = RecoveryService(db)
+        recovery_service = _get_recovery_service(request)
 
         session_id = retry_request.sessionId
 
@@ -105,8 +111,7 @@ async def get_recovery_session(
         Recovery session data
     """
     try:
-        db: ApplicationDatabase = request.app.state.db
-        recovery_service = RecoveryService(db)
+        recovery_service = _get_recovery_service(request)
 
         session = recovery_service.get_session(session_id)
 
@@ -153,11 +158,10 @@ async def delete_recovery_session(
         Success message
     """
     try:
-        db: ApplicationDatabase = request.app.state.db
-        recovery_service = RecoveryService(db)
+        recovery_service = _get_recovery_service(request)
 
         # Delete session
-        db.update_recovery_session(
+        recovery_service.update_session_status(
             session_id=session_id,
             status='deleted'
         )

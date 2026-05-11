@@ -1,1 +1,1 @@
-web: uvicorn server:app --host 0.0.0.0 --port $PORT
+web: sh -c 'if [ -f server.py ]; then exec uvicorn server:app --host 0.0.0.0 --port $PORT; else cd backend && exec uvicorn server:app --host 0.0.0.0 --port $PORT; fi'

@@ -76,7 +76,7 @@ backend/
 │   ├── agents/           # AI agent implementations
 │   ├── api/              # Multi-provider LLM clients
 │   ├── app/              # FastAPI application
-│   ├── database/         # SQLite database layer
+│   ├── database/         # Supabase adapter plus local SQLite fallback
 │   ├── middleware/       # Error handling middleware
 │   ├── routes/           # API route definitions
 │   ├── services/         # Core business logic
@@ -86,7 +86,7 @@ backend/
 ├── prompts/              # Agent prompt files
 ├── .env.example          # Environment template
 ├── server.py             # Application entry point
-└── Procfile              # Cloud Run process definition
+└── Procfile              # Web process definition
 ```
 
 ### Key Development Patterns
@@ -103,7 +103,8 @@ backend/
 - Include metadata for cost tracking and monitoring
 
 **Database Operations:**
-- Use `db.py` for database connections
+- Use Supabase/PostgreSQL for production database behavior
+- Keep SQLite in `db.py` as an explicit local fallback only
 - Implement migrations in `database/migrations/`
 - Follow existing schema patterns for new tables
 
@@ -131,7 +132,13 @@ VALIDATOR_MODEL=gemini::gemini-2.5-pro
 POLISH_MODEL=openrouter::anthropic/claude-sonnet-4.5
 
 # Database
-DATABASE_PATH=./data/applications.db
+USE_SUPABASE_DB=true
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SECRET_KEY=<server-side-secret-key>
+
+# Local SQLite debugging only:
+# USE_SUPABASE_DB=false
+# DATABASE_PATH=./data/applications.db
 
 # CORS
 CORS_ORIGINS=*  # Restrict in production

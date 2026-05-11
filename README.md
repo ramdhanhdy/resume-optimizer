@@ -36,7 +36,7 @@ Profile Agent (Optional) → Agent 1 → Agent 2 → Agent 3 → Agent 4 → Age
 ### Real-Time Insight Extraction
 
 The system includes a parallel insight extraction pipeline that provides real-time streaming updates:
-- **Event Persistence**: All agent events are stored in SQLite for replay and recovery
+- **Event Persistence**: Agent events are stored in memory for live replay and mirrored to Supabase for authenticated production runs
 - **Reconnection Support**: Clients can reconnect and resume from the last known event
 - **Parallel Processing**: Insight extraction runs asynchronously alongside agent execution
 - **Chunk Streaming**: Agent outputs are streamed in real-time with configurable throttling
@@ -111,7 +111,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 
 ### Real-Time Streaming & Event System
 - 🔄 **Live Streaming**: Real-time progress updates via Server-Sent Events (SSE)
-- 💾 **Event Persistence**: All agent events stored in SQLite for replay and recovery
+- 💾 **Event Persistence**: Agent events are stored in memory for live replay and mirrored to Supabase for authenticated production runs
 - 🔄 **Reconnection Support**: Clients can reconnect and resume from the last known event
 - 💡 **Parallel Insight Extraction**: Real-time chunk-by-chunk streaming with dedicated insight model
 - 📈 **Stream History**: Configurable event history for debugging and monitoring
@@ -136,7 +136,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - 👥 **Rate Limiting**: Built-in free tier management (default 5 runs per client) with abuse prevention; see **Rate Limiting & DEV Mode** below for configuration details.
 
 ### Demo Deployment Features
-- ☁️ **Cloud-Native**: Deployed on Cloud Run (backend) and Vercel (frontend)
+- ☁️ **Cloud-Native**: Railway backend target with Vercel frontend
 - 🔐 **Secret Management**: Secure API key handling via Secret Manager
 - 🛡️ **Error Recovery**: Distributed systems hardening with state persistence
 - 📊 **Monitoring**: Comprehensive logging and event tracking
@@ -145,7 +145,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 
 ### Backend
 - **Python 3.11+** with FastAPI
-- **Database**: SQLite with automatic schema migrations (ephemeral in Cloud Run)
+- **Database**: Supabase PostgreSQL in production; SQLite is an explicit local-only fallback
 - **LLM Orchestration**: Multi-provider model registry with capability-based routing
 - **Providers**: OpenRouter, Google Gemini, OpenAI (direct), Cerebras, Zenmux, LongCat, Exa API
 - **File Processing**: PDF extraction, DOCX generation, HTML parsing
@@ -254,7 +254,7 @@ npm run dev
 ### Rate Limiting & DEV Mode
 
 - For demo deployment, The backend enforces a free tier of **5 full-pipeline runs per client** by default.
-- Limits are tracked per `client_id` (from the `x-client-id` header, falling back to IP) and persisted in the SQLite run metadata store.
+- Limits are tracked per authenticated user in Supabase for production runs. Local fallback tracking only applies when `USE_SUPABASE_DB=false`.
 - An internal `MAX_FREE_RUNS` configuration exists (default `5`) but the product free tier is 5 runs per client; keep this value for public deployments.
 - For local development you can set `DEV_MODE=true` in `backend/.env` to temporarily bypass rate limiting:
   - When enabled, the backend logs a warning such as: `⚠️ DEV_MODE enabled - rate limits disabled for client_id=..., run_count=...`.
@@ -278,32 +278,31 @@ This section describes the current deployment setup for the hosted instance of R
 
 ### Current Deployment
 
-- **Backend**: Google Cloud Run 
-  - **Features**: Auto-scaling, SSE streaming support, Secret Manager integration
+- **Backend**: Railway target for the current launch plan
+  - **Features**: FastAPI runtime, SSE streaming support, environment-based secret management
 - **Frontend**: Vercel
   - **URL**: https://resume-optimizer-eosin.vercel.app
   - **Features**: Global CDN, zero-config deployments, API proxy rewrite
-- **Database**: SQLite (Cloud Run ephemeral storage at `/tmp`)
-  - **Note**: Data persists across requests but is lost on container restart
-  - **Future**: Migration to Cloud SQL PostgreSQL planned
+- **Database**: Supabase PostgreSQL
+  - **Note**: SQLite database files are not part of the production bundle and are only created when `USE_SUPABASE_DB=false` for local development
 
-### Cloud Run Deployment Highlights
+### Railway Deployment Highlights
 
 ✅ **SSE Streaming**: Configured with event persistence for reliable real-time updates
 ✅ **Secret Management**: API keys stored in Secret Manager, not environment variables
 ✅ **Rate Limiting**: Built-in protection with configurable free tier
 ✅ **Event Replay**: Clients can reconnect and resume from last known event
 ✅ **Cost Tracking**: Real-time cost calculation with multi-provider support
-✅ **Pinned Runtime**: Python version pinned via `backend/runtime.txt` (Python 3.11.x) to avoid incompatibilities with Cloud Run default images.
+✅ **Pinned Runtime**: Python version pinned via `backend/runtime.txt` (Python 3.11.x) for predictable Railway builds.
 
 ### Deployment Architecture
 
 ```
-User Browser → Vercel CDN → Cloud Run Backend
+User Browser → Vercel CDN → Railway Backend
                    ↓
             API Proxy Rewrite (/api/*)
                    ↓
-         SQLite Database (/tmp/applications.db)
+          Supabase PostgreSQL/Auth
 ```
 
 **Key Features:**
@@ -315,18 +314,16 @@ User Browser → Vercel CDN → Cloud Run Backend
 ### Production Considerations
 
 **Database Persistence:**
-Current SQLite setup is ephemeral. For production persistence:
-1. Create Cloud SQL PostgreSQL instance
-2. Update `backend/src/database/db.py` connection logic
-3. Set environment variables for Cloud SQL
+Production persistence uses Supabase PostgreSQL. Keep `USE_SUPABASE_DB=true`
+for deployments; use `USE_SUPABASE_DB=false` only for local SQLite debugging.
 
 **Monitoring:**
-- Cloud Run logs available in Google Cloud Console
+- Railway deployment logs available in the Railway service dashboard
 - Vercel analytics and monitoring dashboard
 - Application logs include cost tracking and performance metrics
 
 **Scaling:**
-- Cloud Run auto-scales based on request volume
+- Railway runs the FastAPI service as a normal web process
 - Minimum instances recommended for streaming reliability
 - Event persistence ensures state survives container restarts
 

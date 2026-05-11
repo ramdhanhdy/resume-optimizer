@@ -25,7 +25,7 @@ for authentication only — it never writes to the database directly.
 - **Runtime**: Python 3.11, FastAPI (`backend/server.py`)
 - **Database**: Supabase PostgreSQL via `SupabaseDatabase` adapter (`backend/src/database/supabase_db.py`)
 - **Hosting**: TBD (candidates: Railway, Fly.io, Render, or Cloud Run)
-- **Toggle**: `USE_SUPABASE_DB=true` env var switches from SQLite to Supabase
+- **Production DB mode**: `USE_SUPABASE_DB=true` is the default. SQLite is only created when `USE_SUPABASE_DB=false` is set explicitly for local development.
 
 The backend exposes a FastAPI application that powers the multi-agent pipeline, streaming
 endpoints, and export flows. All endpoints extract user identity from Supabase JWT tokens.
@@ -58,8 +58,9 @@ the backend and send it in a header or secure cookie when opening the SSE connec
 - **User authentication**: Supabase Auth (email/password, Google OAuth, GitHub OAuth).
 - **Backend auth**: JWT validation via `supabase.auth.get_user(token)` using the service
   role key. Extracts `user_id` (UUID) for all database operations.
-- **Fallback**: For backward compatibility, unauthenticated requests fall back to
-  `X-Client-Id` header or IP-based identification (returns SQLite database).
+- **Fallback**: Development-only fallback IDs require `DEV_MODE=true` and
+  `USE_SUPABASE_DB=false`; production requires Supabase Auth and does not create
+  SQLite database files.
 - **Metering**: 5 free resume generations per user per month, enforced via
   `check_and_increment_usage` Supabase RPC function. Active subscribers bypass the cap.
 
@@ -73,7 +74,7 @@ the backend and send it in a header or secure cookie when opening the SSE connec
 |----------|-------------|
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SECRET_KEY` | Supabase secret/service role key (server-side only) |
-| `USE_SUPABASE_DB` | Set to `true` to use Supabase instead of SQLite |
+| `USE_SUPABASE_DB` | Keep `true` for production; set `false` only for local SQLite debugging |
 | `DEFAULT_MODEL` | Default LLM model for agents |
 | `*_MODEL` | Per-agent model overrides (ANALYZER, OPTIMIZER, etc.) |
 | `OPENROUTER_API_KEY` | OpenRouter API key |

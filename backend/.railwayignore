@@ -1,0 +1,21 @@
+# Local runtime data and generated artifacts
+data/
+exports/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Development-only files
+.env
+.env.*
+!.env.example
+.venv/
+.pytest_cache/
+__pycache__/
+tests/
+evals/
+
+# Local helper scripts are not needed at runtime
+scripts/

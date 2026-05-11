@@ -117,7 +117,8 @@ Set `MAX_FREE_RUNS` environment variable to adjust (default: 5)
 
 ## Event Persistence & Replay
 
-All pipeline events are stored in SQLite, enabling powerful features:
+Pipeline events are kept in memory for live replay and mirrored to Supabase for
+authenticated production runs, enabling:
 
 **Reconnection Support:**
 - Automatically resume from last known event
@@ -130,8 +131,7 @@ All pipeline events are stored in SQLite, enabling powerful features:
 - Analyze optimization decisions
 
 **State Recovery:**
-- Serverless containers recover after restart
-- Cloud Run instances preserve event history
+- Authenticated production runs can recover persisted run metadata from Supabase
 - Zero-downtime deployments
 
 **Snapshot Access:**

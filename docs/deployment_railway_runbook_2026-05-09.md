@@ -27,8 +27,12 @@ Cloud Run is only the fallback if public browser/Vercel access is already solved
 
 ## Known repo/config findings
 
-- Backend already has a Procfile-compatible start command:
-  - `backend/Procfile`: `web: uvicorn server:app --host 0.0.0.0 --port $PORT`
+- Backend now has Railway config-as-code:
+  - `backend/railway.toml`
+  - start command works from either the repo root or `/backend`
+  - healthcheck path: `/api/health`
+- Backend still has a Procfile-compatible fallback:
+  - `backend/Procfile`: same working-directory-safe Uvicorn start command
 - Backend env example includes Supabase support:
   - `SUPABASE_URL`
   - `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
@@ -39,7 +43,7 @@ Cloud Run is only the fallback if public browser/Vercel access is already solved
   - explicit URL means cross-origin backend URL
 - Reviewer correction: old guidance that `VITE_API_URL='.'` is valid is stale/wrong for current frontend code. Use explicit Railway backend URL unless a Vercel rewrite is actually configured and tested.
 - There is no committed `vercel.json` rewrite config found in the repo.
-- Existing Cloud Run deploy script exists, but prior notes indicate public access/org-policy friction.
+- Legacy Cloud Run fallback script exists at `backend/deploy-cloudrun-fallback.sh`, but it requires `--confirm-cloud-run-fallback` to avoid accidental GCP deployment. Prior notes indicate public access/org-policy friction.
 
 ## Supabase setup checklist
 
@@ -70,12 +74,15 @@ Create a Railway service from the repo.
 Recommended settings:
 
 - **Root directory:** `backend`
-- **Start command:** use Procfile if Railway detects it, otherwise:
+- **Config file path:** `/backend/railway.toml`
+  - Railway's config file lookup does not automatically follow the root directory setting, so set the config path explicitly if Railway does not detect it.
+- **Start command:** already defined in `backend/railway.toml`; if setting it manually in Railway instead, use the same working-directory-safe command:
 
 ```bash
-uvicorn server:app --host 0.0.0.0 --port $PORT
+sh -c 'if [ -f server.py ]; then exec uvicorn server:app --host 0.0.0.0 --port $PORT; else cd backend && exec uvicorn server:app --host 0.0.0.0 --port $PORT; fi'
 ```
 
+- **Healthcheck path:** `/api/health`
 - **Python version:** repo has `backend/runtime.txt`; verify Railway uses Python 3.11+.
 
 ### Railway backend env vars
@@ -83,8 +90,6 @@ uvicorn server:app --host 0.0.0.0 --port $PORT
 Required production env:
 
 ```bash
-PORT=8000
-HOST=0.0.0.0
 USE_SUPABASE_DB=true
 SUPABASE_URL=https://<your-project>.supabase.co
 SUPABASE_SECRET_KEY=<server-side-supabase-secret-key>
@@ -92,6 +97,11 @@ CORS_ORIGINS=https://<your-vercel-domain>
 DEV_MODE=false
 MAX_FREE_RUNS=5
 ```
+
+Railway injects `PORT`; do not set it manually unless debugging a target-port issue.
+Do not set `DATABASE_PATH` on Railway. The backend defaults to Supabase and only
+creates SQLite files when `USE_SUPABASE_DB=false` is explicitly set for local
+development.
 
 LLM/search provider env vars:
 
@@ -224,7 +234,8 @@ If Railway backend fails:
   Mitigation: add `SCRAPINGDOG_API_KEY` if demo includes LinkedIn/profile evidence.
 
 - **SQLite fallback accidentally used**  
-  Mitigation: set `USE_SUPABASE_DB=true` and verify Supabase rows are created during smoke test.
+  Mitigation: keep `USE_SUPABASE_DB=true`, do not set `DATABASE_PATH`, and verify
+  Supabase rows are created during smoke test.
 
 ## Day-by-day plan
 

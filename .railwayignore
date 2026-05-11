@@ -1,0 +1,23 @@
+# Local runtime data and generated artifacts
+data/
+backend/data/
+backend/exports/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Development-only files
+.git/
+.uv-cache/
+backend/.venv/
+backend/.pytest_cache/
+backend/__pycache__/
+backend/tests/
+backend/evals/
+evals/
+
+# Frontend artifacts are deployed separately
+frontend/node_modules/
+frontend/dist/
