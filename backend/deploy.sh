@@ -207,8 +207,6 @@ ENV_VARS+=",CORS_ORIGINS=*"
 # Supabase configuration (use Supabase PostgreSQL instead of SQLite)
 ENV_VARS+=",SUPABASE_URL=${SUPABASE_URL:-https://ezdjywejiqqxmqenceal.supabase.co}"
 ENV_VARS+=",USE_SUPABASE_DB=true"
-# Fallback SQLite path (only used if USE_SUPABASE_DB=false)
-ENV_VARS+=",DATABASE_PATH=/tmp/applications.db"
 ENV_VARS+=",DEFAULT_MODEL=${DEFAULT_MODEL:-gemini::gemini-3-pro-preview}"
 ENV_VARS+=",ANALYZER_MODEL=${ANALYZER_MODEL:-gemini::gemini-3-pro-preview}"
 ENV_VARS+=",OPTIMIZER_MODEL=${OPTIMIZER_MODEL:-openai::gpt-5.1}"

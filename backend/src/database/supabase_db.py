@@ -1480,16 +1480,18 @@ class SupabaseDatabase:
 def get_database(user_id: Optional[str] = None):
     """Factory function to get the appropriate database instance.
     
-    Args:
-        user_id: User ID for Supabase. If None, returns SQLite database.
+    SQLite is an explicit local-development fallback only. Production defaults
+    to Supabase and must pass an authenticated user_id.
         
     Returns:
         Database instance (SupabaseDatabase or ApplicationDatabase)
     """
-    use_supabase = os.getenv("USE_SUPABASE_DB", "false").lower() == "true"
+    use_supabase = os.getenv("USE_SUPABASE_DB", "true").lower() == "true"
     
-    if use_supabase and user_id:
+    if use_supabase:
+        if not user_id:
+            raise ValueError("user_id is required when USE_SUPABASE_DB=true")
         return SupabaseDatabase(user_id)
-    else:
-        from .db import ApplicationDatabase
-        return ApplicationDatabase(user_id=user_id or "local")
+
+    from .db import ApplicationDatabase
+    return ApplicationDatabase(user_id=user_id or "local")

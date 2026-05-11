@@ -1,10 +1,9 @@
 """Recovery service for handling session recovery and retry logic."""
 
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-from ..database.db import ApplicationDatabase
 from ..utils.error_classification import (
     create_error_context,
     should_auto_retry,
@@ -12,11 +11,14 @@ from ..utils.error_classification import (
     ErrorCategory
 )
 
+if TYPE_CHECKING:
+    from ..database.db import ApplicationDatabase
+
 
 class RecoveryService:
     """Service for managing recovery sessions and retry logic."""
 
-    def __init__(self, db: ApplicationDatabase):
+    def __init__(self, db: "ApplicationDatabase"):
         """Initialize recovery service.
 
         Args:
@@ -332,4 +334,81 @@ class RecoveryService:
         )
 
 
-__all__ = ['RecoveryService']
+class NoopRecoveryService:
+    """Recovery service that classifies errors without writing a local database."""
+
+    def create_session(
+        self,
+        form_data: Dict[str, Any],
+        file_metadata: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> str:
+        return str(uuid.uuid4())
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        return None
+
+    def update_session_status(
+        self,
+        session_id: str,
+        status: str,
+        current_agent: Optional[int] = None,
+        completed_agents: Optional[List[int]] = None,
+    ) -> None:
+        return None
+
+    def save_checkpoint(
+        self,
+        session_id: str,
+        agent_index: int,
+        agent_name: str,
+        agent_output: Dict[str, Any],
+        execution_time_ms: Optional[int] = None,
+        model_used: Optional[str] = None,
+        tokens_used: Optional[int] = None,
+        cost_usd: Optional[float] = None,
+    ) -> int:
+        return 0
+
+    def get_checkpoints(self, session_id: str) -> List[Dict[str, Any]]:
+        return []
+
+    def log_error(
+        self,
+        exc: Exception,
+        session_id: Optional[str] = None,
+        request_path: Optional[str] = None,
+        request_method: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        additional_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return create_error_context(
+            exc=exc,
+            session_id=session_id,
+            request_path=request_path,
+            request_method=request_method,
+            additional_context=additional_context,
+        )
+
+    def can_retry(self, session_id: str) -> bool:
+        return False
+
+    def increment_retry_count(self, session_id: str) -> int:
+        raise ValueError(f"Session {session_id} not found")
+
+    def get_resume_point(self, session_id: str) -> Optional[int]:
+        return None
+
+    def reconstruct_state(self, session_id: str) -> Dict[str, Any]:
+        return {}
+
+    def cleanup_expired_sessions(self) -> int:
+        return 0
+
+    def mark_recovered(self, session_id: str, application_id: int) -> None:
+        return None
+
+
+__all__ = ['RecoveryService', 'NoopRecoveryService']

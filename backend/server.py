@@ -26,7 +26,7 @@ from src.agents import (
     ResumeRefinementAgent,
 )
 from src.api import fetch_job_posting_text, ExaContentError
-from src.database import ApplicationDatabase, get_database
+from src.database import get_database
 from src.utils import save_uploaded_file, cleanup_temp_file, extract_optimized_resume
 from src.api.client_factory import create_client
 from src.streaming import (
@@ -40,11 +40,12 @@ from src.streaming import (
     AgentStepStartedEvent,
     AgentStepCompletedEvent,
     AgentChunkEvent,
+    RoutingRunStore,
     RunStore,
 )
 from src.streaming.insight_extractor import insight_extractor
 from src.streaming.insight_listener import run_insight_listener
-from src.services.recovery_service import RecoveryService
+from src.services.recovery_service import NoopRecoveryService, RecoveryService
 from src.middleware.error_interceptor import ErrorInterceptorMiddleware
 from src.routes.recovery import router as recovery_router
 from src.app.services.persistence import save_profile as persist_profile
@@ -58,6 +59,13 @@ load_dotenv()
 from src.middleware.auth import get_current_user_id, get_user_id_from_request
 
 logger = logging.getLogger(__name__)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL") or "qwen/qwen3-max"
 ANALYZER_MODEL = os.getenv("ANALYZER_MODEL") or DEFAULT_MODEL
@@ -93,18 +101,10 @@ app.add_middleware(
 
 # Initialize database
 _db_path = os.getenv("DATABASE_PATH", "./data/applications.db")
-USE_SUPABASE_DB = os.getenv("USE_SUPABASE_DB", "false").lower() == "true"
-
-# Default SQLite database (used when Supabase is not enabled or for unauthenticated requests)
-db = ApplicationDatabase(db_path=_db_path)
-run_store = RunStore(db)
-stream_manager.attach_store(run_store)
-
-# Initialize recovery service
-recovery_service = RecoveryService(db)
+USE_SUPABASE_DB = _env_flag("USE_SUPABASE_DB", default=True)
 
 MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
-DEV_MODE_ENABLED = os.getenv("DEV_MODE", "false").lower() == "true"
+DEV_MODE_ENABLED = _env_flag("DEV_MODE", default=False)
 
 
 def _is_supabase_auth_user_id(user_id: Optional[str]) -> bool:
@@ -118,16 +118,48 @@ def _is_supabase_auth_user_id(user_id: Optional[str]) -> bool:
     return True
 
 
+if USE_SUPABASE_DB:
+    # Do not create a SQLite file in production. Run metadata is kept in memory
+    # for live SSE snapshots and mirrored to Supabase for authenticated users.
+    db = None
+    run_store = RoutingRunStore(
+        db_factory=get_database,
+        should_use_persistent_client=_is_supabase_auth_user_id,
+        logger=logger,
+    )
+    recovery_service = NoopRecoveryService()
+else:
+    from src.database import ApplicationDatabase
+
+    db = ApplicationDatabase(db_path=_db_path)
+    run_store = RunStore(db)
+    recovery_service = RecoveryService(db)
+
+stream_manager.attach_store(run_store)
+
+
 def get_db_for_user(user_id: str = None):
     """Get database instance for a user.
     
     When USE_SUPABASE_DB is enabled and user_id is a Supabase Auth UUID,
-    returns a SupabaseDatabase instance. Otherwise returns the default SQLite
-    database for local/dev fallback identities like ip:127.0.0.1.
+    returns a SupabaseDatabase instance. SQLite is only available when
+    USE_SUPABASE_DB=false for explicit local development.
     """
-    if USE_SUPABASE_DB and _is_supabase_auth_user_id(user_id):
-        return get_database(user_id)
+    if USE_SUPABASE_DB:
+        if _is_supabase_auth_user_id(user_id):
+            return get_database(user_id)
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     return db.for_user(user_id)
+
+
+def get_recovery_service_for_user(user_id: Optional[str]):
+    """Return a user-scoped recovery service without creating SQLite in production."""
+    if USE_SUPABASE_DB and _is_supabase_auth_user_id(user_id):
+        return RecoveryService(get_database(user_id))
+    if db is not None:
+        return RecoveryService(db.for_user(user_id))
+    return recovery_service
 
 
 async def require_user_data_user_id(
@@ -235,6 +267,7 @@ async def _build_refinement_summary_points(
 app.state.db = db
 app.state.recovery_service = recovery_service
 app.state.get_db_for_user = get_db_for_user
+app.state.get_recovery_service_for_user = get_recovery_service_for_user
 
 # Add error interceptor middleware
 app.add_middleware(ErrorInterceptorMiddleware, recovery_service=recovery_service)
@@ -1557,6 +1590,7 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    user_db = get_db_for_user(user_id)
     run_count = run_store.count_runs_for_client(user_id)
     if DEV_MODE_ENABLED:
         print(
@@ -1576,7 +1610,6 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
     )
     if should_persist_user_data:
         try:
-            user_db = get_db_for_user(user_id)
             pref_data = {}
             fields_set = getattr(request, "model_fields_set", set())
             if "linkedin_url" in fields_set:
@@ -1665,15 +1698,16 @@ async def run_pipeline_with_streaming(
     _provenance_snapshot_id: Optional[int] = None
     _provenance_evidence_ids: List[int] = []
     
-    # Get database instance for this user (Supabase if enabled, else SQLite)
+    # Get database instance for this user (Supabase if enabled, else explicit local SQLite)
     user_db = get_db_for_user(user_id)
+    pipeline_recovery_service = get_recovery_service_for_user(user_id)
 
     try:
         print(f"Starting pipeline for job_id: {job_id}")
         run_store.update_status(job_id, status="running")
 
         # Create recovery session for this pipeline run
-        session_id = recovery_service.create_session(
+        session_id = pipeline_recovery_service.create_session(
             form_data={
                 "job_text": job_text or "",
                 "job_url": job_url or "",
@@ -1691,7 +1725,7 @@ async def run_pipeline_with_streaming(
         print(f"✅ Created recovery session: {session_id}")
 
         # Update session status to processing
-        recovery_service.update_session_status(
+        pipeline_recovery_service.update_session_status(
             session_id=session_id,
             status="processing"
         )
@@ -2083,7 +2117,7 @@ async def run_pipeline_with_streaming(
 
         # Save checkpoint for recovery
         if session_id:
-            recovery_service.save_checkpoint(
+            pipeline_recovery_service.save_checkpoint(
                 session_id=session_id,
                 agent_index=0,
                 agent_name="Job Analyzer",
@@ -2155,7 +2189,7 @@ async def run_pipeline_with_streaming(
 
         # Save checkpoint for recovery
         if session_id:
-            recovery_service.save_checkpoint(
+            pipeline_recovery_service.save_checkpoint(
                 session_id=session_id,
                 agent_index=1,
                 agent_name="Resume Optimizer",
@@ -2231,7 +2265,7 @@ async def run_pipeline_with_streaming(
 
         # Save checkpoint for recovery
         if session_id:
-            recovery_service.save_checkpoint(
+            pipeline_recovery_service.save_checkpoint(
                 session_id=session_id,
                 agent_index=2,
                 agent_name="Optimizer Implementer",
@@ -2353,7 +2387,7 @@ async def run_pipeline_with_streaming(
 
         # Save checkpoint for recovery
         if session_id:
-            recovery_service.save_checkpoint(
+            pipeline_recovery_service.save_checkpoint(
                 session_id=session_id,
                 agent_index=3,
                 agent_name="Validator",
@@ -2455,7 +2489,7 @@ async def run_pipeline_with_streaming(
 
         # Save checkpoint for recovery
         if session_id:
-            recovery_service.save_checkpoint(
+            pipeline_recovery_service.save_checkpoint(
                 session_id=session_id,
                 agent_index=4,
                 agent_name="Polish Agent",
@@ -2466,11 +2500,11 @@ async def run_pipeline_with_streaming(
 
         # Mark recovery session as completed
         if session_id:
-            recovery_service.update_session_status(
+            pipeline_recovery_service.update_session_status(
                 session_id=session_id,
                 status="recovered"
             )
-            recovery_service.mark_recovered(session_id, app_id)
+            pipeline_recovery_service.mark_recovered(session_id, app_id)
             print(f"✅ Marked recovery session as completed")
 
         # Update application status to completed
@@ -2504,7 +2538,7 @@ async def run_pipeline_with_streaming(
 
         # Log error with recovery service
         if session_id:
-            error_context = recovery_service.log_error(
+            error_context = pipeline_recovery_service.log_error(
                 exc=e,
                 session_id=session_id,
                 additional_context={
