@@ -1747,43 +1747,51 @@ async def run_pipeline_with_streaming(
     # Get database instance for this user (Supabase if enabled, else explicit local SQLite)
     user_db = get_db_for_user(user_id)
     pipeline_recovery_service = get_recovery_service_for_user(user_id)
+    recovery_persistence_enabled = bool(
+        getattr(pipeline_recovery_service, "supports_persistence", False)
+    )
 
     try:
         print(f"Starting pipeline for job_id: {job_id}")
         run_store.update_status(job_id, status="running")
 
-        # Create recovery session for this pipeline run
-        session_id = pipeline_recovery_service.create_session(
-            form_data={
-                "job_text": job_text or "",
-                "job_url": job_url or "",
-                "linkedin_url": linkedin_url or "",
-                "github_username": github_username or "",
-                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
-            },
-            file_metadata={
-                "resume_length": len(resume_text),
-                "has_resume": bool(resume_text),
-                "additional_profile_text_length": len(additional_profile_text or ""),
-                "has_additional_profile_text": bool((additional_profile_text or "").strip()),
-            }
-        )
-        print(f"✅ Created recovery session: {session_id}")
+        if recovery_persistence_enabled:
+            # Create recovery session for this pipeline run
+            session_id = pipeline_recovery_service.create_session(
+                form_data={
+                    "job_text": job_text or "",
+                    "job_url": job_url or "",
+                    "linkedin_url": linkedin_url or "",
+                    "github_username": github_username or "",
+                    "has_additional_profile_text": bool((additional_profile_text or "").strip()),
+                },
+                file_metadata={
+                    "resume_length": len(resume_text),
+                    "has_resume": bool(resume_text),
+                    "additional_profile_text_length": len(additional_profile_text or ""),
+                    "has_additional_profile_text": bool((additional_profile_text or "").strip()),
+                }
+            )
+            print(f"✅ Created recovery session: {session_id}")
 
-        # Update session status to processing
-        pipeline_recovery_service.update_session_status(
-            session_id=session_id,
-            status="processing"
-        )
+            if session_id:
+                # Update session status to processing
+                pipeline_recovery_service.update_session_status(
+                    session_id=session_id,
+                    status="processing"
+                )
+        else:
+            print("ℹ️ Recovery persistence disabled for this run")
 
         # Set the main loop for thread-safe emission
         stream_manager.set_main_loop(asyncio.get_running_loop())
 
         # Emit job started with session ID
         await stream_manager.emit(JobStatusEvent.create(job_id, "started"))
-        await stream_manager.emit(MetricUpdateEvent.create(
-            job_id, "session_id", session_id, ""
-        ))
+        if session_id:
+            await stream_manager.emit(MetricUpdateEvent.create(
+                job_id, "session_id", session_id, ""
+            ))
         print(f"✅ Emitted job_status: started")
         
         # Start the parallel insight listener
