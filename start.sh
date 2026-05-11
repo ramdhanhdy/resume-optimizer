@@ -3,6 +3,12 @@
 echo "Starting Resume Optimizer Application..."
 echo ""
 
+if [ -n "${RAILWAY_ENVIRONMENT:-}" ] || [ -n "${RAILWAY_ENVIRONMENT_NAME:-}" ] || [ -n "${RAILWAY_PROJECT_ID:-}" ] || [ -n "${RAILWAY_SERVICE_ID:-}" ]; then
+    echo "Detected Railway runtime; starting backend API only..."
+    cd backend
+    exec python -m uvicorn server:app --host 0.0.0.0 --port "${PORT:-8000}"
+fi
+
 # Check if backend virtual environment exists
 if [ ! -d "backend/.venv" ]; then
     echo "Error: Backend virtual environment not found."

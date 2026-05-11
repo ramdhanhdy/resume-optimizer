@@ -19,5 +19,6 @@ backend/evals/
 evals/
 
 # Frontend artifacts are deployed separately
+frontend/
 frontend/node_modules/
 frontend/dist/

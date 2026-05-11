@@ -31,6 +31,11 @@ Cloud Run is only the fallback if public browser/Vercel access is already solved
   - `backend/railway.toml`
   - start command works from either the repo root or `/backend`
   - healthcheck path: `/api/health`
+- Repo root also has a Railway fallback config:
+  - `railway.toml`
+  - `requirements.txt` delegates to `backend/requirements.txt`
+  - `runtime.txt` pins Python to `python-3.11.9`
+  - this prevents Railway's default root deploy from choosing the local `start.sh`
 - Backend still has a Procfile-compatible fallback:
   - `backend/Procfile`: same working-directory-safe Uvicorn start command
 - Backend env example includes Supabase support:
@@ -76,6 +81,7 @@ Recommended settings:
 - **Root directory:** `backend`
 - **Config file path:** `/backend/railway.toml`
   - Railway's config file lookup does not automatically follow the root directory setting, so set the config path explicitly if Railway does not detect it.
+  - If the service is left at the repo root, Railway will use the repo-root `railway.toml` fallback instead.
 - **Start command:** already defined in `backend/railway.toml`; if setting it manually in Railway instead, use the same working-directory-safe command:
 
 ```bash
