@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 import logging
 import os
 import json
@@ -67,6 +68,40 @@ def _env_flag(name: str, default: bool = False) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
+
+def _supabase_config_errors() -> List[str]:
+    """Return missing Supabase settings for the production database path."""
+    errors: List[str] = []
+    if not os.getenv("SUPABASE_URL"):
+        errors.append("SUPABASE_URL")
+    if not (os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")):
+        errors.append("SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY")
+    return errors
+
+
+def _validate_runtime_config() -> None:
+    """Fail fast with a clear message when required runtime config is missing."""
+    if not USE_SUPABASE_DB:
+        return
+
+    missing = _supabase_config_errors()
+    if not missing:
+        return
+
+    missing_text = ", ".join(missing)
+    raise RuntimeError(
+        "Supabase is the default database backend, but required configuration is "
+        f"missing: {missing_text}. Set these environment variables, or set "
+        "USE_SUPABASE_DB=false only for explicit local SQLite debugging."
+    )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _validate_runtime_config()
+    yield
+
+
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL") or "qwen/qwen3-max"
 ANALYZER_MODEL = os.getenv("ANALYZER_MODEL") or DEFAULT_MODEL
 OPTIMIZER_MODEL = os.getenv("OPTIMIZER_MODEL") or DEFAULT_MODEL
@@ -86,7 +121,7 @@ PROFILE_TEMPERATURE = float(os.getenv("PROFILE_TEMPERATURE", "0.1"))
 POLISH_TEMPERATURE = float(os.getenv("POLISH_TEMPERATURE", "0.8"))
 REFINE_TEMPERATURE = float(os.getenv("REFINE_TEMPERATURE", str(POLISH_TEMPERATURE)))
 
-app = FastAPI(title="Resume Optimizer API", version="1.0.0")
+app = FastAPI(title="Resume Optimizer API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")]
@@ -522,6 +557,7 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     """Lightweight healthcheck for deployment readiness probes."""
+    _validate_runtime_config()
     return {
         "status": "healthy",
         "timestamp": int(time.time()),

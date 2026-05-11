@@ -29,10 +29,10 @@ Cloud Run is only the fallback if public browser/Vercel access is already solved
 
 - Backend now has Railway config-as-code:
   - `backend/railway.toml`
-  - start command: `uvicorn server:app --host 0.0.0.0 --port $PORT`
+  - start command works from either the repo root or `/backend`
   - healthcheck path: `/api/health`
 - Backend still has a Procfile-compatible fallback:
-  - `backend/Procfile`: `web: uvicorn server:app --host 0.0.0.0 --port $PORT`
+  - `backend/Procfile`: same working-directory-safe Uvicorn start command
 - Backend env example includes Supabase support:
   - `SUPABASE_URL`
   - `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
@@ -76,10 +76,10 @@ Recommended settings:
 - **Root directory:** `backend`
 - **Config file path:** `/backend/railway.toml`
   - Railway's config file lookup does not automatically follow the root directory setting, so set the config path explicitly if Railway does not detect it.
-- **Start command:** already defined in `backend/railway.toml`; if setting it manually in Railway instead, use:
+- **Start command:** already defined in `backend/railway.toml`; if setting it manually in Railway instead, use the same working-directory-safe command:
 
 ```bash
-uvicorn server:app --host 0.0.0.0 --port $PORT
+sh -c 'if [ -f server.py ]; then exec uvicorn server:app --host 0.0.0.0 --port $PORT; else cd backend && exec uvicorn server:app --host 0.0.0.0 --port $PORT; fi'
 ```
 
 - **Healthcheck path:** `/api/health`

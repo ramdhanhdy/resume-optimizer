@@ -190,4 +190,5 @@ Visit the displayed URL (typically http://localhost:5173).
 
 ### Database errors
 - For deployment, verify `USE_SUPABASE_DB=true`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`
+- The backend validates these settings at startup when Supabase mode is enabled.
 - For local SQLite debugging only, set `USE_SUPABASE_DB=false` and ensure `DATABASE_PATH` is writable

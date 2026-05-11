@@ -45,6 +45,7 @@ EXA_API_KEY=your_exa_key_here
 **Solutions**:
 - For deployment, verify `USE_SUPABASE_DB=true`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`
 - Confirm Supabase migrations have been applied
+- If Supabase mode is enabled and these env vars are missing, the backend now fails startup with the missing variable names.
 - For local SQLite debugging only, set `USE_SUPABASE_DB=false` and make sure `DATABASE_PATH` is writable
 
 **Configuration**:
