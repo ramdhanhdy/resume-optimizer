@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 class RecoveryService:
     """Service for managing recovery sessions and retry logic."""
 
+    supports_persistence = True
+
     def __init__(self, db: "ApplicationDatabase"):
         """Initialize recovery service.
 
@@ -337,14 +339,16 @@ class RecoveryService:
 class NoopRecoveryService:
     """Recovery service that classifies errors without writing a local database."""
 
+    supports_persistence = False
+
     def create_session(
         self,
         form_data: Dict[str, Any],
         file_metadata: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-    ) -> str:
-        return str(uuid.uuid4())
+    ) -> Optional[str]:
+        return None
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         return None

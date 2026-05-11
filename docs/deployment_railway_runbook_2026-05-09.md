@@ -43,7 +43,7 @@ Cloud Run is only the fallback if public browser/Vercel access is already solved
   - explicit URL means cross-origin backend URL
 - Reviewer correction: old guidance that `VITE_API_URL='.'` is valid is stale/wrong for current frontend code. Use explicit Railway backend URL unless a Vercel rewrite is actually configured and tested.
 - There is no committed `vercel.json` rewrite config found in the repo.
-- Existing Cloud Run deploy script exists, but prior notes indicate public access/org-policy friction.
+- Legacy Cloud Run fallback script exists at `backend/deploy-cloudrun-fallback.sh`, but it requires `--confirm-cloud-run-fallback` to avoid accidental GCP deployment. Prior notes indicate public access/org-policy friction.
 
 ## Supabase setup checklist
 

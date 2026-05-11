@@ -1,14 +1,19 @@
 #!/bin/bash
-# deploy.sh - Deploy Resume Optimizer Backend to Google Cloud Run
+# deploy-cloudrun-fallback.sh - Legacy Cloud Run fallback deploy script
 # 
+# Railway is the current production backend target. Use this script only if you
+# intentionally choose the documented Cloud Run fallback path.
+#
 # This script implements a hybrid secrets approach:
 # - Sensitive API keys → Secret Manager (encrypted, auditable)
 # - Configuration settings → Environment variables (easily updatable)
 #
 # Usage:
-#   ./deploy.sh [--setup-secrets] [--region REGION] [--project PROJECT]
+#   ./deploy-cloudrun-fallback.sh --confirm-cloud-run-fallback [--setup-secrets] [--region REGION] [--project PROJECT]
 #
 # Options:
+#   --confirm-cloud-run-fallback
+#                       Required. Confirms you are intentionally deploying to Cloud Run.
 #   --setup-secrets    Create/update secrets in Secret Manager (run once or when keys change)
 #   --region          GCP region (default: us-central1)
 #   --project         GCP project ID (default: from gcloud config)
@@ -25,13 +30,18 @@ NC='\033[0m' # No Color
 
 # Default values
 REGION="us-central1"
-PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null || true)
 SERVICE_NAME="resume-optimizer-backend"
 SETUP_SECRETS=false
+CONFIRM_CLOUD_RUN=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --confirm-cloud-run-fallback)
+      CONFIRM_CLOUD_RUN=true
+      shift
+      ;;
     --setup-secrets)
       SETUP_SECRETS=true
       shift
@@ -45,7 +55,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --help)
-      head -n 15 "$0" | tail -n 12
+      head -n 20 "$0" | tail -n 17
       exit 0
       ;;
     *)
@@ -56,11 +66,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [ "$CONFIRM_CLOUD_RUN" != true ]; then
+  echo -e "${RED}Refusing to deploy to Cloud Run by default.${NC}"
+  echo ""
+  echo "Railway is the current backend deployment target."
+  echo "Use backend/railway.toml and docs/deployment_railway_runbook_2026-05-09.md."
+  echo ""
+  echo "If you intentionally need the Cloud Run fallback, rerun with:"
+  echo "  ./deploy-cloudrun-fallback.sh --confirm-cloud-run-fallback"
+  exit 1
+fi
+
 # Validate project ID
 if [ -z "$PROJECT_ID" ]; then
   echo -e "${RED}❌ Error: No GCP project ID found${NC}"
   echo "Set it with: gcloud config set project YOUR_PROJECT_ID"
-  echo "Or use: ./deploy.sh --project YOUR_PROJECT_ID"
+  echo "Or use: ./deploy-cloudrun-fallback.sh --confirm-cloud-run-fallback --project YOUR_PROJECT_ID"
   exit 1
 fi
 
