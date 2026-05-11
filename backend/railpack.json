@@ -4,7 +4,8 @@
     "libcairo2-dev",
     "pkg-config",
     "libpango1.0-dev",
-    "libgdk-pixbuf2.0-dev"
+    "libgdk-pixbuf2.0-dev",
+    "python3-dev"
   ],
   "deploy": {
     "aptPackages": [
