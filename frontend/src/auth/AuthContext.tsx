@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!supabase) {
-      throw new Error('Supabase auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, or enable VITE_AUTH_BYPASS=true for local bypass.');
+      throw new Error('Sign-in is temporarily unavailable. Please try again later.');
     }
     await supabase.auth.signInWithOAuth({
       provider,
