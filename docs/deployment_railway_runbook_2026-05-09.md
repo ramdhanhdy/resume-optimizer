@@ -93,6 +93,10 @@ DEV_MODE=false
 MAX_FREE_RUNS=5
 ```
 
+Do not set `DATABASE_PATH` on Railway. The backend defaults to Supabase and only
+creates SQLite files when `USE_SUPABASE_DB=false` is explicitly set for local
+development.
+
 LLM/search provider env vars:
 
 ```bash
@@ -224,7 +228,8 @@ If Railway backend fails:
   Mitigation: add `SCRAPINGDOG_API_KEY` if demo includes LinkedIn/profile evidence.
 
 - **SQLite fallback accidentally used**  
-  Mitigation: set `USE_SUPABASE_DB=true` and verify Supabase rows are created during smoke test.
+  Mitigation: keep `USE_SUPABASE_DB=true`, do not set `DATABASE_PATH`, and verify
+  Supabase rows are created during smoke test.
 
 ## Day-by-day plan
 

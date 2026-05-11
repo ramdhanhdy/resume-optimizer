@@ -99,8 +99,14 @@ MAX_FREE_RUNS=5
 
 **Database:
 ```bash
-# SQLite path (Cloud Run uses /tmp for ephemeral storage)
-DATABASE_PATH=./data/applications.db
+# Production/default database mode
+USE_SUPABASE_DB=true
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_SECRET_KEY=<server-side-secret-key>
+
+# Local SQLite debugging only
+# USE_SUPABASE_DB=false
+# DATABASE_PATH=./data/applications.db
 ```
 
 **CORS configuration:
@@ -183,6 +189,5 @@ Visit the displayed URL (typically http://localhost:5173).
 - Ensure CORS settings in backend `.env`
 
 ### Database errors
-- Ensure `DATABASE_PATH` directory exists
-- Check file permissions on SQLite database
-- In Cloud Run, remember data is ephemeral (use `/tmp`)
+- For deployment, verify `USE_SUPABASE_DB=true`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`
+- For local SQLite debugging only, set `USE_SUPABASE_DB=false` and ensure `DATABASE_PATH` is writable

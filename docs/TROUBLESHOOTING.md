@@ -40,18 +40,22 @@ EXA_API_KEY=your_exa_key_here
 
 ### Database Errors
 
-**Problem**: SQLite database errors or connection issues
+**Problem**: Database errors or connection issues
 
 **Solutions**:
-- Ensure `DATABASE_PATH` directory exists and is writable
-- Check file permissions on SQLite database
-- In Cloud Run, remember data is ephemeral (use `/tmp` directory)
-- For local development: `mkdir -p ./data` in backend directory
+- For deployment, verify `USE_SUPABASE_DB=true`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`
+- Confirm Supabase migrations have been applied
+- For local SQLite debugging only, set `USE_SUPABASE_DB=false` and make sure `DATABASE_PATH` is writable
 
 **Configuration**:
 ```bash
-DATABASE_PATH=./data/applications.db  # Local development
-DATABASE_PATH=/tmp/applications.db    # Cloud Run production
+USE_SUPABASE_DB=true
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SECRET_KEY=<server-side-secret-key>
+
+# Local SQLite debugging only:
+# USE_SUPABASE_DB=false
+# DATABASE_PATH=./data/applications.db
 ```
 
 ### SSE/Streaming Issues
@@ -210,10 +214,9 @@ curl https://openrouter.ai/api/v1/models \
 **Problem**: SQLite "database is locked" errors
 
 **Solutions**:
-- Use connection pooling with timeout
-- Ensure proper connection closing in code
-- Consider using WAL mode for better concurrency
-- For production, migrate to PostgreSQL
+- This only applies when using the explicit local SQLite fallback
+- Keep `USE_SUPABASE_DB=true` in production so Railway does not create SQLite files
+- For local debugging, close extra local backend processes before retrying
 
 **WAL mode configuration**:
 ```python
@@ -239,7 +242,9 @@ OPENROUTER_API_KEY=your_key_here
 GEMINI_API_KEY=your_key_here
 
 # Database
-DATABASE_PATH=./data/applications.db
+USE_SUPABASE_DB=true
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SECRET_KEY=<server-side-secret-key>
 
 # CORS
 CORS_ORIGINS=*
