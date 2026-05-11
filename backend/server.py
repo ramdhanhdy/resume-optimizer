@@ -174,7 +174,7 @@ else:
 stream_manager.attach_store(run_store)
 
 
-def get_db_for_user(user_id: str = None):
+def get_db_for_user(user_id: Optional[str] = None):
     """Get database instance for a user.
     
     When USE_SUPABASE_DB is enabled and user_id is a Supabase Auth UUID,
