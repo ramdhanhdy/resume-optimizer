@@ -7,6 +7,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
+class RunStorePersistenceError(RuntimeError):
+    """Raised when persistent run accounting cannot be completed."""
+
+
 class RunStore:
     """Wrapper around ApplicationDatabase for run metadata and events."""
 
@@ -157,6 +161,9 @@ class RoutingRunStore:
             self._persistent_stores[job_id] = store
         except Exception as exc:
             self._log_warning(f"Failed to persist run {job_id}: {exc}")
+            raise RunStorePersistenceError(
+                f"Failed to persist run metadata for {job_id}"
+            ) from exc
 
     def update_status(
         self,
@@ -247,6 +254,9 @@ class RoutingRunStore:
                 return RunStore(self._db_factory(client_id)).count_runs_for_client(client_id)
             except Exception as exc:
                 self._log_warning(f"Failed to count persisted runs for {client_id}: {exc}")
+                raise RunStorePersistenceError(
+                    f"Failed to count persisted runs for {client_id}"
+                ) from exc
         return self._memory.count_runs_for_client(client_id)
 
     def purge_run(self, job_id: str) -> None:

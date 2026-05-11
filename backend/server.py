@@ -43,6 +43,7 @@ from src.streaming import (
     AgentChunkEvent,
     RoutingRunStore,
     RunStore,
+    RunStorePersistenceError,
 )
 from src.streaming.insight_extractor import insight_extractor
 from src.streaming.insight_listener import run_insight_listener
@@ -1637,7 +1638,14 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
 
     user_db = get_db_for_user(user_id)
-    run_count = run_store.count_runs_for_client(user_id)
+    try:
+        run_count = run_store.count_runs_for_client(user_id)
+    except RunStorePersistenceError as exc:
+        logger.warning("Failed to count runs before pipeline start: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking is temporarily unavailable. Please try again.",
+        ) from exc
     if DEV_MODE_ENABLED:
         print(
             f"⚠️ DEV_MODE enabled - rate limits disabled for user_id={user_id}, run_count={run_count}"
@@ -1694,7 +1702,14 @@ async def start_pipeline(request: PipelineRequest, http_request: Request):
             print(f"⚠️ Failed to auto-save preferences: {e}")
 
     job_id = str(uuid.uuid4())
-    run_store.create_run(job_id=job_id, client_id=user_id, status="queued")
+    try:
+        run_store.create_run(job_id=job_id, client_id=user_id, status="queued")
+    except RunStorePersistenceError as exc:
+        logger.warning("Failed to create tracked run before pipeline start: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking is temporarily unavailable. Please try again.",
+        ) from exc
 
     # Start pipeline in background
     asyncio.create_task(run_pipeline_with_streaming(
