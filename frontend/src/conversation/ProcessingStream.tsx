@@ -288,7 +288,7 @@ export function ProcessingStream() {
         </AnimatePresence>
       </div>
 
-      {startError && !isFailed && !isCanceled && (
+      {startError && activeStep && !isFailed && !isCanceled && (
         <p className="mt-1 text-[13px] text-red-500">{startError}</p>
       )}
 

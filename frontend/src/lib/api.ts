@@ -81,7 +81,21 @@ export async function uploadResume(file: File): Promise<{ text: string; filename
     body: fd,
     headers: await getAuthHeaders(),
   });
-  if (!res.ok) throw new ApiError(`Upload failed: ${res.statusText}`, res.status);
+  if (!res.ok) {
+    let detail = res.statusText || `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? body.message ?? detail;
+    } catch {
+      try {
+        const text = await res.text();
+        detail = text || detail;
+      } catch {
+        /* swallow */
+      }
+    }
+    throw new ApiError(`Upload failed: ${detail}`, res.status);
+  }
   return res.json();
 }
 

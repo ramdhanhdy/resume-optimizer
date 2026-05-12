@@ -568,21 +568,32 @@ async def health_check():
 
 @app.post("/api/upload-resume")
 async def upload_resume(file: UploadFile = File(...)):
-    """Handle resume file upload with PDF extraction via Gemini."""
+    """Handle resume file upload and return extracted text."""
+    file_path = None
     try:
         # Save uploaded file to temp location
         file_path = save_uploaded_file(file.file, file.filename)
-        
-        # Extract text from file (uses Gemini 2.5 Flash for PDFs)
+
         from src.utils import extract_text_from_file
-        resume_text = await extract_text_from_file(file_path)
-        
-        # Cleanup temp file
-        cleanup_temp_file(file_path)
-        
-        # Determine extraction method used
         from src.utils import is_pdf
-        extraction_method = "gemini-2.5-flash" if is_pdf(file.filename) else "direct"
+
+        is_pdf_file = is_pdf(file.filename or "")
+        extraction_method = "direct"
+
+        if is_pdf_file:
+            try:
+                resume_text = await extract_text_from_file(file_path, use_gemini=False)
+                extraction_method = "pypdf"
+            except Exception as local_error:
+                logger.warning(
+                    "Local PDF extraction failed for filename=%s; falling back to Gemini",
+                    file.filename,
+                    exc_info=True,
+                )
+                resume_text = await extract_text_from_file(file_path, use_gemini=True)
+                extraction_method = "gemini-2.5-flash"
+        else:
+            resume_text = await extract_text_from_file(file_path, use_gemini=False)
         
         return {
             "success": True,
@@ -592,7 +603,10 @@ async def upload_resume(file: UploadFile = File(...)):
             "extraction_method": extraction_method,
         }
     except Exception as e:
+        logger.exception("Resume upload failed for filename=%s", file.filename)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cleanup_temp_file(file_path)
 
 
 @app.post("/api/job-preview")
