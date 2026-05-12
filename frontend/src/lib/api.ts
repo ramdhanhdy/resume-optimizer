@@ -94,6 +94,10 @@ export async function uploadResume(file: File): Promise<{ text: string; filename
         /* swallow */
       }
     }
+    if (res.status === 405 && API_BASE_URL === '') {
+      detail =
+        'Backend API URL is not configured. Set VITE_API_URL to the Railway backend URL or add a Vercel /api rewrite.';
+    }
     throw new ApiError(`Upload failed: ${detail}`, res.status);
   }
   return res.json();
