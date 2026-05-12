@@ -10,6 +10,10 @@ interface AuthPillsProps {
    *  AuthGateBridge handles advancing once `isAuthenticated` flips true,
    *  so callers rarely need this. */
   onPick?: (provider: 'google' | 'email') => void;
+  /** Called synchronously *before* a real OAuth redirect fires.
+   *  The parent uses this to snapshot conversation state so it survives
+   *  the full-page navigation. */
+  onBeforeRedirect?: () => void;
   disabled?: boolean;
 }
 
@@ -22,7 +26,7 @@ interface AuthPillsProps {
  * <AuthGateBridge/> in `AppShell`, which watches `isAuthenticated` and
  * calls `submit()` once the session lands.
  */
-export function AuthPills({ providers, onPick, disabled }: AuthPillsProps) {
+export function AuthPills({ providers, onPick, onBeforeRedirect, disabled }: AuthPillsProps) {
   const { signInWithOAuth, bypassMode } = useAuth();
   const [pending, setPending] = useState<'google' | 'email' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +35,8 @@ export function AuthPills({ providers, onPick, disabled }: AuthPillsProps) {
     setPending('google');
     setError(null);
     try {
+      // Snapshot conversation state before the redirect navigates away.
+      onBeforeRedirect?.();
       await signInWithOAuth('google');
       onPick?.('google');
     } catch (err) {

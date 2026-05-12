@@ -20,6 +20,11 @@ import {
   refineResume as refineResumeApi,
 } from '@/lib/api';
 import { findStep, initialScript } from './script';
+import {
+  loadSnapshot,
+  saveSnapshot,
+  type ConversationSnapshot,
+} from './sessionPersistence';
 
 type Action =
   | { type: 'BOOT' }
@@ -28,6 +33,7 @@ type Action =
   | { type: 'PUSH_USER'; message: UserMessage }
   | { type: 'ADVANCE'; nextStepId: string | null; patch?: Record<string, unknown> }
   | { type: 'RESTORE_REVIEW'; review: ApplicationReview; message: AgentMessage }
+  | { type: 'RESTORE_SNAPSHOT'; snapshot: ConversationSnapshot }
   | { type: 'COMPLETE_PROCESSING'; review: ApplicationReview; message: AgentMessage }
   | { type: 'REFINE_START'; instruction: string }
   | { type: 'REFINE_SUCCESS'; review: ApplicationReview; message: AgentMessage }
@@ -124,6 +130,20 @@ function reducer(state: ConversationState, action: Action): ConversationState {
         agentTyping: false,
       };
     }
+    case 'RESTORE_SNAPSHOT': {
+      // Hydrate state from a saved snapshot (surviving an OAuth redirect).
+      // The snapshot's phase will be AUTH_GATE; the AuthGateBridge will
+      // detect isAuthenticated and advance to PROCESSING on the next tick.
+      const snap = action.snapshot;
+      return {
+        ...initialState,
+        messages: snap.messages,
+        data: snap.data,
+        currentStepId: snap.currentStepId,
+        phase: snap.phase,
+        agentTyping: false,
+      };
+    }
     case 'COMPLETE_PROCESSING': {
       // Atomic transition from PROCESSING -> REVIEWING: merge the result
       // into data AND push the final agent message in one dispatch so
@@ -171,6 +191,11 @@ export interface ConversationApi {
    * replaces the review payload with the refined version on success.
    */
   refine: (instruction: string) => void;
+  /**
+   * Persist the current conversation state so it survives a full-page
+   * redirect (OAuth). Called by AuthPills right before the redirect.
+   */
+  snapshotState: () => void;
   reset: () => void;
 }
 
@@ -188,8 +213,10 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   const bootedRef = useRef(false);
   const skipRestoreRef = useRef(false);
 
-  // Boot once on mount. If an authenticated user has a completed review,
-  // restore directly into review mode; otherwise start the normal script.
+  // Boot once on mount. Priority order:
+  //   1. Saved snapshot from an OAuth redirect → restore in-progress conversation
+  //   2. Authenticated user with a completed review → restore review mode
+  //   3. Fresh start → BOOT
   useEffect(() => {
     if (authLoading) return;
     if (bootedRef.current) return;
@@ -198,6 +225,23 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     let settled = false;
 
     void (async () => {
+      // 1) Check for an in-progress conversation snapshot (post-OAuth redirect).
+      if (!skipRestoreRef.current && isAuthenticated) {
+        try {
+          const snapshot = await loadSnapshot();
+          if (cancelled) return;
+          if (snapshot) {
+            settled = true;
+            dispatch({ type: 'RESTORE_SNAPSHOT', snapshot });
+            return;
+          }
+        } catch (err) {
+          if (cancelled) return;
+          console.warn('Snapshot restore failed:', err);
+        }
+      }
+
+      // 2) Authenticated user — try to restore a completed review.
       if (!skipRestoreRef.current && isAuthenticated) {
         try {
           const review = await getLatestApplicationReview();
@@ -217,6 +261,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      // 3) Fresh start.
       if (!cancelled) {
         settled = true;
         dispatch({ type: 'BOOT' });
@@ -302,6 +347,10 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [state.currentStepId, state.data],
   );
+
+  const snapshotState = useCallback(() => {
+    saveSnapshot(state);
+  }, [state]);
 
   const reset = useCallback(() => {
     skipRestoreRef.current = true;
@@ -406,8 +455,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [state.activeAgentMessageId, state.messages]);
 
   const value = useMemo<ConversationApi>(
-    () => ({ state, activeAgent, submit, completeProcessing, loadReview, refine, reset }),
-    [state, activeAgent, submit, completeProcessing, loadReview, refine, reset],
+    () => ({ state, activeAgent, submit, completeProcessing, loadReview, refine, snapshotState, reset }),
+    [state, activeAgent, submit, completeProcessing, loadReview, refine, snapshotState, reset],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -19,7 +19,7 @@ import type { AgentUI } from './types';
  * stays stable.
  */
 export function Composer() {
-  const { state, activeAgent, submit, refine, reset } = useConversation();
+  const { state, activeAgent, submit, refine, reset, snapshotState } = useConversation();
   const [value, setValue] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -111,6 +111,7 @@ export function Composer() {
               key={`auth-${activeAgent?.id}`}
               providers={ui.providers}
               disabled={disabled}
+              onBeforeRedirect={snapshotState}
             />
           )}
 
