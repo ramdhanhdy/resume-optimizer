@@ -4,7 +4,9 @@
  *
  * JSON-safe fields (messages, data metadata, phase, stepId) live in
  * **sessionStorage**.  File blobs (`File` objects) can't be serialised to
- * JSON, so they're stashed in **IndexedDB** and re-attached on restore.
+ * JSON, so they're stashed in **IndexedDB** as ArrayBuffers (which
+ * survive structured-clone reliably across all browsers) and
+ * reconstructed into `File` objects on restore.
  *
  * Both stores are one-shot: `loadSnapshot` clears them immediately after
  * reading so stale state never leaks into a future session.
@@ -28,6 +30,14 @@ export interface ConversationSnapshot {
   hasFiles: boolean;
 }
 
+/** Metadata we persist alongside the ArrayBuffer so we can rebuild a File. */
+interface StoredFileEntry {
+  buffer: ArrayBuffer;
+  name: string;
+  type: string;
+  lastModified: number;
+}
+
 // ── IndexedDB helpers (thin, promise-based) ───────────────────────────
 
 function openDB(): Promise<IDBDatabase> {
@@ -44,7 +54,7 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function idbPut(key: string, value: File): Promise<void> {
+async function idbPut(key: string, value: StoredFileEntry): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite');
@@ -54,12 +64,12 @@ async function idbPut(key: string, value: File): Promise<void> {
   });
 }
 
-async function idbGet(key: string): Promise<File | undefined> {
+async function idbGet(key: string): Promise<StoredFileEntry | undefined> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readonly');
     const req = tx.objectStore(IDB_STORE).get(key);
-    req.onsuccess = () => { db.close(); resolve(req.result as File | undefined); };
+    req.onsuccess = () => { db.close(); resolve(req.result as StoredFileEntry | undefined); };
     req.onerror = () => { db.close(); reject(req.error); };
   });
 }
@@ -78,15 +88,14 @@ async function idbClear(): Promise<void> {
 
 /**
  * Snapshot the current conversation state so it survives a full-page
- * redirect. Call this **synchronously before** the OAuth redirect fires.
- *
- * File blobs are persisted to IndexedDB (async but fire-and-forget; the
- * browser will flush before navigating away in practice).
+ * redirect. This is **async** — callers MUST await it before triggering
+ * the redirect so IndexedDB transactions flush to disk.
  */
-export function saveSnapshot(state: ConversationState): void {
+export async function saveSnapshot(state: ConversationState): Promise<void> {
   // Strip non-serialisable `File` objects from data; keep metadata.
   const cleanData: CollectedData = { ...state.data };
   let hasFiles = false;
+  const idbWrites: Promise<void>[] = [];
 
   if (cleanData.resumeFile?.file) {
     const file = cleanData.resumeFile.file;
@@ -96,8 +105,18 @@ export function saveSnapshot(state: ConversationState): void {
       mime: cleanData.resumeFile.mime,
     };
     hasFiles = true;
-    // Fire-and-forget — browser will flush IDB before navigating away.
-    void idbPut('resumeFile', file);
+    // Read the file into an ArrayBuffer — this is a reliable
+    // serialisable form that survives IDB structured-clone.
+    idbWrites.push(
+      file.arrayBuffer().then((buffer) =>
+        idbPut('resumeFile', {
+          buffer,
+          name: file.name,
+          type: file.type,
+          lastModified: file.lastModified,
+        }),
+      ),
+    );
   }
 
   if (cleanData.additionalProfileFile?.file) {
@@ -108,7 +127,16 @@ export function saveSnapshot(state: ConversationState): void {
       mime: cleanData.additionalProfileFile.mime,
     };
     hasFiles = true;
-    void idbPut('additionalProfileFile', file);
+    idbWrites.push(
+      file.arrayBuffer().then((buffer) =>
+        idbPut('additionalProfileFile', {
+          buffer,
+          name: file.name,
+          type: file.type,
+          lastModified: file.lastModified,
+        }),
+      ),
+    );
   }
 
   const snapshot: ConversationSnapshot = {
@@ -123,6 +151,12 @@ export function saveSnapshot(state: ConversationState): void {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch (err) {
     console.warn('[sessionPersistence] Failed to save snapshot:', err);
+  }
+
+  // Wait for ALL IndexedDB writes to complete before returning so the
+  // caller can safely trigger a page navigation afterwards.
+  if (idbWrites.length > 0) {
+    await Promise.all(idbWrites);
   }
 }
 
@@ -151,19 +185,27 @@ export async function loadSnapshot(): Promise<ConversationSnapshot | null> {
   // Re-attach File blobs from IndexedDB.
   if (snapshot.hasFiles) {
     try {
-      const resumeBlob = await idbGet('resumeFile');
-      if (resumeBlob && snapshot.data.resumeFile) {
+      const resumeEntry = await idbGet('resumeFile');
+      if (resumeEntry && snapshot.data.resumeFile) {
+        const file = new File([resumeEntry.buffer], resumeEntry.name, {
+          type: resumeEntry.type,
+          lastModified: resumeEntry.lastModified,
+        });
         snapshot.data.resumeFile = {
           ...snapshot.data.resumeFile,
-          file: resumeBlob,
+          file,
         };
       }
 
-      const additionalBlob = await idbGet('additionalProfileFile');
-      if (additionalBlob && snapshot.data.additionalProfileFile) {
+      const additionalEntry = await idbGet('additionalProfileFile');
+      if (additionalEntry && snapshot.data.additionalProfileFile) {
+        const file = new File([additionalEntry.buffer], additionalEntry.name, {
+          type: additionalEntry.type,
+          lastModified: additionalEntry.lastModified,
+        });
         snapshot.data.additionalProfileFile = {
           ...snapshot.data.additionalProfileFile,
-          file: additionalBlob,
+          file,
         };
       }
     } catch (err) {

@@ -10,10 +10,9 @@ interface AuthPillsProps {
    *  AuthGateBridge handles advancing once `isAuthenticated` flips true,
    *  so callers rarely need this. */
   onPick?: (provider: 'google' | 'email') => void;
-  /** Called synchronously *before* a real OAuth redirect fires.
-   *  The parent uses this to snapshot conversation state so it survives
-   *  the full-page navigation. */
-  onBeforeRedirect?: () => void;
+  /** Called *before* a real OAuth redirect fires. Must be awaited so
+   *  file blobs flush to IndexedDB before the page navigates away. */
+  onBeforeRedirect?: () => Promise<void> | void;
   disabled?: boolean;
 }
 
@@ -36,7 +35,8 @@ export function AuthPills({ providers, onPick, onBeforeRedirect, disabled }: Aut
     setError(null);
     try {
       // Snapshot conversation state before the redirect navigates away.
-      onBeforeRedirect?.();
+      // Must be awaited so IndexedDB writes complete before navigation.
+      await onBeforeRedirect?.();
       await signInWithOAuth('google');
       onPick?.('google');
     } catch (err) {

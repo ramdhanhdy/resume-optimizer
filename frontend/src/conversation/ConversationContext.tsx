@@ -194,8 +194,9 @@ export interface ConversationApi {
   /**
    * Persist the current conversation state so it survives a full-page
    * redirect (OAuth). Called by AuthPills right before the redirect.
+   * **Must be awaited** so IndexedDB writes flush before navigation.
    */
-  snapshotState: () => void;
+  snapshotState: () => Promise<void>;
   reset: () => void;
 }
 
@@ -349,7 +350,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const snapshotState = useCallback(() => {
-    saveSnapshot(state);
+    return saveSnapshot(state);
   }, [state]);
 
   const reset = useCallback(() => {
