@@ -63,7 +63,7 @@ export function ProcessingStream() {
           } catch (err) {
             const message =
               err instanceof Error ? err.message : 'Resume upload failed.';
-            throw new Error(`${message} Re-attach the file and try again.`, {
+            throw new Error(addUploadHint(message), {
               cause: err,
             });
           }
@@ -92,7 +92,7 @@ export function ProcessingStream() {
           } catch (err) {
             const message =
               err instanceof Error ? err.message : 'Additional context upload failed.';
-            throw new Error(`${message} Re-attach the file and try again.`, {
+            throw new Error(addUploadHint(message), {
               cause: err,
             });
           }
@@ -316,6 +316,13 @@ async function extractAdditionalProfileText(file: File): Promise<string> {
 
   const uploaded = await uploadResume(file);
   return uploaded.text;
+}
+
+function addUploadHint(message: string): string {
+  if (/VITE_API_URL|CORS_ORIGINS|Could not reach backend API|Backend API URL/i.test(message)) {
+    return message;
+  }
+  return `${message} Re-attach the file and try again.`;
 }
 
 /**

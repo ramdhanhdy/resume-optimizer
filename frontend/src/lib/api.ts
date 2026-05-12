@@ -76,11 +76,22 @@ async function request<T>(
 export async function uploadResume(file: File): Promise<{ text: string; filename: string }> {
   const fd = new FormData();
   fd.append('file', file);
-  const res = await fetch(`${API_BASE_URL}/api/upload-resume`, {
-    method: 'POST',
-    body: fd,
-    headers: await getAuthHeaders(),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/upload-resume`, {
+      method: 'POST',
+      body: fd,
+      headers: await getAuthHeaders(),
+    });
+  } catch {
+    const target =
+      API_BASE_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : 'the configured backend');
+    throw new ApiError(
+      `Upload failed: Could not reach backend API at ${target}. Verify VITE_API_URL, Railway service availability, and CORS_ORIGINS.`,
+      0,
+    );
+  }
   if (!res.ok) {
     let detail = res.statusText || `HTTP ${res.status}`;
     try {
