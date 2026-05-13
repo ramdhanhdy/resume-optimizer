@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { STEP_LABELS, type StepName } from '@/types/streaming';
+import { STEP_LABELS, type InsightState, type StepName } from '@/types/streaming';
 import { useProcessingJob } from './useProcessingJob';
 import { useConversation } from './ConversationContext';
 import { useTypewriter } from './useTypewriter';
@@ -208,8 +208,10 @@ export function ProcessingStream() {
     };
   }, [isComplete, completeProcessing, jobState?.result]);
 
-  // Latest insight for the ambient caption line under the active step.
-  const latestInsight = jobState?.insights[0];
+  // Rotate through emitted insights one at a time so each one is readable.
+  // Each insight gets a minimum dwell; if new insights stream in faster than
+  // that, they queue up chronologically and are revealed in order.
+  const displayedInsight = useRotatingInsight(jobState?.insights);
   const activeStep = stepLog[stepLog.length - 1];
   const historyBefore = stepLog.slice(0, Math.max(0, stepLog.length - 1));
 
@@ -270,19 +272,19 @@ export function ProcessingStream() {
       {/* Latest insight — small ambient caption under the active step. */}
       <div className="min-h-[1.5rem] w-full text-center">
         <AnimatePresence mode="wait">
-          {latestInsight && (
+          {displayedInsight && (
             <motion.p
-              key={latestInsight.id}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.35 }}
+              key={displayedInsight.id}
+              initial={{ opacity: 0, y: 6, filter: 'blur(3px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+              transition={{ duration: 0.45, ease: [0.2, 0.7, 0.2, 1] }}
               className={cn(
                 'mx-auto max-w-[40ch] text-[13px] italic text-ink-500',
-                latestInsight.importance === 'high' && 'text-ink-700',
+                displayedInsight.importance === 'high' && 'text-ink-700',
               )}
             >
-              {latestInsight.message}
+              {displayedInsight.message}
             </motion.p>
           )}
         </AnimatePresence>
@@ -323,6 +325,80 @@ function addUploadHint(message: string): string {
     return message;
   }
   return `${message} Re-attach the file and try again.`;
+}
+
+/**
+ * Minimum time (ms) a single insight stays on screen before the next
+ * queued insight can take over. Keeps fast-streaming insights readable.
+ */
+const INSIGHT_DWELL_MS = 2800;
+
+/**
+ * Rotate through `insights` (newest-first as delivered by `useProcessingJob`)
+ * one at a time, with a minimum dwell so each one is actually readable.
+ *
+ * Behaviour:
+ *   - Newly arrived insights are appended to an internal FIFO queue in
+ *     chronological order (oldest unseen first).
+ *   - Once an insight is shown it stays for at least `INSIGHT_DWELL_MS`.
+ *   - When the dwell elapses, the next queued insight is shown.
+ *   - If the queue is empty after dwell, the current insight stays put
+ *     until a new one arrives, at which point it swaps immediately.
+ */
+function useRotatingInsight(
+  insights: InsightState[] | undefined,
+): InsightState | null {
+  const [displayed, setDisplayed] = useState<InsightState | null>(null);
+  const [displayedAt, setDisplayedAt] = useState(0);
+  const queueRef = useRef<InsightState[]>([]);
+  const seenRef = useRef<Set<string>>(new Set());
+
+  const advance = useCallback(() => {
+    const next = queueRef.current.shift();
+    if (!next) return false;
+    seenRef.current.add(next.id);
+    setDisplayed(next);
+    setDisplayedAt(Date.now());
+    return true;
+  }, []);
+
+  // Enqueue any newly arrived insights, then advance if appropriate.
+  useEffect(() => {
+    if (!insights || insights.length === 0) return;
+
+    // `insights` is newest-first; iterate in reverse for chronological order.
+    for (let i = insights.length - 1; i >= 0; i--) {
+      const ins = insights[i];
+      if (seenRef.current.has(ins.id)) continue;
+      if (queueRef.current.some((q) => q.id === ins.id)) continue;
+      queueRef.current.push(ins);
+    }
+
+    if (!displayed) {
+      advance();
+      return;
+    }
+
+    // If the current insight has already had its dwell time, swap right away.
+    const elapsed = Date.now() - displayedAt;
+    if (queueRef.current.length > 0 && elapsed >= INSIGHT_DWELL_MS) {
+      advance();
+    }
+  }, [insights, displayed, displayedAt, advance]);
+
+  // Schedule the next swap once the current insight has been visible long
+  // enough. If nothing is queued when the timer fires, we keep the current
+  // one and rely on the enqueue effect above to swap on the next arrival.
+  useEffect(() => {
+    if (!displayed) return;
+    const remaining = Math.max(0, INSIGHT_DWELL_MS - (Date.now() - displayedAt));
+    const timer = window.setTimeout(() => {
+      if (queueRef.current.length > 0) advance();
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [displayed, displayedAt, advance]);
+
+  return displayed;
 }
 
 /**
