@@ -1937,13 +1937,14 @@ async def run_pipeline_with_streaming(
                     # Fetch GitHub repos if provided
                     if github_username:
                         print(f"📥 Fetching GitHub repos for: {github_username}")
-                        if github_token:
-                            print(f"✅ Using user-provided GitHub token")
+                        effective_github_token = github_token or os.getenv("GITHUB_TOKEN")
+                        if effective_github_token:
+                            print(f"✅ Using configured GitHub token")
                         else:
                             print(f"⚠️ No GitHub token provided - using unauthenticated API (rate limited)")
                         try:
                             profile_repos = await loop.run_in_executor(
-                                None, fetch_github_repos, github_username, github_token, 20
+                                None, fetch_github_repos, github_username, effective_github_token, 20
                             )
                             if profile_repos:
                                 print(f"✅ GitHub repos fetched: {len(profile_repos)} repos")
