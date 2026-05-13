@@ -34,6 +34,7 @@ export function ConversationFeed() {
   const showTyping = state.agentTyping || !activeAgent;
   const isReviewing = state.phase === 'REVIEWING';
   const isRefining = !!state.refining;
+  const isFreshStart = state.messages.length === 0 && !activeAgent;
 
   return (
     <section
@@ -45,22 +46,26 @@ export function ConversationFeed() {
           : 'min-h-[8rem] items-center justify-center',
       )}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {isRefining ? (
-          <RefiningIndicator
-            key="refining"
-            instruction={state.refineInstruction ?? ''}
-          />
-        ) : showTyping ? (
-          <AgentTypingIndicator key="typing" />
-        ) : (
-          <MessageBubble
-            key={activeAgent!.id}
-            message={activeAgent!}
-            isLatest
-          />
-        )}
-      </AnimatePresence>
+      {isFreshStart ? (
+        <AgentTypingIndicator key="typing" />
+      ) : (
+        <AnimatePresence mode="wait" initial={false}>
+          {isRefining ? (
+            <RefiningIndicator
+              key="refining"
+              instruction={state.refineInstruction ?? ''}
+            />
+          ) : showTyping ? (
+            <AgentTypingIndicator key="typing" />
+          ) : (
+            <MessageBubble
+              key={activeAgent!.id}
+              message={activeAgent!}
+              isLatest
+            />
+          )}
+        </AnimatePresence>
+      )}
     </section>
   );
 }
