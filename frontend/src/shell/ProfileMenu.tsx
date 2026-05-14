@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LogOut, User, History, Settings } from 'lucide-react';
+import { ChevronDown, LogOut, User, History, Settings, LogIn } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 import { cn } from '@/lib/cn';
 
@@ -9,13 +9,14 @@ interface ProfileMenuProps {
   className?: string;
   onOpenHistory?: () => void;
   onOpenSettings?: () => void;
+  onSignIn?: () => Promise<void> | void;
 }
 
 /**
  * Minimal, semi-transparent profile menu anchored top-right.
  * Shows account status and exposes real sign-out when authenticated.
  */
-export function ProfileMenu({ user, className, onOpenHistory, onOpenSettings }: ProfileMenuProps) {
+export function ProfileMenu({ user, className, onOpenHistory, onOpenSettings, onSignIn }: ProfileMenuProps) {
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +147,24 @@ export function ProfileMenu({ user, className, onOpenHistory, onOpenSettings }: 
               >
                 <LogOut className="h-4 w-4" strokeWidth={2} />
                 Sign out
+              </button>
+            </>
+          )}
+
+          {!signedIn && onSignIn && (
+            <>
+              <div className="my-1 h-px w-full bg-ink-200/50" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleAction(onSignIn)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-ink-700 transition',
+                  'hover:bg-white/70 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-sky-300/60',
+                )}
+              >
+                <LogIn className="h-4 w-4" strokeWidth={2} />
+                Sign in with Google
               </button>
             </>
           )}

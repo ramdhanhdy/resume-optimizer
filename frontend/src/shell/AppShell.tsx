@@ -50,8 +50,8 @@ export function AppShell() {
 function ShellChrome() {
   // Phase drives layout variations. Phases 1/2 keep a single centered column;
   // Phase 5 (REVIEWING) will split to feed-left / stage-right.
-  const { state } = useConversation();
-  const { user, bypassMode } = useAuth();
+  const { state, snapshotState } = useConversation();
+  const { user, bypassMode, signInWithOAuth } = useAuth();
   const isReviewing = state.phase === 'REVIEWING';
 
   const [activeDrawer, setActiveDrawer] = useState<'history' | 'settings' | null>(null);
@@ -92,6 +92,10 @@ function ShellChrome() {
             }
             onOpenHistory={() => setActiveDrawer('history')}
             onOpenSettings={() => setActiveDrawer('settings')}
+            onSignIn={async () => {
+              await snapshotState();
+              await signInWithOAuth('google');
+            }}
           />
         </div>
       </header>
