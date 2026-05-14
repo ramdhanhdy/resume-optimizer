@@ -13,6 +13,7 @@ import { cn } from '@/lib/cn';
 
 interface FileDropZoneProps {
   accept?: string;
+  dropLabel?: string;
   onPickFile: (file: File) => void;
 }
 
@@ -21,7 +22,7 @@ interface FileDropZoneProps {
  * Clicking it also opens the native file picker.
  */
 export const FileDropZone = forwardRef<HTMLInputElement, FileDropZoneProps>(
-  function FileDropZone({ accept, onPickFile }, forwardedRef) {
+  function FileDropZone({ accept, dropLabel, onPickFile }, forwardedRef) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -97,7 +98,7 @@ export const FileDropZone = forwardRef<HTMLInputElement, FileDropZoneProps>(
         strokeWidth={1.75}
       />
       <span className="font-medium">
-        Drop your resume here
+        {dropLabel || 'Drop your resume here'}
         <span className="mx-2 text-ink-300">·</span>
         <span className="text-ink-400">or click to browse</span>
       </span>

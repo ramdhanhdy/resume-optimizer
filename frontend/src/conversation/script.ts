@@ -150,6 +150,7 @@ export const initialScript: ScriptStep[] = [
       accept: '.pdf,.txt,.md',
       placeholder: 'Paste portfolio notes, project wins, LinkedIn/GitHub summary…',
       allowFreeText: true,
+      dropLabel: 'Drop additional context',
     },
     handle: (input) => {
       const patch: Partial<CollectedData> = {};

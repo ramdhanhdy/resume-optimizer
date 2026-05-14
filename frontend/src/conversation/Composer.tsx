@@ -101,6 +101,7 @@ export function Composer() {
               <FileDropZone
                 ref={hiddenFileInputRef}
                 accept={ui.accept}
+                dropLabel={ui.dropLabel}
                 onPickFile={(f) => setFile(f)}
               />
             </motion.div>

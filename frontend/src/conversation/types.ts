@@ -27,7 +27,7 @@ export interface Choice {
 export type AgentUI =
   | { kind: 'text'; placeholder?: string; multiline?: boolean }
   | { kind: 'choices'; choices: Choice[]; allowFreeText?: boolean; placeholder?: string }
-  | { kind: 'file'; accept?: string; placeholder?: string; allowFreeText?: boolean }
+  | { kind: 'file'; accept?: string; placeholder?: string; allowFreeText?: boolean; dropLabel?: string }
   | { kind: 'auth'; providers: Array<'google' | 'email'> }
   /**
    * Phase 5 reveal state. No composer input; the AgentMessage's body
