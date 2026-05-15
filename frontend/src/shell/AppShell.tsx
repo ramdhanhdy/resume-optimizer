@@ -137,8 +137,8 @@ function ShellChrome() {
           layout
           transition={{ duration: 0.65, ease: [0.2, 0.7, 0.2, 1] }}
           className={cn(
-            'relative flex flex-col pt-28 sm:pt-36',
-            isReviewing ? 'h-full overflow-hidden' : 'min-h-dvh pb-52',
+            'relative flex flex-col',
+            isReviewing ? 'h-full overflow-hidden pt-20 sm:pt-24' : 'min-h-dvh pt-28 sm:pt-36 pb-52',
           )}
         >
           <div
@@ -200,7 +200,7 @@ function ShellChrome() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4 }}
-              className="hidden lg:flex relative h-full flex-col overflow-hidden pt-28 sm:pt-36"
+              className="hidden lg:flex relative h-full flex-col overflow-hidden pt-20 sm:pt-24"
             >
               <ResumeStage
                 resume={state.data.review.resume}
