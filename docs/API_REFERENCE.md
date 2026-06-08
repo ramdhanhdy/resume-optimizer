@@ -59,7 +59,7 @@ Start the complete resume optimization pipeline with streaming.
 - Asynchronous processing
 - Returns immediately with job ID
 - Results streamed via SSE
-- Configurable rate limiting (default: 5 runs per client)
+- Configurable rate limiting (default: 10 runs per client)
 
 **Rate Limiting:**
 - Returns HTTP 429 if limit exceeded
@@ -616,9 +616,9 @@ Resume pipeline execution from checkpoint.
 {
   "error": {
     "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Rate limit exceeded. Maximum 5 runs per client.",
+    "message": "Rate limit exceeded. Maximum 10 runs per client.",
     "details": {
-      "limit": 5,
+      "limit": 10,
       "retry_after": 3600
     }
   }
@@ -630,7 +630,7 @@ Resume pipeline execution from checkpoint.
 **Headers in 429 response:**
 ```
 Retry-After: 3600
-X-RateLimit-Limit: 5
+X-RateLimit-Limit: 10
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1234567890
 ```
@@ -640,7 +640,7 @@ X-RateLimit-Reset: 1234567890
 ## Rate Limiting Details
 
 **Default Limits:**
-- Free tier: 5 runs per client
+- Free tier: 10 runs per client
 - Adjustable via `MAX_FREE_RUNS` environment variable
 
 **Client Identification:**

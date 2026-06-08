@@ -93,8 +93,8 @@ POLISH_TEMPERATURE=0.7
 
 **Rate limiting:
 ```bash
-# Maximum free runs per client (default: 5)
-MAX_FREE_RUNS=5
+# Maximum free runs per client (default: 10)
+MAX_FREE_RUNS=10
 ```
 
 **Database:

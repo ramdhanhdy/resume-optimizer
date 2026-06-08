@@ -101,7 +101,7 @@ SUPABASE_URL=https://<your-project>.supabase.co
 SUPABASE_SECRET_KEY=<server-side-supabase-secret-key>
 CORS_ORIGINS=https://<your-vercel-domain>
 DEV_MODE=false
-MAX_FREE_RUNS=5
+MAX_FREE_RUNS=10
 ```
 
 Railway injects `PORT`; do not set it manually unless debugging a target-port issue.

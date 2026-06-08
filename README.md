@@ -133,7 +133,7 @@ The system includes a parallel insight extraction pipeline that provides real-ti
 - 💾 **Application Tracking**: Save and compare multiple applications with version history
 - 🎯 **Profile Persistence**: Profile data stored in database for reuse across applications
 - 🎨 **Modern UI**: Beautiful React interface with real-time streaming updates and smooth animations
-- 👥 **Rate Limiting**: Built-in free tier management (default 5 runs per client) with abuse prevention; see **Rate Limiting & DEV Mode** below for configuration details.
+- 👥 **Rate Limiting**: Built-in free tier management (default 10 runs per client) with abuse prevention; see **Rate Limiting & DEV Mode** below for configuration details.
 
 ### Demo Deployment Features
 - ☁️ **Cloud-Native**: Railway backend target with Vercel frontend
@@ -253,9 +253,9 @@ npm run dev
 
 ### Rate Limiting & DEV Mode
 
-- For demo deployment, The backend enforces a free tier of **5 full-pipeline runs per client** by default.
+- For demo deployment, The backend enforces a free tier of **10 full-pipeline runs per client** by default.
 - Limits are tracked per authenticated user in Supabase for production runs. Local fallback tracking only applies when `USE_SUPABASE_DB=false`.
-- An internal `MAX_FREE_RUNS` configuration exists (default `5`) but the product free tier is 5 runs per client; keep this value for public deployments.
+- An internal `MAX_FREE_RUNS` configuration exists (default `10`) but the product free tier is 10 runs per client; keep this value for public deployments.
 - For local development you can set `DEV_MODE=true` in `backend/.env` to temporarily bypass rate limiting:
   - When enabled, the backend logs a warning such as: `⚠️ DEV_MODE enabled - rate limits disabled for client_id=..., run_count=...`.
   - **Never enable `DEV_MODE` in production** — leave it unset or `false` so the free tier remains enforced.
@@ -264,13 +264,13 @@ npm run dev
 
 The hosted demo depends on the free tiers or sponsored credits of upstream providers:
 
-- **Gemini (Google)**: Free access is subject to Google\'s own rate limits and quotas. In practice this can cause occasional slowdowns or failures even if you are still within the app\'s 5-run limit.
+- **Gemini (Google)**: Free access is subject to Google\'s own rate limits and quotas. In practice this can cause occasional slowdowns or failures even if you are still within the app\'s 10-run limit.
 - **LongCat API**: The demo key is supported by the LongCat API platform with a daily token allowance of 5 million tokens daily. On very busy days this allowance can be exhausted, in which case some runs may fail until the provider\'s quota resets (typically the next day).
 - **OpenRouter Stealth Models**: The app may periodically use "stealth" models from OpenRouter when available (e.g., `openrouter/sherlock-think-alpha`) which are cloaked, free-to-use models. These models are provided free by their creators in exchange for training data collection—the model providers explicitly state that usage data will be used to improve their models. Stealth models are only integrated after testing confirms they offer good performance for the app's use case. While beneficial for cost reduction, stealth models have two important caveats:
   - **Temporary Availability**: Stealth model providers may end their free period at any time without notice. When this happens, the app will fail if it's still configured to use the discontinued model.
   - **Rate Limiting**: Since stealth models are free and popular, they can experience high usage and hit rate limits during peak times. While not a frequent issue, you may occasionally encounter slowdowns or temporary failures due to many users accessing the same model simultaneously.
 
-These provider limits are outside the app\'s direct control. If you encounter unexplained failures while still under the 5-run cap, it may be due to upstream provider quotas temporarily being exhausted or stealth models being discontinued.
+These provider limits are outside the app\'s direct control. If you encounter unexplained failures while still under the 10-run cap, it may be due to upstream provider quotas temporarily being exhausted or stealth models being discontinued.
 
 ## 🚀 Deployment
 

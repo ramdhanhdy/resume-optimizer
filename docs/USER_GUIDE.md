@@ -103,7 +103,7 @@ Pipeline state is persisted, enabling:
 The application includes built-in rate limiting:
 
 **Free Tier Limits:**
-- **5 resume generations per client** (browser)
+- **10 resume generations per client** (browser)
 - Tracking via LocalStorage-maintained client ID
 - Persists across browser sessions
 
@@ -113,7 +113,7 @@ The application includes built-in rate limiting:
 - Contact information for higher limits
 
 **Customizing Limits:**
-Set `MAX_FREE_RUNS` environment variable to adjust (default: 5)
+Set `MAX_FREE_RUNS` environment variable to adjust (default: 10)
 
 ## Event Persistence & Replay
 

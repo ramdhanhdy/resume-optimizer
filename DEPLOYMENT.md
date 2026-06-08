@@ -82,7 +82,7 @@ the backend and send it in a header or secure cookie when opening the SSE connec
 | `EXA_API_KEY` | Exa search API key |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
 | `DEV_MODE` | Set to `true` to bypass rate limiting locally |
-| `MAX_FREE_RUNS` | Free generation cap (default: 5) |
+| `MAX_FREE_RUNS` | Free generation cap (default: 10) |
 
 ### Frontend (`frontend/.env.production`)
 

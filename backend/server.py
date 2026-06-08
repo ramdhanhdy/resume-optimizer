@@ -139,7 +139,7 @@ app.add_middleware(
 _db_path = os.getenv("DATABASE_PATH", "./data/applications.db")
 USE_SUPABASE_DB = _env_flag("USE_SUPABASE_DB", default=True)
 
-MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "5"))
+MAX_FREE_RUNS = int(os.getenv("MAX_FREE_RUNS", "10"))
 DEV_MODE_ENABLED = _env_flag("DEV_MODE", default=False)
 
 

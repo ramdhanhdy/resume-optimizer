@@ -81,14 +81,14 @@ gcloud run services update resume-optimizer-backend \
 **Problem**: HTTP 429 errors or "Rate limit exceeded"
 
 **Solutions**:
-- Check `MAX_FREE_RUNS` environment variable (default: 5)
+- Check `MAX_FREE_RUNS` environment variable (default: 10)
 - Verify client ID is being sent in `X-Client-ID` header
 - Clear browser LocalStorage if client ID issues persist with `localStorage.clear()`
 - Check rate limiting status in logs
 
 **Configuration**:
 ```bash
-MAX_FREE_RUNS=5  # Default free tier runs per client
+MAX_FREE_RUNS=10  # Default free tier runs per client
 ```
 
 ## Frontend Issues

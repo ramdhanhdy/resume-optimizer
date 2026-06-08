@@ -144,7 +144,7 @@ SUPABASE_SECRET_KEY=<server-side-secret-key>
 CORS_ORIGINS=*  # Restrict in production
 
 # Rate limiting
-MAX_FREE_RUNS=5
+MAX_FREE_RUNS=10
 ```
 
 **Testing API endpoints:**
